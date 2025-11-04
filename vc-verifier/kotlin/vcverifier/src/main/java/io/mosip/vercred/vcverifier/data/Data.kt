@@ -1,5 +1,7 @@
 package io.mosip.vercred.vcverifier.data
 
+import io.mosip.vercred.vcverifier.exception.StatusCheckException
+
 data class VerificationResult(
     var verificationStatus: Boolean,
     var verificationMessage: String = "",
@@ -40,4 +42,16 @@ enum class DataModel {
 data class ValidationStatus(
     val validationMessage: String,
     val validationErrorCode: String
+)
+
+data class CredentialStatusResult(
+    val purpose: String,
+    val status: Int,
+    val valid: Boolean,
+    val error: StatusCheckException?
+)
+
+data class CredentialVerificationSummary(
+    val verificationResult: VerificationResult,
+    val credentialStatus: List<CredentialStatusResult>
 )

@@ -3,6 +3,7 @@ package io.mosip.vercred.vcverifier.credentialverifier.types
 import io.mosip.vercred.vcverifier.credentialverifier.VerifiableCredential
 import io.mosip.vercred.vcverifier.credentialverifier.validator.SdJwtValidator
 import io.mosip.vercred.vcverifier.credentialverifier.verifier.SdJwtVerifier
+import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.ValidationStatus
 
 class SdJwtVerifiableCredential: VerifiableCredential {
@@ -14,8 +15,8 @@ class SdJwtVerifiableCredential: VerifiableCredential {
         return SdJwtVerifier().verify(credential)
     }
 
-    override fun isRevoked(credential: String): Boolean {
+    override fun checkStatus(credential: String, statusPurposes: List<String>?): List<CredentialStatusResult>? {
         // TODO: Not yet implemented
-        return false;
+        return null
     }
 }
