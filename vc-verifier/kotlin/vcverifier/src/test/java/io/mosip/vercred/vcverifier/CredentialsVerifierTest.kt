@@ -1,5 +1,6 @@
 package io.mosip.vercred.vcverifier
 
+import io.mockk.mockkObject
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.LDP_VC
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.MSO_MDOC
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.VC_SD_JWT
@@ -7,7 +8,13 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.CONTEX
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_GENERIC
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_CODE_VERIFICATION_FAILED
+import io.mosip.vercred.vcverifier.credentialverifier.CredentialVerifierFactory
+import io.mosip.vercred.vcverifier.credentialverifier.statusChecker.LdpStatusChecker
+import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.CredentialVerificationSummary
+import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
@@ -158,4 +165,79 @@ class CredentialsVerifierTest {
         assertEquals(0, result.credentialStatus.size)
     }
 
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `should verify VC and return StatusList for unrevoked VC`() {
+        val mockStatusList = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "ldp_vc/mosipUnrevokedStatusList.json")
+        val mockStatusListJson = String(Files.readAllBytes(mockStatusList.toPath()))
+
+        val originalVC = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "ldp_vc/mosipUnrevokedVC.json")
+        val originalVCJson = String(Files.readAllBytes(originalVC.toPath()))
+
+        val realUrl = "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
+
+        mockkObject(NetworkManagerClient.Companion)
+
+        io.mockk.every {
+            NetworkManagerClient.sendHTTPRequest(realUrl, any())
+        } answers {
+            val mapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
+            mapper.readValue(mockStatusListJson, Map::class.java) as Map<String, Any>?
+        }
+
+        val result: CredentialVerificationSummary =
+            CredentialsVerifier().verifyAndGetCredentialStatus(
+                originalVCJson,
+                LDP_VC,
+                listOf("revocation")
+            )
+
+        assertNotNull(result)
+        assertEquals(1, result.credentialStatus.size)
+
+        val status = result.credentialStatus[0]
+        assertEquals("revocation", status.purpose)
+        assertEquals(0, status.status)
+        assertTrue(status.valid)
+        assertNull(status.error)
+
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `should verify VC and return StatusList for revoked VC`() {
+        val mockStatusList = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "ldp_vc/mosipRevokedStatusList.json")
+        val mockStatusListJson = String(Files.readAllBytes(mockStatusList.toPath()))
+
+        val originalVC = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "ldp_vc/mosipRevokedVC.json")
+        val originalVCJson = String(Files.readAllBytes(originalVC.toPath()))
+
+        val realUrl = "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
+
+        mockkObject(NetworkManagerClient.Companion)
+
+        io.mockk.every {
+            NetworkManagerClient.sendHTTPRequest(realUrl, any())
+        } answers {
+            val mapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
+            mapper.readValue(mockStatusListJson, Map::class.java) as Map<String, Any>?
+        }
+
+        val result: CredentialVerificationSummary =
+            CredentialsVerifier().verifyAndGetCredentialStatus(
+                originalVCJson,
+                LDP_VC,
+                listOf("revocation")
+            )
+
+        assertNotNull(result)
+        assertEquals(1, result.credentialStatus.size)
+
+        val status = result.credentialStatus[0]
+        assertEquals("revocation", status.purpose)
+        assertNotEquals(0, status.status)
+        assertFalse(status.valid)
+        assertNull(status.error)
+
+    }
 }
