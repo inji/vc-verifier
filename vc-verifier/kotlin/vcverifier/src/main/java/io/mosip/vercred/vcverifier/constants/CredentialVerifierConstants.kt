@@ -44,9 +44,6 @@ object CredentialVerifierConstants {
     const val ERROR_MESSAGE_VERIFICATION_FAILED = "Verification Failed"
     const val ERROR_CODE_VERIFICATION_FAILED = "ERR_SIGNATURE_VERIFICATION_FAILED"
 
-    const val ERROR_VC_REVOKED = "Credential is revoked"
-    const val ERROR_CODE_VC_REVOKED = "REVOKED"
-
     // This is used to turn public key bytes into a buffer in DER format
     const val DER_PUBLIC_KEY_PREFIX = "302a300506032b6570032100"
 

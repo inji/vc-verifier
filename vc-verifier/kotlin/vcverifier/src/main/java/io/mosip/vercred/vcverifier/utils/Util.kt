@@ -9,7 +9,6 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.CONTEXT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.CREDENTIALS_CONTEXT_V1_URL
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.CREDENTIALS_CONTEXT_V2_URL
-import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_CODE_VC_REVOKED
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JWS_EDDSA_SIGN_ALGO_CONST
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JWS_ES256K_SIGN_ALGO_CONST
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JWS_ES256_SIGN_ALGO_CONST
@@ -60,9 +59,6 @@ object Util {
         if (verificationResult.verificationStatus) {
             if (verificationResult.verificationErrorCode == CredentialValidatorConstants.ERROR_CODE_VC_EXPIRED) {
                 return VerificationStatus.EXPIRED
-            }
-            else if (verificationResult.verificationErrorCode == ERROR_CODE_VC_REVOKED) {
-                return VerificationStatus.REVOKED
             }
             return VerificationStatus.SUCCESS
         }

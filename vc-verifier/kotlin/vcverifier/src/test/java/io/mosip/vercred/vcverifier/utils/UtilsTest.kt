@@ -253,18 +253,6 @@ class UtilsTest {
     }
 
     @Test
-    fun `getVerificationStatus returns REVOKED when error code is VC_REVOKED`() {
-        val result = VerificationResult(
-            verificationStatus = true,
-            verificationMessage = "Revoked",
-            verificationErrorCode = CredentialVerifierConstants.ERROR_CODE_VC_REVOKED
-        )
-
-        val status = Util.getVerificationStatus(result)
-        assertEquals(VerificationStatus.REVOKED, status)
-    }
-
-    @Test
     fun `getVerificationStatus returns INVALID when signature is invalid`() {
         val result = VerificationResult(
             verificationStatus = false,

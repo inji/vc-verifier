@@ -14,11 +14,21 @@ data class PresentationVerificationResult(
     var vcResults: List<VCResult>
 )
 
+data class PresentationResultWithCredentialStatus(
+    var proofVerificationStatus: VPVerificationStatus,
+    var vcResults: List<VCResultWithCredentialStatus>
+)
+
 data class VCResult(
     val vc: String,
     val status: VerificationStatus
 )
 
+data class VCResultWithCredentialStatus(
+    val vc: String,
+    val status: VerificationStatus,
+    val credentialStatus: List<CredentialStatusResult>
+)
 
 enum class VerificationStatus {
     SUCCESS,
