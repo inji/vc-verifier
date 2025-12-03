@@ -1,6 +1,8 @@
 package io.mosip.vercred.vcverifier.credentialverifier.verifier
 
+import io.mockk.mockkObject
 import io.mosip.vercred.vcverifier.exception.DidResolverExceptions.UnsupportedDidUrl
+import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
 import io.mosip.vercred.vcverifier.utils.LocalDocumentLoader
 import io.mosip.vercred.vcverifier.utils.Util
 import org.junit.jupiter.api.AfterAll
@@ -13,6 +15,8 @@ import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.api.assertThrows
 import org.springframework.util.ResourceUtils
+import testutils.mockHttpResponse
+import testutils.readClasspathFile
 import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 
@@ -22,6 +26,8 @@ class LdpVerifierTest {
     @BeforeAll
     fun setup() {
         Util.documentLoader = LocalDocumentLoader
+        mockkObject(NetworkManagerClient)
+        loadMockPublicKeys()
     }
 
     @AfterAll
@@ -89,4 +95,11 @@ class LdpVerifierTest {
         assertTrue(LdpVerifier().verify(vc))
     }
 
+    private fun loadMockPublicKeys() {
+        mockHttpResponse("https://vharsh.github.io/DID/mock-public-key2.json", readClasspathFile("ldp_vc/public_key/httpsMockKey2.json"))
+        mockHttpResponse("https://vharsh.github.io/DID/mock-public-key.json",readClasspathFile("ldp_vc/public_key/httpsMockKey.json"))
+        mockHttpResponse("https://api.collab.mosip.net/.well-known/ida-public-key.json",readClasspathFile("ldp_vc/public_key/idaPublicKey.json"))
+        mockHttpResponse("https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json",readClasspathFile("ldp_vc/public_key/didMosipKey.json"))
+        mockHttpResponse("https://vharsh.github.io/DID/local/did.json",readClasspathFile("ldp_vc/public_key/didEdPublicKey.json"))
+    }
 }

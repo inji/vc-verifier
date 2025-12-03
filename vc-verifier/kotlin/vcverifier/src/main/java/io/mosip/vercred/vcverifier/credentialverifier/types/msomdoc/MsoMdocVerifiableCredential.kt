@@ -11,7 +11,6 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_
 import io.mosip.vercred.vcverifier.credentialverifier.VerifiableCredential
 import io.mosip.vercred.vcverifier.credentialverifier.validator.MsoMdocValidator
 import io.mosip.vercred.vcverifier.credentialverifier.verifier.MsoMdocVerifier
-import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.ValidationStatus
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
@@ -42,10 +41,6 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
 
     override fun verify(credential: String): Boolean {
         return MsoMdocVerifier().verify(credential)
-    }
-
-    override fun checkStatus(credential: String, statusPurposes: List<String>?): List<CredentialStatusResult>? {
-        return null
     }
 
     fun parse(credential: String): MsoMdocCredentialData {

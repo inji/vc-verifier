@@ -8,29 +8,45 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.CONTEX
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_GENERIC
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_CODE_VERIFICATION_FAILED
-import io.mosip.vercred.vcverifier.credentialverifier.CredentialVerifierFactory
-import io.mosip.vercred.vcverifier.credentialverifier.statusChecker.LdpStatusChecker
-import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.CredentialVerificationSummary
 import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
-import okhttp3.mockwebserver.MockResponse
-import okhttp3.mockwebserver.MockWebServer
-import org.junit.jupiter.api.Assertions.*
+import io.mosip.vercred.vcverifier.utils.LocalDocumentLoader
+import io.mosip.vercred.vcverifier.utils.Util
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.Timeout
-import org.springframework.util.ResourceUtils
-import java.nio.file.Files
+import testutils.mockHttpResponse
+import testutils.readClasspathFile
 import java.util.concurrent.TimeUnit
 
-
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class CredentialsVerifierTest {
+    val didDocumentUrl = "https://mosip.github.io/inji-config/qa-inji1/mock/did.json"
+    val mockDidJson = readClasspathFile("ldp_vc/mockDid.json")
+
+    @BeforeAll
+    fun setup() {
+        mockkObject(NetworkManagerClient.Companion)
+        Util.documentLoader = LocalDocumentLoader
+    }
+
+    @AfterAll
+    fun teardownAll() {
+        Util.documentLoader = null
+    }
 
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should return true for valid credential validation success`() {
-        val file =
-            ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "ldp_vc/PS256SignedMosipVC.json")
-        val vc = String(Files.readAllBytes(file.toPath()))
+        val vc = readClasspathFile("ldp_vc/PS256SignedMosipVC.json")
+        mockHttpResponse("https://api.collab.mosip.net/.well-known/ida-public-key.json",readClasspathFile("ldp_vc/public_key/idaPublicKey.json"))
 
         val verificationResult = CredentialsVerifier().verify(vc, LDP_VC)
 
@@ -42,9 +58,7 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should return false for invalid credential validation failure`() {
-        val file =
-            ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "ldp_vc/invalidVC.json")
-        val vc = String(Files.readAllBytes(file.toPath()))
+        val vc = readClasspathFile("ldp_vc/invalidVC.json")
 
         val verificationResult = CredentialsVerifier().verify(vc, LDP_VC)
 
@@ -58,23 +72,20 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should return true for valid credential verification success`() {
-        val file =
-            ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "ldp_vc/PS256SignedMosipVC.json")
-        val vc = String(Files.readAllBytes(file.toPath()))
+        val vc = readClasspathFile("ldp_vc/PS256SignedMosipVC.json")
+        mockHttpResponse("https://api.collab.mosip.net/.well-known/ida-public-key.json",readClasspathFile("ldp_vc/public_key/idaPublicKey.json"))
 
         val verificationResult = CredentialsVerifier().verify(vc, LDP_VC)
 
         assertEquals("", verificationResult.verificationMessage)
         assertTrue(verificationResult.verificationStatus)
         assertEquals("", verificationResult.verificationErrorCode)
-
     }
 
     @Test
     fun `should return true for valid credential verification success using ES256K`() {
-        val file =
-            ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "ldp_vc/ES256KSignedMockVC.json")
-        val vc = String(Files.readAllBytes(file.toPath()))
+        mockHttpResponse("https://vharsh.github.io/DID/echarsh/did.json",readClasspathFile("ldp_vc/public_key/didEcKey.json"))
+        val vc = readClasspathFile("ldp_vc/ES256KSignedMockVC.json")
 
         val verificationResult = CredentialsVerifier().verify(vc, LDP_VC)
 
@@ -86,9 +97,7 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should return false for invalid credential verification failure`() {
-        val file =
-            ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "ldp_vc/tamperedVC.json")
-        val vc = String(Files.readAllBytes(file.toPath()))
+        val vc = readClasspathFile("ldp_vc/tamperedVC.json")
 
         val verify = CredentialsVerifier().verify(vc, LDP_VC)
 
@@ -124,9 +133,7 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 10, unit = TimeUnit.SECONDS)
     fun `should return true for valid sd-jwt with sha 384 algo credential validation success `() {
-        val file =
-            ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "sd-jwt_vc/sdJwtSha384Alg.txt")
-        val vc = String(Files.readAllBytes(file.toPath()))
+        val vc = readClasspathFile("sd-jwt_vc/sdJwtSha384Alg.txt")
 
         val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT)
 
@@ -138,9 +145,7 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 10, unit = TimeUnit.SECONDS)
     fun `should return true for valid sd-jwt with sha 512 algo credential validation success `() {
-        val file =
-            ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "sd-jwt_vc/sdJwtSha512Alg.txt")
-        val vc = String(Files.readAllBytes(file.toPath()))
+        val vc = readClasspathFile("sd-jwt_vc/sdJwtSha512Alg.txt")
 
         val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT)
 
@@ -152,10 +157,7 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(20, unit = TimeUnit.SECONDS)
     fun `should return empty status list if VC fails verification`() {
-
-        val file =
-            ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "ldp_vc/tamperedVC.json")
-        val vcJson = String(Files.readAllBytes(file.toPath()))
+        val vcJson = readClasspathFile("ldp_vc/tamperedVC.json")
         val format = LDP_VC
 
         val result: CredentialVerificationSummary =
@@ -168,22 +170,16 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(20, unit = TimeUnit.SECONDS)
     fun `should verify VC and return StatusList for unrevoked VC`() {
-        val mockStatusList = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "ldp_vc/mosipUnrevokedStatusList.json")
-        val mockStatusListJson = String(Files.readAllBytes(mockStatusList.toPath()))
+        val mockStatusListJson = readClasspathFile("ldp_vc/mosipUnrevokedStatusList.json")
+        val originalVCJson = readClasspathFile("ldp_vc/mosipUnrevokedVC.json")
 
-        val originalVC = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "ldp_vc/mosipUnrevokedVC.json")
-        val originalVCJson = String(Files.readAllBytes(originalVC.toPath()))
-
-        val realUrl = "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
+        val realUrl =
+            "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
 
         mockkObject(NetworkManagerClient.Companion)
 
-        io.mockk.every {
-            NetworkManagerClient.sendHTTPRequest(realUrl, any())
-        } answers {
-            val mapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
-            mapper.readValue(mockStatusListJson, Map::class.java) as Map<String, Any>?
-        }
+        mockHttpResponse(realUrl, mockStatusListJson)
+        mockHttpResponse(didDocumentUrl, mockDidJson)
 
         val result: CredentialVerificationSummary =
             CredentialsVerifier().verifyAndGetCredentialStatus(
@@ -195,34 +191,25 @@ class CredentialsVerifierTest {
         assertNotNull(result)
         assertEquals(1, result.credentialStatus.size)
 
-        val status = result.credentialStatus[0]
-        assertEquals("revocation", status.purpose)
-        assertEquals(0, status.status)
-        assertTrue(status.valid)
-        assertNull(status.error)
+        val revocationResult = result.credentialStatus["revocation"]
+        assertNotNull(revocationResult)
+        assertTrue(revocationResult!!.isValid)
+        assertNull(revocationResult.error)
 
     }
+
 
     @Test
     @Timeout(20, unit = TimeUnit.SECONDS)
     fun `should verify VC and return StatusList for revoked VC`() {
-        val mockStatusList = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "ldp_vc/mosipRevokedStatusList.json")
-        val mockStatusListJson = String(Files.readAllBytes(mockStatusList.toPath()))
+        val mockStatusListJson = readClasspathFile("ldp_vc/mosipRevokedStatusList.json")
+        val originalVCJson = readClasspathFile("ldp_vc/mosipRevokedVC.json")
 
-        val originalVC = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "ldp_vc/mosipRevokedVC.json")
-        val originalVCJson = String(Files.readAllBytes(originalVC.toPath()))
+        val realUrl =
+            "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
 
-        val realUrl = "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
-
-        mockkObject(NetworkManagerClient.Companion)
-
-        io.mockk.every {
-            NetworkManagerClient.sendHTTPRequest(realUrl, any())
-        } answers {
-            val mapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
-            mapper.readValue(mockStatusListJson, Map::class.java) as Map<String, Any>?
-        }
-
+        mockHttpResponse(realUrl, mockStatusListJson)
+        mockHttpResponse(didDocumentUrl, mockDidJson)
         val result: CredentialVerificationSummary =
             CredentialsVerifier().verifyAndGetCredentialStatus(
                 originalVCJson,
@@ -233,11 +220,10 @@ class CredentialsVerifierTest {
         assertNotNull(result)
         assertEquals(1, result.credentialStatus.size)
 
-        val status = result.credentialStatus[0]
-        assertEquals("revocation", status.purpose)
-        assertNotEquals(0, status.status)
-        assertFalse(status.valid)
-        assertNull(status.error)
+        val revocationResult = result.credentialStatus["revocation"]
+        assertNotNull(revocationResult)
+        assertFalse(revocationResult!!.isValid)
+        assertNull(revocationResult.error)
 
     }
 }

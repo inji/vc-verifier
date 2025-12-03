@@ -38,16 +38,17 @@ import io.mosip.vercred.vcverifier.keyResolver.types.http.HttpsPublicKeyResolver
 
 -   **VC Validation**: The library validates the structure, signatures, and expiration of Verifiable Credentials to ensure they conform to the W3C VC standards.
 -   **Cryptographic Signature Verification**: Supports the verification of cryptographic signatures using public keys, including EdDSA, RSA, and other supported algorithms, ensuring the integrity of the credential.
+-   **Status Check**: It includes mechanisms to check the current status of credentials, allowing applications to determine if a credential is still valid or has been invalidated.
 -   **Compatibility with Various Data Models**: It supports multiple VC data models (e.g., VC 1.1, VC 2.0), ensuring compatibility across various decentralized identity systems.
 
 #### Supported VC Formats and Their Signature Mechanisms
 
-| VC format   | Issuer Signature Mechanism                                             | Verification Algorithms       | Signature Suites / Proof Types                               |
-|-------------|------------------------------------------------------------------------|-------------------------------|--------------------------------------------------------------|
-| `ldp_vc`    | Linked Data Proof                                                      | PS256, RS256, EdDSA (Ed25519) | RsaSignature2018, Ed25519Signature2018, Ed25519Signature2020 |
-| `mso_mdoc`  | COSE (CBOR Object Signing and Encryption)                              | ES256                         | Uses COSE_Sign1                                              |
-| `vc+sd-jwt` | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519) | check JWT signatures using X.509 certificate                 |
-| `dc+sd-jwt` | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519) | check JWT signatures using X.509 certificate                 |
+| VC format   | Issuer Signature Mechanism                                             | Verification Algorithms             | Signature Suites / Proof Types                                                            |
+|-------------|------------------------------------------------------------------------|-------------------------------------|-------------------------------------------------------------------------------------------|
+| `ldp_vc`    | Linked Data Proof                                                      | PS256, RS256, EdDSA (Ed25519)       | RsaSignature2018, Ed25519Signature2018, Ed25519Signature2020, EcdsaSecp256k1Signature2019 |
+| `mso_mdoc`  | COSE (CBOR Object Signing and Encryption)                              | ES256                               | Uses COSE_Sign1                                                                           |
+| `vc+sd-jwt` | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519) | -                                                                                         |
+| `dc+sd-jwt` | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519) | -                                                                                         |
 
 #### Project Structure
 
@@ -57,6 +58,7 @@ import io.mosip.vercred.vcverifier.keyResolver.types.http.HttpsPublicKeyResolver
     - `types`
     - `validator`
     - `verifier`
+    - `statusChecker`
 - **data**
 - **exception**
 - **keyResolver**

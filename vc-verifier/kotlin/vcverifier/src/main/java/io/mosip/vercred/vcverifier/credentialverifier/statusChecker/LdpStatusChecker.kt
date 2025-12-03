@@ -2,7 +2,6 @@ package io.mosip.vercred.vcverifier.credentialverifier.statusChecker
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import foundation.identity.jsonld.JsonLDObject
-import io.mosip.vercred.vcverifier.constants.CredentialFormat
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.CREDENTIAL_SUBJECT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.TYPE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.VALID_FROM
@@ -15,9 +14,17 @@ import io.mosip.vercred.vcverifier.constants.StatusCheckerConstants.STATUS_LIST_
 import io.mosip.vercred.vcverifier.constants.StatusCheckerConstants.STATUS_MESSAGE
 import io.mosip.vercred.vcverifier.constants.StatusCheckerConstants.STATUS_PURPOSE
 import io.mosip.vercred.vcverifier.constants.StatusCheckerConstants.STATUS_SIZE
-import io.mosip.vercred.vcverifier.credentialverifier.CredentialVerifierFactory
+import io.mosip.vercred.vcverifier.credentialverifier.types.LdpVerifiableCredential
 import io.mosip.vercred.vcverifier.data.CredentialStatusResult
-import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode
+import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode.BASE64_DECODE_FAILED
+import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode.ENCODED_LIST_MISSING
+import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode.GZIP_DECOMPRESS_FAILED
+import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode.INVALID_CREDENTIAL_STATUS
+import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode.INVALID_INDEX
+import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode.INVALID_PURPOSE
+import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode.RANGE_ERROR
+import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode.STATUS_RETRIEVAL_ERROR
+import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
 import io.mosip.vercred.vcverifier.exception.StatusCheckException
 import io.mosip.vercred.vcverifier.networkManager.HttpMethod.GET
 import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient.Companion.sendHTTPRequest
@@ -30,16 +37,18 @@ import java.io.IOException
 import java.util.logging.Logger
 import java.util.zip.GZIPInputStream
 
+
 /**
  * Generic StatusList2021 checker for LDP VCs.
  * Supports optional filtering by known statusPurposes.
  */
-class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVerifierFactory()) {
+class LdpStatusChecker() {
 
     private val logger = Logger.getLogger(LdpStatusChecker::class.java.name)
 
-    private val verifier = verifierFactory.get(CredentialFormat.LDP_VC)
+    private val verifier = LdpVerifiableCredential()
     private val minimumNumberOfEntries = 131072
+    private val validStatusValue = 0
     private val defaultStatusSize = 1
     private val mapper = ObjectMapper()
 
@@ -53,11 +62,15 @@ class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVe
     fun getStatuses(
         credential: String,
         statusPurposes: List<String>? = null
-    ): List<CredentialStatusResult>? {
+    ): Map<String, CredentialStatusResult> {
         logger.info("Started status check")
 
         val jsonLD = JsonLDObject.fromJson(credential)
-        val statusField = jsonLD.jsonObject["credentialStatus"] ?: return null
+        val statusField = jsonLD.jsonObject["credentialStatus"]
+        if (statusField == null) {
+            logger.warning("No credentialStatus field present in the VC")
+            return emptyMap()
+        }
 
         val entries = when (statusField) {
             is List<*> -> statusField.filterIsInstance<Map<*, *>>()
@@ -68,7 +81,7 @@ class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVe
         if (entries.isEmpty()) {
             throw StatusCheckException(
                 "No valid credentialStatus entries found",
-                StatusCheckErrorCode.INVALID_PURPOSE
+                INVALID_CREDENTIAL_STATUS
             )
         }
 
@@ -86,30 +99,25 @@ class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVe
 
         if (filteredEntries.isEmpty()) {
             logger.warning("No matching credentialStatus entries found for purposes: $statusPurposes")
-            return null
+            return emptyMap()
         }
 
-        val results = mutableListOf<CredentialStatusResult>()
+        val results = mutableMapOf<String, CredentialStatusResult>()
         filteredEntries.forEach { entry ->
             var purpose = ""
             try {
                 purpose =
                     entry[STATUS_PURPOSE]?.toString()?.lowercase() ?: throw StatusCheckException(
                         "$STATUS_PURPOSE Invalid",
-                        errorCode = StatusCheckErrorCode.INVALID_PURPOSE
+                        errorCode = INVALID_PURPOSE
                     )
-                results.add(checkStatusEntry(entry, purpose))
-            } catch (e: StatusCheckException) {
-                logger.warning("Status check failed for purpose '$purpose': ${e.message}")
+
+                val credentialStatusResult: Map<String, CredentialStatusResult> = checkStatusEntry(entry, purpose)
+                results.putAll(credentialStatusResult)
+            } catch (exception: StatusCheckException) {
+                logger.warning("Status check failed for purpose '$purpose': ${exception.message}")
                 // Add a failure entry (optional, to keep track of skipped purposes)
-                results.add(
-                    CredentialStatusResult(
-                        purpose = purpose,
-                        status = -1,
-                        valid = false,
-                        error = e
-                    )
-                )
+                results[purpose] = CredentialStatusResult(false, exception)
             }
         }
         return results
@@ -118,7 +126,7 @@ class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVe
     /**
      * Checks a single credentialStatus entry for its purpose.
      */
-    private fun checkStatusEntry(entry: Map<*, *>, purpose: String): CredentialStatusResult {
+    private fun checkStatusEntry(entry: Map<*, *>, purpose: String): Map<String, CredentialStatusResult> {
         validateCredentialStatusEntry(entry)
         val statusListVC = fetchAndValidateStatusListVC(entry, purpose)
         return computeStatusResult(entry, statusListVC, purpose)
@@ -132,12 +140,12 @@ class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVe
             statusListVCMap = sendHTTPRequest(statusListCredentialUrl, GET)
                 ?: throw StatusCheckException(
                     "Failed to retrieve status list VC",
-                    StatusCheckErrorCode.STATUS_RETRIEVAL_ERROR
+                    STATUS_RETRIEVAL_ERROR
                 )
         } catch (e: Exception) {
             throw StatusCheckException(
                 "Retrieval of the status list failed: ${e.message}",
-                StatusCheckErrorCode.STATUS_RETRIEVAL_ERROR
+                STATUS_RETRIEVAL_ERROR
             )
         }
 
@@ -147,7 +155,7 @@ class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVe
         if (!verifier.verify(statusListVCString)) {
             throw StatusCheckException(
                 "Invalid signature on status list VC",
-                StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
+                STATUS_VERIFICATION_ERROR
             )
         }
 
@@ -155,7 +163,7 @@ class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVe
         val credentialSubject = statusListVC.jsonObject[CREDENTIAL_SUBJECT] as? Map<*, *>
             ?: throw StatusCheckException(
                 "Missing '${CREDENTIAL_SUBJECT}'",
-                StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
+                STATUS_VERIFICATION_ERROR
             )
 
         val validFromStr = credentialSubject[VALID_FROM] as? String
@@ -166,13 +174,13 @@ class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVe
             val validFromMillis = DateUtils.parseDate(validFromStr)?.time
                 ?: throw StatusCheckException(
                     "Invalid $VALID_FROM format: $validFromStr",
-                    StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
+                    STATUS_VERIFICATION_ERROR
                 )
 
             if (nowMillis < validFromMillis) {
                 throw StatusCheckException(
                     "Status list VC is not yet valid ($VALID_FROM=$validFromStr)",
-                    StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
+                    STATUS_VERIFICATION_ERROR
                 )
             }
         }
@@ -181,13 +189,13 @@ class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVe
             val validUntilMillis = DateUtils.parseDate(validUntilStr)?.time
                 ?: throw StatusCheckException(
                     "Invalid $VALID_UNTIL format: $validUntilStr",
-                    StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
+                    STATUS_VERIFICATION_ERROR
                 )
 
             if (nowMillis > validUntilMillis) {
                 throw StatusCheckException(
                     "Status list VC has expired ($VALID_UNTIL=$validUntilStr)",
-                    StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
+                    STATUS_VERIFICATION_ERROR
                 )
             }
         }
@@ -195,20 +203,20 @@ class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVe
         val statusListType = credentialSubject[TYPE]?.toString()
             ?: throw StatusCheckException(
                 "Missing '$TYPE' in status list credential",
-                StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
+                STATUS_VERIFICATION_ERROR
             )
 
         if (statusListType != BITSTRING_STATUS_LIST) {
             throw StatusCheckException(
                 "Invalid ${CREDENTIAL_SUBJECT}.type: Expected '$BITSTRING_STATUS_LIST', found '$statusListType'",
-                StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
+                STATUS_VERIFICATION_ERROR
             )
         }
 
         if (credentialSubject[STATUS_PURPOSE]?.toString()?.lowercase() != purpose) {
             throw StatusCheckException(
                 "Status list VC purpose mismatch. Expected '$purpose', found '${credentialSubject[STATUS_PURPOSE]}'",
-                StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
+                STATUS_VERIFICATION_ERROR
             )
         }
 
@@ -219,36 +227,37 @@ class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVe
         entry: Map<*, *>,
         statusListVC: JsonLDObject,
         purpose: String
-    ): CredentialStatusResult {
+    ): Map<String, CredentialStatusResult> {
         val credentialSubject = statusListVC.jsonObject[CREDENTIAL_SUBJECT] as Map<*, *>
 
         val encodedList = credentialSubject[ENCODED_LIST] as? String
             ?: throw StatusCheckException(
                 "Missing '$ENCODED_LIST'",
-                StatusCheckErrorCode.ENCODED_LIST_MISSING
+                ENCODED_LIST_MISSING
             )
 
         val statusSize =
             credentialSubject[STATUS_SIZE]?.toString()?.toIntOrNull() ?: defaultStatusSize
-        if (statusSize <= 0) {
+        if (!isValid(statusSize)) {
             throw StatusCheckException(
                 "Invalid '$STATUS_SIZE': must be > 0 if present.",
-                StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
+                STATUS_VERIFICATION_ERROR
             )
         }
 
-        if (statusSize > 1) {
+        if (isStatusMessageAvailable(statusSize)) {
             val statusMessage = entry[STATUS_MESSAGE] as? Map<*, *>
                 ?: throw StatusCheckException(
                     "Missing '$STATUS_MESSAGE' for $STATUS_SIZE=$statusSize",
-                    StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
+                    STATUS_VERIFICATION_ERROR
                 )
+            logger.info("Status message for purpose '$purpose': $statusMessage")
 
-            val expectedCount = 1.shl(statusSize)
-            if (statusMessage.size != expectedCount) {
+            val expectedStatusCount = 1.shl(statusSize)
+            if (statusMessage.size != expectedStatusCount) {
                 throw StatusCheckException(
-                    "$STATUS_MESSAGE count mismatch. Expected $expectedCount entries for statusSize=$statusSize, found ${statusMessage.size}",
-                    StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
+                    "$STATUS_MESSAGE count mismatch. Expected $expectedStatusCount entries for statusSize=$statusSize, found ${statusMessage.size}",
+                    STATUS_VERIFICATION_ERROR
                 )
             }
         }
@@ -264,49 +273,47 @@ class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVe
         if (bitPosition >= totalBits) {
             throw StatusCheckException(
                 "Bit position $bitPosition out of range",
-                StatusCheckErrorCode.RANGE_ERROR
+                RANGE_ERROR
             )
         }
 
         val statusValue = readBits(bitPosition, decodedBitSet, statusSize)
-        return CredentialStatusResult(
-            purpose = purpose,
-            status = statusValue,
-            valid = (statusValue == 0),
-            error = null
-        )
+        logger.info("Status value for purpose '$purpose' at index $statusListIndex: $statusValue")
+        return mapOf(purpose to CredentialStatusResult(statusValue == validStatusValue, null))
     }
+
+    private fun isValid(statusSize: Int): Boolean = statusSize > 0
 
     private fun validateCredentialStatusEntry(entry: Map<*, *>) {
         val entryType = entry[TYPE]?.toString()
             ?: throw StatusCheckException(
                 "Missing '$TYPE' in credentialStatus entry",
-                StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
+                STATUS_VERIFICATION_ERROR
             )
 
         if (entryType != BITSTRING_STATUS_LIST_ENTRY) {
             throw StatusCheckException(
                 "Invalid credentialStatus.type: Expected '$BITSTRING_STATUS_LIST_ENTRY', found '$entryType'",
-                StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
+                STATUS_VERIFICATION_ERROR
             )
         }
 
         val statusListCredentialUrl = entry[STATUS_LIST_CREDENTIAL]?.toString()
             ?: throw StatusCheckException(
                 "Missing '$STATUS_LIST_CREDENTIAL'",
-                StatusCheckErrorCode.STATUS_RETRIEVAL_ERROR
+                STATUS_RETRIEVAL_ERROR
             )
 
         entry[STATUS_LIST_INDEX]?.toString()?.toIntOrNull()
             ?: throw StatusCheckException(
                 "Invalid or missing '$STATUS_LIST_INDEX'",
-                StatusCheckErrorCode.INVALID_INDEX
+                INVALID_INDEX
             )
 
         if (!isValidUri(statusListCredentialUrl)) {
             throw StatusCheckException(
                 "$STATUS_LIST_CREDENTIAL must be a valid URL",
-                StatusCheckErrorCode.STATUS_VERIFICATION_ERROR
+                STATUS_VERIFICATION_ERROR
             )
         }
     }
@@ -317,9 +324,10 @@ class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVe
         val compressedBytes = try {
             Base64Decoder().decodeFromBase64Url(base64urlPart)
         } catch (ex: IllegalArgumentException) {
+            logger.severe("Base64url decoding failed: ${ex.message}")
             throw StatusCheckException(
                 "Base64url decoding failed",
-                StatusCheckErrorCode.BASE64_DECODE_FAILED
+                BASE64_DECODE_FAILED
             )
         }
         return decompressGzip(compressedBytes)
@@ -339,9 +347,10 @@ class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVe
                 }
             }
         } catch (ex: IOException) {
+            logger.severe("GZIP decompression failed: ${ex.message}")
             throw StatusCheckException(
                 "Failed to decompress GZIP",
-                StatusCheckErrorCode.GZIP_DECOMPRESS_FAILED
+                GZIP_DECOMPRESS_FAILED
             )
         }
     }
@@ -364,16 +373,20 @@ class LdpStatusChecker(verifierFactory: CredentialVerifierFactory = CredentialVe
      * Reads a single bit from the bitset.
      */
     private fun readBit(position: Int, bitSet: ByteArray): Boolean {
-        val byteIndex = position / 8
-        val bitIndex = position % 8
+        val setBit = 1
+        val bitsPerByte = 8
+        val byteIndex = position / bitsPerByte
+        val bitIndex = position % bitsPerByte
         if (byteIndex >= bitSet.size) {
             throw StatusCheckException(
                 "Position $position exceeds bitset length",
-                StatusCheckErrorCode.RANGE_ERROR
+                RANGE_ERROR
             )
         }
         val targetByte = bitSet[byteIndex].toInt()
-        return ((targetByte shr (7 - bitIndex)) and 1) == 1
+        return ((targetByte shr (7 - bitIndex)) and 1) == setBit
     }
 
+    private fun isStatusMessageAvailable(statusSize: Int): Boolean = statusSize > 1
 }
+

@@ -7,10 +7,8 @@ import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_C
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_MESSAGE_VERIFICATION_FAILED
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.EXCEPTION_DURING_VERIFICATION
 import io.mosip.vercred.vcverifier.credentialverifier.CredentialVerifierFactory
-import io.mosip.vercred.vcverifier.credentialverifier.VerifiableCredential
 import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.CredentialVerificationSummary
-import io.mosip.vercred.vcverifier.data.ValidationStatus
 import io.mosip.vercred.vcverifier.data.VerificationResult
 import java.util.logging.Logger
 
@@ -79,12 +77,13 @@ class CredentialsVerifier {
         credential: String,
         credentialFormat: CredentialFormat,
         statusPurposeList: List<String> = emptyList()
-    ): List<CredentialStatusResult> {
+    ): Map<String, CredentialStatusResult> {
         try {
-            val credentialStatusArray =
-                credentialVerifierFactory.get(credentialFormat)
-                    .checkStatus(credential, statusPurposeList)
-            return credentialStatusArray ?: emptyList()
+            return credentialVerifierFactory.get(credentialFormat)
+                .checkStatus(credential, statusPurposeList)
+        } catch (unsupportedException: UnsupportedOperationException) {
+            logger.warning("Error occurred while checking credential status of format ${credentialFormat}: ${unsupportedException.message}. Returning empty status list.")
+            return emptyMap()
         } catch (e: Exception) {
             logger.severe("Error occurred while checking credential status: ${e.message}")
             throw e
@@ -101,6 +100,6 @@ class CredentialsVerifier {
             val statusResults = getCredentialStatus(credential, credentialFormat, statusPurposeList)
             return CredentialVerificationSummary(verificationResult, statusResults)
         }
-        return CredentialVerificationSummary(verificationResult, emptyList())
+        return CredentialVerificationSummary(verificationResult, emptyMap())
     }
 }
