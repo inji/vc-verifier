@@ -65,6 +65,8 @@ dependencies {
     implementation(libs.annotation.jvm)
     implementation(libs.authelete.sd.jwt)
     implementation(libs.threetenbp)
+    implementation(libs.jackson.dataformat.cbor)
+    implementation(libs.cose.java)
 
     testImplementation(libs.mockk)
     testImplementation(libs.junitJupiter)

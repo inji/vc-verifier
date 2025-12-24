@@ -52,6 +52,8 @@ object CredentialValidatorConstants {
     const val ERROR_VALID_FROM_INVALID = "${VALIDATION_ERROR}validFrom is not valid."
     const val ERROR_VALID_UNTIL_INVALID = "${VALIDATION_ERROR}validUntil is not valid."
 
+    const val ERROR_MESSAGE_EMPTY_VC_CWT="${VALIDATION_ERROR}Input VC CWT string is null or empty."
+
 
     const val ERROR_CODE_VC_EXPIRED = "ERR_VC_EXPIRED"
     const val ERROR_MESSAGE_VC_EXPIRED = "VC is expired"
