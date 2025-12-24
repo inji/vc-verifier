@@ -2,6 +2,8 @@ package io.mosip.vercred.vcverifier.utils
 
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.upokecenter.cbor.CBORObject
+import com.upokecenter.cbor.CBORType
 import foundation.identity.jsonld.ConfigurableDocumentLoader
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.CONTEXT
@@ -144,6 +146,30 @@ object Util {
         }
     }
 
+    fun hexToBytes(hex: String): ByteArray {
+        val cleanHex = hex.replace("\\s".toRegex(), "")
+        require(cleanHex.length % 2 == 0) { "Invalid hex length" }
+
+        return ByteArray(cleanHex.length / 2) { i ->
+            cleanHex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+        }
+    }
+
+    fun validateNumericDate(
+        claims: CBORObject,
+        key: CBORObject,
+        name: String
+    ): Long? {
+        if (!claims.ContainsKey(key)) return null
+
+        val value = claims[key]
+
+        require(value.type == CBORType.Integer) {
+            "$name must be a CBOR integer (NumericDate)"
+        }
+
+        return value.AsInt64()
+    }
 }
 
 fun JSONArray.asIterable(): Iterable<Any?> = Iterable {
