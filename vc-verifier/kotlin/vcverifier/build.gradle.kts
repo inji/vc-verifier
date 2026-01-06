@@ -65,14 +65,22 @@ dependencies {
     implementation(libs.annotation.jvm)
     implementation(libs.authelete.sd.jwt)
     implementation(libs.threetenbp)
-    implementation(libs.jackson.dataformat.cbor)
-    implementation(libs.cose.java)
+    implementation(libs.cose.lib)
 
     testImplementation(libs.mockk)
     testImplementation(libs.junitJupiter)
     testImplementation(libs.mockWebServer)
 
 }
+
+configurations.all {
+    exclude(group = "org.bouncycastle", module = "bcprov-jdk15on")
+    exclude(group = "org.bouncycastle", module = "bcpkix-jdk15on")
+    exclude(group = "org.bouncycastle", module = "bcutil-jdk15on")
+    exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
+}
+
+
 
 tasks.withType<Test> {
     useJUnitPlatform()

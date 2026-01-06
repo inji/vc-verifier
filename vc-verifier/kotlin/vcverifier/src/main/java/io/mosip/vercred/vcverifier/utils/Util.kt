@@ -171,7 +171,7 @@ object Util {
             "$name must be a CBOR integer (NumericDate)"
         }
 
-        return value.AsInt64()
+        return value.ToObject(Long::class.java)
     }
 
     fun httpGet(url: String): String? {
