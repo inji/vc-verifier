@@ -8,20 +8,11 @@ import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import com.nimbusds.jose.jwk.JWKSet
 import com.upokecenter.cbor.CBORObject
 import com.upokecenter.cbor.CBORType
-import org.springframework.web.client.RestTemplate
+import com.nimbusds.jose.jwk.*
+import io.mosip.vercred.vcverifier.utils.Util.httpGet
 import java.security.PublicKey
 
 class CwtVerifer {
-
-    val restTemplate = RestTemplate()
-
-    fun httpGet(url: String): String? {
-        return try {
-            restTemplate.getForObject(url, String::class.java)
-        } catch (e: Exception) {
-            null
-        }
-    }
 
     private val cborMapper = ObjectMapper(CBORFactory())
         .registerKotlinModule()
@@ -38,8 +29,7 @@ class CwtVerifer {
     private fun decodeCose(cwtHex: String): CBORObject? {
         return try {
             val bytes = hexToBytes(cwtHex)
-            val cwtValue = CBORObject.DecodeFromBytes(bytes)
-            null
+            CBORObject.DecodeFromBytes(bytes)
         } catch (e: Exception) {
             null
         }
@@ -91,7 +81,13 @@ class CwtVerifer {
         val kid = extractKid(coseObj) ?: return null
 
         val jwk = jwkSet.keys.firstOrNull { it.keyID == kid } ?: return null
-        return null;
+
+        return when (jwk) {
+            is RSAKey -> jwk.toRSAPublicKey()
+            is ECKey -> jwk.toECPublicKey()
+            is OctetKeyPair -> jwk.toPublicKey()
+            else -> null
+        }
     }
 
     private fun extractKid(coseObj: CBORObject): String? {
@@ -135,8 +131,6 @@ class CwtVerifer {
 
         val publicKey = fetchPublicKey(coseObj, issuerMetadata) ?: return false;
 
-        verifySignature(coseObj, publicKey)
-
-        return true;
+        return verifySignature(coseObj, publicKey)
     }
 }

@@ -12,6 +12,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_EMPTY_VC_CWT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_VC_EXPIRED
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.EXCEPTION_DURING_VALIDATION
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_HEX_VC_CWT
 import io.mosip.vercred.vcverifier.data.ValidationStatus
 
 import io.mosip.vercred.vcverifier.exception.ValidationException
@@ -25,7 +26,14 @@ class CwtValidator {
             if (credential.isEmpty()) {
                 throw ValidationException(
                     ERROR_MESSAGE_EMPTY_VC_CWT,
-                    ERROR_CODE_INVALID
+                    ERROR_CODE_INVALID + "EMPTY"
+                )
+            }
+
+            if (!isValidHex(credential)) {
+                throw ValidationException(
+                    ERROR_MESSAGE_INVALID_HEX_VC_CWT,
+                    ERROR_CODE_INVALID + "HEX"
                 )
             }
 
@@ -55,53 +63,47 @@ class CwtValidator {
 
         if (coseObj.type != CBORType.Array) {
             throw ValidationException(
-                ERROR_CODE_INVALID + "COSE_STRUCTURE",
-                ERROR_INVALID_FIELD +
-                        "COSE_Sign1 must be a CBOR array"
+                ERROR_INVALID_FIELD + "COSE_Sign1 must be a CBOR array",
+                ERROR_CODE_INVALID + "COSE_STRUCTURE"
             )
         }
 
         if (coseObj.size() != 4) {
             throw ValidationException(
-                ERROR_CODE_INVALID + "COSE_STRUCTURE",
-                ERROR_INVALID_FIELD +
-                        "COSE_Sign1 must have exactly 4 elements"
+                ERROR_INVALID_FIELD + "COSE_Sign1 must have exactly 4 elements",
+                ERROR_CODE_INVALID + "COSE_STRUCTURE"
             )
         }
 
-        // Protected header
+        // Index 0: Protected header
         if (coseObj[0].type != CBORType.ByteString) {
             throw ValidationException(
-                ERROR_CODE_INVALID + "PROTECTED_HEADER",
-                ERROR_INVALID_FIELD +
-                        "Protected header must be a CBOR byte string (bstr)"
+                ERROR_INVALID_FIELD + "Protected header must be a CBOR byte string (bstr)",
+                ERROR_CODE_INVALID + "PROTECTED_HEADER"
             )
         }
 
-        // Unprotected header
+        // Index 1: Unprotected header
         if (coseObj[1].type != CBORType.Map) {
             throw ValidationException(
-                ERROR_CODE_INVALID + "UNPROTECTED_HEADER",
-                ERROR_INVALID_FIELD +
-                        "Unprotected header must be a CBOR map"
+                ERROR_INVALID_FIELD + "Unprotected header must be a CBOR map",
+                ERROR_CODE_INVALID + "UNPROTECTED_HEADER"
             )
         }
 
-        // Payload
+        // Index 2: Payload (The CWT Claims)
         if (coseObj[2].type != CBORType.ByteString) {
             throw ValidationException(
-                ERROR_CODE_INVALID + "PAYLOAD",
-                ERROR_INVALID_FIELD +
-                        "Payload must be a CBOR byte string (bstr)"
+                ERROR_INVALID_FIELD + "Payload must be a CBOR byte string (bstr)",
+                ERROR_CODE_INVALID + "PAYLOAD"
             )
         }
 
-        // Signature
+        // Index 3: Signature
         if (coseObj[3].type != CBORType.ByteString) {
             throw ValidationException(
-                ERROR_CODE_INVALID + "SIGNATURE",
-                ERROR_INVALID_FIELD +
-                        "Signature must be a CBOR byte string (bstr)"
+                ERROR_INVALID_FIELD + "Signature must be a CBOR byte string (bstr)",
+                ERROR_CODE_INVALID + "SIGNATURE"
             )
         }
     }
@@ -111,8 +113,8 @@ class CwtValidator {
 
         if (protectedHeader.type != CBORType.Map) {
             throw ValidationException(
-                ERROR_CODE_INVALID + "PROTECTED_HEADER",
-                ERROR_INVALID_FIELD + "Protected header must decode to a CBOR map"
+                ERROR_INVALID_FIELD + "Protected header must decode to a CBOR map",
+                ERROR_CODE_INVALID + "PROTECTED_HEADER"
             )
         }
 
@@ -120,15 +122,15 @@ class CwtValidator {
 
         if (!protectedHeader.ContainsKey(ALG)) {
             throw ValidationException(
-                ERROR_CODE_MISSING + "ALG",
-                ERROR_INVALID_FIELD + "Missing alg in protected header"
+                ERROR_INVALID_FIELD + "Missing alg in protected header",
+                ERROR_CODE_MISSING + "ALG"
             )
         }
 
         if (!protectedHeader[ALG].isNumber) {
             throw ValidationException(
-                ERROR_CODE_INVALID + "ALG",
-                ERROR_INVALID_FIELD + "alg must be an integer"
+                ERROR_INVALID_FIELD + "alg must be an integer",
+                ERROR_CODE_INVALID + "ALG"
             )
         }
     }
@@ -138,19 +140,10 @@ class CwtValidator {
 
         if (claims.type != CBORType.Map) {
             throw ValidationException(
-                ERROR_CODE_INVALID + "CWT_STRUCTURE",
-                ERROR_INVALID_FIELD + "CWT payload must be a CBOR map"
+                ERROR_INVALID_FIELD + "CWT payload must be a CBOR map",
+                ERROR_CODE_INVALID + "CWT_STRUCTURE"
             )
         }
-
-//        for (key in claims.keys) {
-//            if (key.type != CBORType.Integer) {
-//                throw ValidationException(
-//                    ERROR_CODE_INVALID + "CWT_CLAIM_KEY",
-//                    ERROR_INVALID_FIELD + "CWT claim keys must be integers"
-//                )
-//            }
-//        }
     }
 
 
@@ -166,24 +159,27 @@ class CwtValidator {
         val nbf = validateNumericDate(claims, NBF, "nbf")
         val iat = validateNumericDate(claims, IAT, "iat")
 
+        // Expired Check
         if (exp != null && exp <= now) {
             throw ValidationException(
-                ERROR_CODE_VC_EXPIRED,
-                ERROR_MESSAGE_VC_EXPIRED + " (exp=$exp, now=$now)"
+                ERROR_MESSAGE_VC_EXPIRED + " (exp=$exp, now=$now)",
+                ERROR_CODE_VC_EXPIRED
             )
         }
 
+        // Not Before Check
         if (nbf != null && nbf > now) {
             throw ValidationException(
-                ERROR_CODE_CURRENT_DATE_BEFORE_PROCESSING_DATE,
-                ERROR_CURRENT_DATE_BEFORE_PROCESSING_DATE + " (nbf=$nbf, now=$now)"
+                ERROR_CURRENT_DATE_BEFORE_PROCESSING_DATE + " (nbf=$nbf, now=$now)",
+                ERROR_CODE_CURRENT_DATE_BEFORE_PROCESSING_DATE
             )
         }
 
+        // Issued At Check
         if (iat != null && iat > now) {
             throw ValidationException(
-                ERROR_CODE_INVALID + "IAT",
-                ERROR_INVALID_FIELD + "CWT issued in the future (iat=$iat, now=$now)"
+                ERROR_INVALID_FIELD + "CWT issued in the future (iat=$iat, now=$now)",
+                ERROR_CODE_INVALID + "IAT"
             )
         }
     }
@@ -205,6 +201,9 @@ class CwtValidator {
         return CBORObject.DecodeFromBytes(payloadBytes)
     }
 
-
+    private fun isValidHex(credential: String): Boolean {
+        val hexRegex = "^[0-9a-fA-F]+$".toRegex()
+        return credential.matches(hexRegex)
+    }
 
 }
