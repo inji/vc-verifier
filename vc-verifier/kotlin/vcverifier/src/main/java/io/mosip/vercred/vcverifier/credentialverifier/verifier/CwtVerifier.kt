@@ -1,21 +1,20 @@
 package io.mosip.vercred.vcverifier.credentialverifier.verifier
 
-import COSE.OneKey
-import COSE.Sign1Message
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.dataformat.cbor.CBORFactory
-import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import android.net.Uri
+import se.digg.cose.Sign1COSEObject
+import se.digg.cose.COSEKey
 import com.nimbusds.jose.jwk.JWKSet
 import com.upokecenter.cbor.CBORObject
 import com.upokecenter.cbor.CBORType
 import com.nimbusds.jose.jwk.*
+import io.mosip.vercred.vcverifier.keyResolver.PublicKeyResolverFactory
 import io.mosip.vercred.vcverifier.utils.Util.httpGet
+import se.digg.cose.COSEObject
+import java.net.URI
+import java.net.URL
 import java.security.PublicKey
 
-class CwtVerifer {
-
-    private val cborMapper = ObjectMapper(CBORFactory())
-        .registerKotlinModule()
+class CwtVerifier {
 
     fun hexToBytes(hex: String): ByteArray {
         val cleanHex = hex.replace("\\s".toRegex(), "")
@@ -54,13 +53,21 @@ class CwtVerifer {
         return true
     }
 
-    private fun extractIssuer(claims: CBORObject): String? {
+    private fun extractIssuerUri(claims: CBORObject): URI? {
         val ISS = CBORObject.FromObject(1)
+
         if (!claims.ContainsKey(ISS)) return null
 
         val iss = claims[ISS]
-        return if (iss.type == CBORType.TextString) iss.AsString() else null
+        if (iss.type != CBORType.TextString) return null
+
+        return try {
+            URI(iss.AsString())
+        } catch (e: Exception) {
+            null
+        }
     }
+
 
     private fun resolveIssuerMetadata(issuer: String): String? {
         val metadataUrl = "$issuer/.well-known/openid-credential-issuer"
@@ -91,46 +98,57 @@ class CwtVerifer {
     }
 
     private fun extractKid(coseObj: CBORObject): String? {
-        val protectedHeaderBytes = coseObj[0].GetByteString()
-        val protectedHeader = CBORObject.DecodeFromBytes(protectedHeaderBytes)
-
         val KID = CBORObject.FromObject(4)
-        if (!protectedHeader.ContainsKey(KID)) return null
 
-        return String(protectedHeader[KID].GetByteString())
+        val protectedBytes = coseObj[0].GetByteString()
+        if (protectedBytes.isNotEmpty()) {
+            val protected = CBORObject.DecodeFromBytes(protectedBytes)
+            if (protected.ContainsKey(KID)) {
+                return String(protected[KID].GetByteString())
+            }
+        }
+
+        val unprotected = coseObj[1]
+        if (unprotected.ContainsKey(KID)) {
+            return String(unprotected[KID].GetByteString())
+        }
+
+        return null
     }
 
+
     private fun verifySignature(
-        coseObj: CBORObject,
+        coseObj: ByteArray,
         publicKey: PublicKey
     ): Boolean {
         return try {
-            val sign1 = Sign1Message.DecodeFromBytes(coseObj.EncodeToBytes()) as Sign1Message
+            // Decode COSE_Sign1
+            val coseObject = COSEObject.DecodeFromBytes(coseObj)
 
-            val oneKey = OneKey(publicKey, null)
+            val sign1 = coseObject as? Sign1COSEObject ?: return false
 
-            sign1.validate(oneKey)
+            val coseKey = COSEKey(publicKey, null)
+
+            sign1.validate(coseKey)
         } catch (e: Exception) {
             false
         }
     }
 
+
     fun verify(credential: String): Boolean {
+        val coseBytes = hexToBytes(credential)
         val coseObj = decodeCose(credential) ?: return false;
         if (!isValidCoseStructure(coseObj)) return false;
 
         val payloadBytes = coseObj[2].GetByteString()
-        val header1 = coseObj[0].GetByteString()
-        val headerValue = CBORObject.DecodeFromBytes(header1)
         val claims = CBORObject.DecodeFromBytes(payloadBytes)
         if (!isValidCwtStructure(claims)) return false;
 
-        val issuer = extractIssuer(claims) ?: return false;
+        val issuer = extractIssuerUri(claims) ?: return false;
 
-        val issuerMetadata = resolveIssuerMetadata(issuer) ?: return false;
+        val publicKey = PublicKeyResolverFactory().get(issuer)
 
-        val publicKey = fetchPublicKey(coseObj, issuerMetadata) ?: return false;
-
-        return verifySignature(coseObj, publicKey)
+        return verifySignature(coseBytes, publicKey)
     }
 }

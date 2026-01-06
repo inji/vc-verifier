@@ -27,7 +27,7 @@ annotationJvm = "1.9.1"
 cbor = "0.9"
 identity = "20231002"
 authleteSdJwt = "1.5"
-augustcellars = "1.1.0"
+coseLibrary = "2.0.0"
 
 [libraries]
 junitJupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit" }
@@ -63,8 +63,7 @@ mockWebServer = { group = "com.squareup.okhttp3", name = "mockwebserver", versio
 annotation-jvm = { group = "androidx.annotation", name = "annotation-jvm", version.ref = "annotationJvm" }
 cbor = { group = "co.nstant.in", name = "cbor", version.ref = "cbor" }
 identity = { group = "com.android.identity", name = "identity-credential", version.ref = "identity" }
-jackson-dataformat-cbor = { group = "com.fasterxml.jackson.dataformat", name = "jackson-dataformat-cbor", version.ref = "jacksonAnnotations" }
-cose-java = { group = "com.augustcellars.cose", name = "cose-java", version.ref = "augustcellars" }
+cose-lib = { group = "se.digg.cose", name = "cose-lib", version.ref = "coseLibrary" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
