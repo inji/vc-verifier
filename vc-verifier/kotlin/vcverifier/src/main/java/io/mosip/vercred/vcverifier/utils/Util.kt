@@ -21,6 +21,7 @@ import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.signature.SignatureFactory
 import org.json.JSONArray
 import org.json.JSONObject
+import org.springframework.web.client.RestTemplate
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.net.URI
@@ -31,6 +32,8 @@ import java.security.cert.X509Certificate
 import kotlin.text.Charsets.UTF_8
 
 object Util {
+
+    val restTemplate = RestTemplate()
 
     var documentLoader : ConfigurableDocumentLoader? = null
 
@@ -169,6 +172,14 @@ object Util {
         }
 
         return value.AsInt64()
+    }
+
+    fun httpGet(url: String): String? {
+        return try {
+            restTemplate.getForObject(url, String::class.java)
+        } catch (e: Exception) {
+            null
+        }
     }
 }
 

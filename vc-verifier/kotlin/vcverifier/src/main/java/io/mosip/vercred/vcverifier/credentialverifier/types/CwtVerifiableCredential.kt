@@ -15,7 +15,7 @@ class CwtVerifiableCredential: VerifiableCredential {
         return CwtVerifer().verify(credential);
     }
 
-    override fun checkStatus(credential: String, statusPurposes: List<String>?): List<CredentialStatusResult>? {
-        return null;
+    override fun checkStatus(credential: String, statusPurposes: List<String>?): Map<String, CredentialStatusResult> {
+        return emptyMap();
     }
 }

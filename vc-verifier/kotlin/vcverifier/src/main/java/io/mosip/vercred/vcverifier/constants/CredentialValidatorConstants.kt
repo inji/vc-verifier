@@ -54,6 +54,8 @@ object CredentialValidatorConstants {
 
     const val ERROR_MESSAGE_EMPTY_VC_CWT="${VALIDATION_ERROR}Input VC CWT string is null or empty."
 
+    const val ERROR_MESSAGE_INVALID_HEX_VC_CWT="${VALIDATION_ERROR}Invalid hexadecimal format"
+
 
     const val ERROR_CODE_VC_EXPIRED = "ERR_VC_EXPIRED"
     const val ERROR_MESSAGE_VC_EXPIRED = "VC is expired"
