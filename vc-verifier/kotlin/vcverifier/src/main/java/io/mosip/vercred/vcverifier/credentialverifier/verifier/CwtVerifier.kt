@@ -45,25 +45,6 @@ class CwtVerifier {
         }
     }
 
-//    private fun extractKid(coseObj: CBORObject): String? {
-//        val KID = CBORObject.FromObject(4)
-//
-//        val protectedBytes = coseObj[0].GetByteString()
-//        if (protectedBytes.isNotEmpty()) {
-//            val protected = CBORObject.DecodeFromBytes(protectedBytes)
-//            if (protected.ContainsKey(KID)) {
-//                return String(protected[KID].GetByteString())
-//            }
-//        }
-//
-//        val unprotected = coseObj[1]
-//        if (unprotected.ContainsKey(KID)) {
-//            return String(unprotected[KID].GetByteString())
-//        }
-//
-//        return null
-//    }
-
     private fun extractClaims(coseObj: CBORObject): CBORObject {
         val payloadBytes = coseObj[2].GetByteString()
         val claims = CBORObject.DecodeFromBytes(payloadBytes)
@@ -103,10 +84,6 @@ class CwtVerifier {
             val claims = extractClaims(coseObj)
             val issuer = extractIssuer(claims)
 
-            /**
-             * Resolves and returns a non-null PublicKey.
-             * @throws PublicKeyNotFoundException if key cannot be resolved
-             */
             val publicKey = PublicKeyResolverFactory().get(issuer)
 
             verifySignature(coseBytes, publicKey)
