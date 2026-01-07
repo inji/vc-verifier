@@ -12,6 +12,7 @@ import se.digg.cose.COSEObject
 import java.net.URI
 import java.security.PublicKey
 import java.util.logging.Logger
+import io.mosip.vercred.vcverifier.exception.DidResolverExceptions.UnsupportedDidUrl
 
 class CwtVerifier {
 
@@ -52,7 +53,12 @@ class CwtVerifier {
             throw SignatureVerificationException("Invalid issuer (iss) type")
         }
 
-        return URI(iss.AsString())
+        val issURI = URI(iss.AsString())
+        return when (issURI.scheme) {
+            "did" -> issURI
+            "http", "https" -> issURI.resolve("/.well-known/jwks.json")
+            else -> throw UnsupportedDidUrl("Unsupported issuer scheme: ${issURI.scheme}")
+        }
     }
 
     private fun extractKid(coseObj: CBORObject): String? {
