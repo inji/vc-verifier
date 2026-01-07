@@ -10,6 +10,9 @@ plugins {
 
 configurations.all {
     resolutionStrategy.force( "com.fasterxml.jackson.core:jackson-core:2.14.0")
+    exclude(group = "org.bouncycastle", module = "bcprov-jdk15on")
+    exclude(group = "org.bouncycastle", module = "bcpkix-jdk15on")
+    exclude(group = "org.bouncycastle", module = "bcutil-jdk15on")
 }
 
 jacoco {
@@ -72,15 +75,6 @@ dependencies {
     testImplementation(libs.mockWebServer)
 
 }
-
-configurations.all {
-    exclude(group = "org.bouncycastle", module = "bcprov-jdk15on")
-    exclude(group = "org.bouncycastle", module = "bcpkix-jdk15on")
-    exclude(group = "org.bouncycastle", module = "bcutil-jdk15on")
-    exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
-}
-
-
 
 tasks.withType<Test> {
     useJUnitPlatform()

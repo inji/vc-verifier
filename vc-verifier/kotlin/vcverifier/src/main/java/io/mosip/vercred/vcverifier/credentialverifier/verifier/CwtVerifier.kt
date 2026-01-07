@@ -13,27 +13,11 @@ import java.net.URI
 import java.security.PublicKey
 import java.util.logging.Logger
 import io.mosip.vercred.vcverifier.exception.DidResolverExceptions.UnsupportedDidUrl
+import io.mosip.vercred.vcverifier.utils.Util.hexToBytes
 
 class CwtVerifier {
 
    private val logger = Logger.getLogger(CwtVerifier::class.java.name)
-    fun hexToBytes(hex: String): ByteArray {
-        val cleanHex = hex.replace("\\s".toRegex(), "")
-        require(cleanHex.length % 2 == 0) { "Invalid hex length" }
-
-        return ByteArray(cleanHex.length / 2) { i ->
-            cleanHex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
-        }
-    }
-
-    private fun decodeCose(cwtBytes: ByteArray): CBORObject? {
-        return try {
-            CBORObject.DecodeFromBytes(cwtBytes)
-        } catch (e: Exception) {
-
-            null
-        }
-    }
 
     private fun validateCoseStructure(coseObj: CBORObject) {
         if (coseObj.type != CBORType.Array || coseObj.size() != 4) {
@@ -61,24 +45,24 @@ class CwtVerifier {
         }
     }
 
-    private fun extractKid(coseObj: CBORObject): String? {
-        val KID = CBORObject.FromObject(4)
-
-        val protectedBytes = coseObj[0].GetByteString()
-        if (protectedBytes.isNotEmpty()) {
-            val protected = CBORObject.DecodeFromBytes(protectedBytes)
-            if (protected.ContainsKey(KID)) {
-                return String(protected[KID].GetByteString())
-            }
-        }
-
-        val unprotected = coseObj[1]
-        if (unprotected.ContainsKey(KID)) {
-            return String(unprotected[KID].GetByteString())
-        }
-
-        return null
-    }
+//    private fun extractKid(coseObj: CBORObject): String? {
+//        val KID = CBORObject.FromObject(4)
+//
+//        val protectedBytes = coseObj[0].GetByteString()
+//        if (protectedBytes.isNotEmpty()) {
+//            val protected = CBORObject.DecodeFromBytes(protectedBytes)
+//            if (protected.ContainsKey(KID)) {
+//                return String(protected[KID].GetByteString())
+//            }
+//        }
+//
+//        val unprotected = coseObj[1]
+//        if (unprotected.ContainsKey(KID)) {
+//            return String(unprotected[KID].GetByteString())
+//        }
+//
+//        return null
+//    }
 
     private fun extractClaims(coseObj: CBORObject): CBORObject {
         val payloadBytes = coseObj[2].GetByteString()
@@ -119,6 +103,10 @@ class CwtVerifier {
             val claims = extractClaims(coseObj)
             val issuer = extractIssuer(claims)
 
+            /**
+             * Resolves and returns a non-null PublicKey.
+             * @throws PublicKeyNotFoundException if key cannot be resolved
+             */
             val publicKey = PublicKeyResolverFactory().get(issuer)
 
             verifySignature(coseBytes, publicKey)
