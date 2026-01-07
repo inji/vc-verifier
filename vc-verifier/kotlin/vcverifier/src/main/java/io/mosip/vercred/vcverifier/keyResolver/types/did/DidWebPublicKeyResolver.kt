@@ -38,7 +38,7 @@ class DidWebPublicKeyResolver : DidPublicKeyResolver() {
 
             val verificationMethodId = keyId ?: parsedDID.didUrl
             val verificationMethod = verificationMethods.find {
-                it[ID] == verificationMethodId
+                (it[ID] as? String)?.contains(verificationMethodId) == true
             }
                 ?: throw PublicKeyResolutionFailedException("Public key extraction failed for kid: $verificationMethodId")
 
