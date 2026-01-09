@@ -45,6 +45,25 @@ class CwtVerifier {
         }
     }
 
+    private fun extractKid(coseObj: CBORObject): String? {
+        val KID = CBORObject.FromObject(4)
+
+        val protectedBytes = coseObj[0].GetByteString()
+        if (protectedBytes.isNotEmpty()) {
+            val protected = CBORObject.DecodeFromBytes(protectedBytes)
+            if (protected.ContainsKey(KID)) {
+                return String(protected[KID].GetByteString())
+            }
+        }
+
+        val unprotected = coseObj[1]
+        if (unprotected.ContainsKey(KID)) {
+            return String(unprotected[KID].GetByteString())
+        }
+
+        return null
+    }
+
     private fun extractClaims(coseObj: CBORObject): CBORObject {
         val payloadBytes = coseObj[2].GetByteString()
         val claims = CBORObject.DecodeFromBytes(payloadBytes)
@@ -79,12 +98,13 @@ class CwtVerifier {
         return try {
             val coseBytes = hexToBytes(credential)
             val coseObj = CBORObject.DecodeFromBytes(coseBytes)
+            val claims = extractClaims(coseObj)
             validateCoseStructure(coseObj)
 
-            val claims = extractClaims(coseObj)
-            val issuer = extractIssuer(claims)
+            val kid = extractKid(coseObj)
 
-            val publicKey = PublicKeyResolverFactory().get(issuer)
+            var issuer = extractIssuer(claims)
+            val publicKey = PublicKeyResolverFactory().get(issuer,kid)
 
             verifySignature(coseBytes, publicKey)
         } catch (exception: Exception) {

@@ -1,5 +1,6 @@
 package io.mosip.vercred.vcverifier.credentialverifier.validator
 
+import com.upokecenter.cbor.CBOREncodeOptions
 import com.upokecenter.cbor.CBORObject
 import com.upokecenter.cbor.CBORType
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_CURRENT_DATE_BEFORE_PROCESSING_DATE
@@ -198,12 +199,12 @@ class CwtValidator {
 
     private fun decodeCwtClaims(coseObj: CBORObject): CBORObject {
         val payloadBytes = coseObj[2].GetByteString()
-        return CBORObject.DecodeFromBytes(payloadBytes)
+        return CBORObject.DecodeFromBytes(payloadBytes, CBOREncodeOptions("allowduplicatekeys=false"))
     }
 
     private fun isValidHex(credential: String): Boolean {
-        val hexRegex = "^[0-9a-fA-F]+$".toRegex()
-        return credential.matches(hexRegex)
+        return credential.length % 2 == 0 &&
+                credential.matches(Regex("^[0-9a-fA-F]+$"))
     }
 
 }

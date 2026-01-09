@@ -31,6 +31,64 @@ class CwtValidatorTest {
         return bytesToHex(coseArray.EncodeToBytes())
     }
 
+    private fun cborMapWithDuplicateKey(
+        key: Int,
+        firstValue: CBORObject,
+        secondValue: CBORObject
+    ): ByteArray {
+        // CBOR map with 2 pairs, same key repeated
+        val map = CBORObject.NewArray().apply {
+            Add(key)
+            Add(firstValue)
+            Add(key)
+            Add(secondValue)
+        }
+
+        // Encode as a CBOR map manually
+        return CBORObject.NewMap().apply {
+            // placeholder, replaced below
+        }.let {
+            // Major type 5 (map), length 2
+            byteArrayOf(0xA2.toByte()) +
+                    map[0].EncodeToBytes() +
+                    map[1].EncodeToBytes() +
+                    map[2].EncodeToBytes() +
+                    map[3].EncodeToBytes()
+        }
+    }
+
+
+    @Test
+    fun `test - duplicate CWT claim keys should fail`() {
+
+        val duplicateClaimsBytes = cborMapWithDuplicateKey(
+            key = 4, // exp
+            firstValue = CBORObject.FromObject(9999999999L),
+            secondValue = CBORObject.FromObject(8888888888L)
+        )
+
+        val coseArray = CBORObject.NewArray().apply {
+            Add(CBORObject.NewMap().apply { Add(1, -7) }.EncodeToBytes())
+            Add(CBORObject.NewMap())
+            Add(duplicateClaimsBytes)
+            Add(ByteArray(32))
+        }
+
+        val hex = coseArray.EncodeToBytes().joinToString("") { "%02x".format(it) }
+
+        val result = validator.validate(hex)
+
+        assertEquals(
+            CredentialValidatorConstants.ERROR_CODE_GENERIC,
+            result.validationErrorCode
+        )
+        assertTrue(
+            result.validationMessage.contains("Duplicate"),
+            "Expected duplicate key decoding failure"
+        )
+    }
+
+
     @Test
     fun `validate - empty string should fail`() {
         val result = validator.validate("")

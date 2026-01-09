@@ -29,11 +29,17 @@ import java.io.StringReader
 import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.PublicKey
+import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECParameterSpec
+import java.security.spec.ECPoint
 import java.security.spec.ECPublicKeySpec
+import java.security.spec.RSAPublicKeySpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.logging.Logger
+import java.util.Base64
+
 
 private val base64Decoder = Base64Decoder()
 
@@ -70,23 +76,32 @@ fun getPublicKeyObjectFromPemPublicKey(publicKeyPem: String, keyType: String): P
     }
 }
 
-
-fun getPublicKeyFromJWK(jwkStr: String, keyType: String): PublicKey {
-    val objectMapper = ObjectMapper()
-    val jwk: Map<String, String> =
-        objectMapper.readValue(jwkStr, Map::class.java) as Map<String, String>
-
+fun getPublicKeyFromJWK(jwk: Map<String, Any>, keyType: String): PublicKey {
     return when (keyType) {
-        ES256K_KEY_TYPE_2019,ES256_KEY_TYPE_2019 -> getECPublicKey(jwk)
-        ED25519_KEY_TYPE_2020 -> getEdPublicKey(jwk)
-        RSA_KEY_TYPE -> getRSAPublicKey(jwk)
+        ES256K_KEY_TYPE_2019,ES256_KEY_TYPE_2019,JWK_KEY_TYPE_EC  -> getECPublicKey(jwk)
+        ED25519_KEY_TYPE_2020, "OKP" -> getEdPublicKey(jwk)
+        RSA_KEY_TYPE, RSA_ALGORITHM -> getRSAPublicKey(jwk)
         else -> throw PublicKeyTypeNotSupportedException("Unsupported key type: $keyType")
     }
 }
 
-private fun getRSAPublicKey(jwk: Map<String, String>): PublicKey {
-    val nB64Url = jwk["n"] ?: throw PublicKeyResolutionFailedException("Missing modulus 'n' in JWK for RSA key")
-    val eB64Url = jwk["e"] ?: throw PublicKeyResolutionFailedException("Missing exponent 'e' in JWK for RSA key")
+
+fun getPublicKeyFromJWK(jwkStr: String, keyType: String): PublicKey {
+    val objectMapper = ObjectMapper()
+    val jwk: Map<String, Any> =
+        objectMapper.readValue(jwkStr, Map::class.java) as Map<String, Any>
+
+    return when (keyType) {
+        ES256K_KEY_TYPE_2019,ES256_KEY_TYPE_2019,JWK_KEY_TYPE_EC  -> getECPublicKey(jwk)
+        ED25519_KEY_TYPE_2020, "OKP" -> getEdPublicKey(jwk)
+        RSA_KEY_TYPE, RSA_ALGORITHM -> getRSAPublicKey(jwk)
+        else -> throw PublicKeyTypeNotSupportedException("Unsupported key type: $keyType")
+    }
+}
+
+private fun getRSAPublicKey(jwk: Map<String, Any>): PublicKey {
+    val nB64Url = jwk["n"]?.toString() ?: throw PublicKeyResolutionFailedException("Missing modulus 'n' in JWK for RSA key")
+    val eB64Url = jwk["e"]?.toString() ?: throw PublicKeyResolutionFailedException("Missing exponent 'e' in JWK for RSA key")
 
     val modulus = BigInteger(1, base64Decoder.decodeFromBase64Url(nB64Url))
     val exponent = BigInteger(1, base64Decoder.decodeFromBase64Url(eB64Url))
@@ -97,7 +112,7 @@ private fun getRSAPublicKey(jwk: Map<String, String>): PublicKey {
 }
 
 
-internal fun getEdPublicKey(jwk: Map<String, String>): PublicKey {
+internal fun getEdPublicKey(jwk: Map<String, Any>): PublicKey {
     val keyType = jwk["kty"]
     require(keyType == "OKP") { throw PublicKeyResolutionFailedException("KeyType - $keyType is not supported. Supported: OKP") }
     val curve = jwk["crv"]
@@ -105,7 +120,8 @@ internal fun getEdPublicKey(jwk: Map<String, String>): PublicKey {
 
     val xB64Url =
         jwk["x"] ?: throw PublicKeyResolutionFailedException("Missing the public key data in JWK")
-    val xBytes = base64Decoder.decodeFromBase64Url(xB64Url)
+    val xB64 = xB64Url.toString()
+    val xBytes = base64Decoder.decodeFromBase64Url(xB64)
 
     val spki = X509_HEADER_PREFIX_ED_KEY + xBytes
 
@@ -114,10 +130,16 @@ internal fun getEdPublicKey(jwk: Map<String, String>): PublicKey {
 }
 
 
-private fun getECPublicKey(jwk: Map<String, String>): PublicKey {
-    val curve = jwk["crv"] ?: throw IllegalArgumentException("Missing 'crv' field for EC key")
-    val xBytes = Base64Decoder().decodeFromBase64Url(jwk["x"]!!)
-    val yBytes = Base64Decoder().decodeFromBase64Url(jwk["y"]!!)
+private fun getECPublicKey(jwk: Map<String, Any>): PublicKey {
+    val curve = jwk["crv"]?.toString() ?: throw IllegalArgumentException("Missing 'crv' field for EC key")
+
+    val xBase64 = jwk["x"]?.toString()
+        ?: throw PublicKeyResolutionFailedException("Missing 'x'")
+
+    val yBase64 = jwk["y"]?.toString()
+        ?: throw PublicKeyResolutionFailedException("Missing 'x'")
+    val xBytes = Base64Decoder().decodeFromBase64Url(xBase64)
+    val yBytes = Base64Decoder().decodeFromBase64Url(yBase64)
 
     val x = BigInteger(1, xBytes)
     val y = BigInteger(1, yBytes)
