@@ -51,24 +51,21 @@ class CwtVerifier {
         val protectedBytes = coseObj[0].GetByteString()
         if (protectedBytes.isNotEmpty()) {
             val protected = CBORObject.DecodeFromBytes(protectedBytes)
-            if (protected.ContainsKey(KID)) {
-                return String(
-                    protected[KID].GetByteString(),
-                    Charsets.UTF_8
-                )
+            val kid = protected[KID]
+            if (kid != null && kid.type == CBORType.ByteString) {
+                return String(kid.GetByteString(), Charsets.UTF_8)
             }
         }
 
         val unprotected = coseObj[1]
-        if (unprotected.ContainsKey(KID)) {
-            return String(
-                unprotected[KID].GetByteString(),
-                Charsets.UTF_8
-            )
+        val kid = unprotected[KID]
+        if (kid != null && kid.type == CBORType.ByteString) {
+            return String(kid.GetByteString(), Charsets.UTF_8)
         }
 
         return null
     }
+
 
     private fun extractClaims(coseObj: CBORObject): CBORObject {
         val payloadBytes = coseObj[2].GetByteString()
