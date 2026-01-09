@@ -22,7 +22,7 @@ class JwksPublicKeyResolver : PublicKeyResolver {
 
             val jwk = keys
                 .filterIsInstance<Map<String, Any>>()
-                .firstOrNull { keyId == null || it["kid"] == keyId }
+                .firstOrNull { it["kid"] == keyId }
                 ?: throw PublicKeyNotFoundException("No matching key found for kid=$keyId")
 
             val kty = jwk["kty"]?.toString()

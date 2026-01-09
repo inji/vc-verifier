@@ -98,9 +98,8 @@ class CwtVerifier {
         return try {
             val coseBytes = hexToBytes(credential)
             val coseObj = CBORObject.DecodeFromBytes(coseBytes)
-            val claims = extractClaims(coseObj)
             validateCoseStructure(coseObj)
-
+            val claims = extractClaims(coseObj)
             val kid = extractKid(coseObj)
 
             var issuer = extractIssuer(claims)
