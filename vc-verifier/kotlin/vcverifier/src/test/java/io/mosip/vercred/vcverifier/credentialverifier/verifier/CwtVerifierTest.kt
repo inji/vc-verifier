@@ -1,6 +1,7 @@
 package io.mosip.vercred.vcverifier.credentialverifier.verifier
 
 import io.mockk.mockkObject
+import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -8,7 +9,7 @@ import org.junit.jupiter.api.TestInstance
 import testutils.mockHttpResponse
 import testutils.readClasspathFile
 import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
-import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.assertThrows
 
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -34,6 +35,10 @@ class CwtVerifierTest {
 
         val coseHex = readClasspathFile("cwt_vc/invalid-ec-cwt.hex")
             .replace("\\s".toRegex(), "")
+
+        assertThrows<SignatureVerificationException> {
+            CwtVerifier().verify(coseHex)
+        }
 
     }
 

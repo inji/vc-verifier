@@ -12,11 +12,8 @@ import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.UnknownException
 import io.mosip.vercred.vcverifier.keyResolver.PublicKeyResolverFactory
 import io.mosip.vercred.vcverifier.utils.Util.hexToBytes
-import java.math.BigInteger
 import java.net.URI
-import java.security.KeyFactory
 import java.security.PublicKey
-import java.security.spec.RSAPublicKeySpec
 import java.util.logging.Logger
 
 class CwtVerifier {
@@ -44,7 +41,10 @@ class CwtVerifier {
         val issURI = URI(iss.AsString())
         return when (issURI.scheme) {
             "did" -> issURI
-            "http", "https" -> URI(issURI.toString() + "/.well-known/jwks.json")
+            "http", "https" -> {
+                val base = issURI.toString().removeSuffix("/")
+                URI("$base/.well-known/jwks.json")
+            }
             else -> throw UnsupportedDidUrl("Unsupported issuer scheme: ${issURI.scheme}")
         }
     }
@@ -90,11 +90,11 @@ class CwtVerifier {
 
         val verifier = COSEVerifier(publicKey)
 
-        if (!verifier.verify(sign1)) {
-            throw SignatureVerificationException("CWT signature verification failed")
+        return try {
+            verifier.verify(sign1)
+        } catch (exception: Exception){
+            throw SignatureVerificationException("CWT signature verification failed: ${exception.message}")
         }
-
-        return true
     }
 
     private fun parseCoseSign1(coseBytes: ByteArray): COSESign1 {
@@ -126,7 +126,6 @@ class CwtVerifier {
             when (exception) {
                 is PublicKeyNotFoundException,
                 is SignatureVerificationException -> throw exception
-
                 else -> throw UnknownException(
                     "Error while verifying CWT credential: ${exception.message}"
                 )
