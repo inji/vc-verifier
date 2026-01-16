@@ -40,6 +40,7 @@ jobs:
     with:
       SERVICE_LOCATION: 'vc-verifier/kotlin'
       ANDROID_SERVICE_LOCATION: 'vcverifier'
+      GROUP_PATH: ${{ inputs.group_path }}   #dynamic
       JAVA_VERSION: 21
       LICENSE_NAME: 'MPL-2.0'
       RELEASE_TYPE: ${{ inputs.release_type }}
@@ -57,6 +58,7 @@ jobs:
     with:
       SERVICE_LOCATION: 'vc-verifier/kotlin'
       ANDROID_SERVICE_LOCATION: 'vcverifier'
+      GROUP_PATH: ${{ inputs.group_path }}   #dynamic
       JAVA_VERSION: 21
       LICENSE_NAME: 'MPL-2.0'
       RELEASE_TYPE: ${{ inputs.release_type }}
