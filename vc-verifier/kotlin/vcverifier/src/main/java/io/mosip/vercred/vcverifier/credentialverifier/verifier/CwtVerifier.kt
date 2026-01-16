@@ -1,19 +1,23 @@
 package io.mosip.vercred.vcverifier.credentialverifier.verifier
 
-import se.digg.cose.Sign1COSEObject
-import se.digg.cose.COSEKey
+import com.authlete.cbor.CBORDecoder
+import com.authlete.cbor.CBORTaggedItem
+import com.authlete.cose.COSESign1
+import com.authlete.cose.COSEVerifier
 import com.upokecenter.cbor.CBORObject
 import com.upokecenter.cbor.CBORType
+import io.mosip.vercred.vcverifier.exception.DidResolverExceptions.UnsupportedDidUrl
 import io.mosip.vercred.vcverifier.exception.PublicKeyNotFoundException
 import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.UnknownException
 import io.mosip.vercred.vcverifier.keyResolver.PublicKeyResolverFactory
-import se.digg.cose.COSEObject
-import java.net.URI
-import java.security.PublicKey
-import java.util.logging.Logger
-import io.mosip.vercred.vcverifier.exception.DidResolverExceptions.UnsupportedDidUrl
 import io.mosip.vercred.vcverifier.utils.Util.hexToBytes
+import java.math.BigInteger
+import java.net.URI
+import java.security.KeyFactory
+import java.security.PublicKey
+import java.security.spec.RSAPublicKeySpec
+import java.util.logging.Logger
 
 class CwtVerifier {
 
@@ -40,7 +44,7 @@ class CwtVerifier {
         val issURI = URI(iss.AsString())
         return when (issURI.scheme) {
             "did" -> issURI
-            "http", "https" -> issURI.resolve("/.well-known/jwks.json")
+            "http", "https" -> URI(issURI.toString() + "/.well-known/jwks.json")
             else -> throw UnsupportedDidUrl("Unsupported issuer scheme: ${issURI.scheme}")
         }
     }
@@ -82,17 +86,26 @@ class CwtVerifier {
         coseBytes: ByteArray,
         publicKey: PublicKey
     ): Boolean {
-        val coseObject = COSEObject.DecodeFromBytes(coseBytes)
-        val sign1 = coseObject as? Sign1COSEObject
-            ?: throw SignatureVerificationException("Not a COSE_Sign1 object")
+        val sign1 = parseCoseSign1(coseBytes)
 
-        val coseKey = COSEKey(publicKey, null)
+        val verifier = COSEVerifier(publicKey)
 
-        if (!sign1.validate(coseKey)) {
+        if (!verifier.verify(sign1)) {
             throw SignatureVerificationException("CWT signature verification failed")
         }
 
         return true
+    }
+
+    private fun parseCoseSign1(coseBytes: ByteArray): COSESign1 {
+        val item = CBORDecoder(coseBytes).next()
+            ?: throw SignatureVerificationException("Empty CBOR input")
+
+        val tagged = item as? CBORTaggedItem
+            ?: throw SignatureVerificationException("COSE_Sign1 must be tagged")
+
+        return tagged.tagContent as? COSESign1
+            ?: throw SignatureVerificationException("Invalid COSE_Sign1 structure")
     }
 
     fun verify(credential: String): Boolean {

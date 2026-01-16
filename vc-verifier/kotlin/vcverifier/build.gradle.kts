@@ -69,6 +69,7 @@ dependencies {
     implementation(libs.authelete.sd.jwt)
     implementation(libs.threetenbp)
     implementation(libs.cose.lib)
+    implementation(libs.authlete.cbor)
 
     testImplementation(libs.mockk)
     testImplementation(libs.junitJupiter)
