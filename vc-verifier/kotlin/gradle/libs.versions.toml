@@ -28,6 +28,7 @@ cbor = "0.9"
 identity = "20231002"
 authleteSdJwt = "1.5"
 coseLibrary = "2.0.0"
+authleteCbor = "1.19"
 
 [libraries]
 junitJupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit" }
@@ -64,6 +65,7 @@ annotation-jvm = { group = "androidx.annotation", name = "annotation-jvm", versi
 cbor = { group = "co.nstant.in", name = "cbor", version.ref = "cbor" }
 identity = { group = "com.android.identity", name = "identity-credential", version.ref = "identity" }
 cose-lib = { group = "se.digg.cose", name = "cose-lib", version.ref = "coseLibrary" }
+authlete-cbor = { group = "com.authlete", name = "cbor", version.ref = "authleteCbor" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
