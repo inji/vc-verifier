@@ -28,7 +28,7 @@ cbor = "0.9"
 identity = "20231002"
 authleteSdJwt = "1.5"
 coseLibrary = "2.0.0"
-authleteCbor = "1.18"
+authleteCbor = "1.19"
 
 [libraries]
 junitJupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit" }
