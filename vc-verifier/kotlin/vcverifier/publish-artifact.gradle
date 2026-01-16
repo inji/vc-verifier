@@ -47,7 +47,7 @@ publishing {
                         appendNode('id', 'Your developer ID')
                         appendNode('name', 'Mosip')
                         appendNode('email', 'mosip.emailnotifier@gmail.com')
-                        appendNode('organization', 'io.mosip')
+                        appendNode('organization', 'io.inji')
                         appendNode("organizationUrl", "https://github.com/mosip/vc-verifier")
                     }
 
@@ -94,7 +94,7 @@ publishing {
                     gpgArgumentsNode.appendNode('arg', 'loopback')
                 }
             }
-            groupId = "io.mosip"
+            groupId = "io.inji"
             artifactId = "vcverifier-aar"
             version = "1.7.0-RC1"
             if (project.gradle.startParameter.taskNames.any { it.contains('assembleRelease') }) {
@@ -108,7 +108,7 @@ publishing {
         }
         jarRelease(MavenPublication) {
             artifact(tasks.named("jarRelease").get())
-            groupId = "io.mosip"
+            groupId = "io.inji"
             artifactId = "vcverifier-jar"
             version = "1.7.0-RC1"
             artifact(tasks.named("javadocJar").get())
@@ -142,7 +142,7 @@ publishing {
                         appendNode('id', 'Your developer ID')
                         appendNode('name', 'Mosip')
                         appendNode('email', 'mosip.emailnotifier@gmail.com')
-                        appendNode('organization', 'io.mosip')
+                        appendNode('organization', 'io.inji')
                         appendNode("organizationUrl", "https://github.com/mosip/vc-verifier")
                     }
 
