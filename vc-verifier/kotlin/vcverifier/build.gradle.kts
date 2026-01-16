@@ -10,6 +10,9 @@ plugins {
 
 configurations.all {
     resolutionStrategy.force( "com.fasterxml.jackson.core:jackson-core:2.14.0")
+    exclude(group = "org.bouncycastle", module = "bcprov-jdk15on")
+    exclude(group = "org.bouncycastle", module = "bcpkix-jdk15on")
+    exclude(group = "org.bouncycastle", module = "bcutil-jdk15on")
 }
 
 jacoco {
@@ -65,6 +68,7 @@ dependencies {
     implementation(libs.annotation.jvm)
     implementation(libs.authelete.sd.jwt)
     implementation(libs.threetenbp)
+    implementation(libs.cose.lib)
 
     testImplementation(libs.mockk)
     testImplementation(libs.junitJupiter)

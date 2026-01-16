@@ -75,7 +75,7 @@ class PublicKeyResolverFactoryTest {
 
     @Test
     fun `should use HttpsPublicKeyResolver for http`() {
-        val httpsVerificationMethodUri = "https://mock-server.com/.well-known/jwks.json"
+        val httpsVerificationMethodUri = "https://mock-server.com/.well-known/did.json"
         val mockResponse = mapOf(
             PUBLIC_KEY_PEM to "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA8g9d/MB0iU2nmgb/9P4Df0TRQm5RJTmaiEk2HkZy5pE=\n-----END PUBLIC KEY-----",
             KEY_TYPE to ED25519_KEY_TYPE_2020
@@ -98,4 +98,30 @@ class PublicKeyResolverFactoryTest {
 
         assertEquals("Public Key type is not supported", publicKeyTypeNotSupportedException.message)
     }
+
+    @Test
+    fun `should use JwksPublicKeyResolver when keyId is provided`() {
+        val jwksUri = URI("https://mock-server.com/.well-known/jwks.json")
+        val keyId = "test-key-id"
+
+        val mockResponse = mapOf(
+            "keys" to listOf(
+                mapOf(
+                    "kty" to "OKP",
+                    "crv" to "Ed25519",
+                    "x" to "8g9d_MB0iU2nmgb_9P4Df0TRQm5RJTmaiEk2HkZy5pE",
+                    "kid" to keyId
+                )
+            )
+        )
+
+        every {
+            sendHTTPRequest(jwksUri.toString(), HttpMethod.GET, any(), any())
+        } returns mockResponse
+
+        assertDoesNotThrow {
+            factory.get(jwksUri, keyId)
+        }
+    }
+
 }
