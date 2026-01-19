@@ -155,6 +155,10 @@ object Util {
         }
     }
 
+    fun toCoseBytes(coseObj: CBORObject): ByteArray {
+        return coseObj.EncodeToBytes()
+    }
+
     fun validateNumericDate(
         claims: CBORObject,
         key: CBORObject,

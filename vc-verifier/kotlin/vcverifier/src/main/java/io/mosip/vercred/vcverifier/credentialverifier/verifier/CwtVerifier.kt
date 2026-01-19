@@ -12,6 +12,7 @@ import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.UnknownException
 import io.mosip.vercred.vcverifier.keyResolver.PublicKeyResolverFactory
 import io.mosip.vercred.vcverifier.utils.Util.hexToBytes
+import io.mosip.vercred.vcverifier.utils.Util.toCoseBytes
 import java.net.URI
 import java.security.PublicKey
 import java.util.logging.Logger
@@ -97,6 +98,16 @@ class CwtVerifier {
         }
     }
 
+    private fun requireAndUnwrapCwt(cbor: CBORObject): CBORObject {
+        if (!cbor.isTagged || cbor.mostOuterTag.ToInt32Unchecked() != 61) {
+            throw SignatureVerificationException(
+                "Invalid CWT: missing required CBOR tag 61"
+            )
+        }
+        return cbor.UntagOne()
+    }
+
+
     private fun parseCoseSign1(coseBytes: ByteArray): COSESign1 {
         val item = CBORDecoder(coseBytes).next()
             ?: throw SignatureVerificationException("Empty CBOR input")
@@ -112,8 +123,11 @@ class CwtVerifier {
         logger.info("Received CWT Verification - Start")
 
         return try {
-            val coseBytes = hexToBytes(credential)
-            val coseObj = CBORObject.DecodeFromBytes(coseBytes)
+            val inputBytes = hexToBytes(credential)
+            val decoded = CBORObject.DecodeFromBytes(inputBytes)
+            val coseObj = requireAndUnwrapCwt(decoded)
+            val coseBytes = toCoseBytes(coseObj)
+
             validateCoseStructure(coseObj)
             val claims = extractClaims(coseObj)
             val kid = extractKid(coseObj)
