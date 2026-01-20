@@ -19,10 +19,12 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.Timeout
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.assertThrows
 import testutils.mockHttpResponse
 import testutils.readClasspathFile
 import java.util.concurrent.TimeUnit
+import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatusV2
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PresentationVerifierTest {
@@ -151,5 +153,139 @@ class PresentationVerifierTest {
         assertEquals("revocation", credentialStatusEntry.key)
         assertNull(credentialStatusEntry.value.error)
         assertEquals(credentialStatusEntry.value.isValid, true)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should return success for valid Ed25519Signature2018 VP`() {
+        val vp = readClasspathFile("vp/Ed25519Signature2018SignedVP-didKey.json")
+
+        val result = PresentationVerifier().verifyV2(vp)
+
+        assertTrue(result.proofVerificationStatus.verificationStatus)
+        assertEquals("SUCCESS", result.proofVerificationStatus.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should return success for valid JsonWebSignature2020 VP`() {
+        mockHttpResponse(
+            "https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json",
+            readClasspathFile("vp/public_key/didIdentityServiceKey.json")
+        )
+
+        val vp = readClasspathFile("vp/JsonWebSignature2020SignedVP-didJws.json")
+
+        val result = PresentationVerifier().verifyV2(vp)
+
+        assertTrue(result.proofVerificationStatus.verificationStatus)
+        assertTrue(result.vcResults[0].status.verificationStatus)
+        assertNotNull(result.vcResults[0].vc)
+        assertNotEquals("", result.vcResults[0].vc)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should return failure for invalid VP signature`() {
+        val vp = readClasspathFile("vp/InvalidEd25519Signature2018SignedVP-didKey.json")
+
+        val result = PresentationVerifier().verifyV2(vp)
+
+        assertFalse(result.proofVerificationStatus.verificationStatus)
+        assertEquals("SIGNATURE_VERIFICATION_FAILED", result.proofVerificationStatus.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should return unsupported DID error when public key not found`() {
+        val vp = readClasspathFile("vp/InvalidPublicKeyEd25519Signature2018SignedVP-didKey.json")
+
+        val result = PresentationVerifier().verifyV2(vp)
+
+        assertFalse(result.proofVerificationStatus.verificationStatus)
+        assertEquals("UNSUPPORTED_DID", result.proofVerificationStatus.verificationErrorCode)
+        assertNotNull(result.proofVerificationStatus.verificationMessage)
+    }
+
+
+    @Test
+    fun `V2 should throw error when VP is not JSON-LD`() {
+        assertThrows<PresentationNotSupportedException> {
+            PresentationVerifier().verifyV2("invalid")
+        }
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should return failure for invalid Ed25519Signature2020 VP`() {
+        val vp = readClasspathFile("vp/Ed25519Signature2020SignedVP-didKey.json")
+
+        val result = PresentationVerifier().verifyV2(vp)
+
+        assertFalse(result.proofVerificationStatus.verificationStatus)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should verify VC and return revoked credential status`() {
+        val mockStatusListJson = readClasspathFile("ldp_vc/mosipRevokedStatusList.json")
+        val vp = readClasspathFile("vp/VPWithRevokedVC.json")
+
+        mockHttpResponse(
+            "https://mosip.github.io/inji-config/qa-inji1/mock/did.json",
+            readClasspathFile("vp/public_key/didMockKey.json")
+        )
+
+        val realUrl =
+            "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
+        mockHttpResponse(realUrl, mockStatusListJson)
+
+        val result: PresentationResultWithCredentialStatusV2 =
+            PresentationVerifier().verifyAndGetCredentialStatusV2(
+                vp,
+                listOf("revocation")
+            )
+
+        assertFalse(result.proofVerificationStatus.verificationStatus)
+        assertTrue(result.vcResults[0].status.verificationStatus)
+
+        val credentialStatus = result.vcResults[0].credentialStatus
+        val entry = credentialStatus.entries.first()
+
+        assertEquals("revocation", entry.key)
+        assertFalse(entry.value.isValid)
+        assertNull(entry.value.error)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should verify VC and return unrevoked credential status`() {
+        val mockStatusListJson = readClasspathFile("ldp_vc/mosipUnrevokedStatusList.json")
+        val vp = readClasspathFile("vp/VPWithUnrevokedVC.json")
+
+        mockHttpResponse(
+            "https://mosip.github.io/inji-config/qa-inji1/mock/did.json",
+            readClasspathFile("vp/public_key/didMockKey.json")
+        )
+
+        val realUrl =
+            "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
+        mockHttpResponse(realUrl, mockStatusListJson)
+
+        val result: PresentationResultWithCredentialStatusV2 =
+            PresentationVerifier().verifyAndGetCredentialStatusV2(
+                vp,
+                listOf("revocation")
+            )
+
+        assertFalse(result.proofVerificationStatus.verificationStatus)
+        assertTrue(result.vcResults[0].status.verificationStatus)
+
+        val credentialStatus = result.vcResults[0].credentialStatus
+        val entry = credentialStatus.entries.first()
+
+        assertEquals("revocation", entry.key)
+        assertTrue(entry.value.isValid)
+        assertNull(entry.value.error)
     }
 }

@@ -14,8 +14,12 @@ import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JSON_WE
 import io.mosip.vercred.vcverifier.constants.Shared
 import io.mosip.vercred.vcverifier.data.PresentationVerificationResult
 import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatus
+import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatusV2
+import io.mosip.vercred.vcverifier.data.PresentationVerificationResultV2
 import io.mosip.vercred.vcverifier.data.VCResult
+import io.mosip.vercred.vcverifier.data.VCResultV2
 import io.mosip.vercred.vcverifier.data.VCResultWithCredentialStatus
+import io.mosip.vercred.vcverifier.data.VCResultWithCredentialStatusV2
 import io.mosip.vercred.vcverifier.data.VPVerificationStatus
 import io.mosip.vercred.vcverifier.data.VerificationResult
 import io.mosip.vercred.vcverifier.data.VerificationStatus
@@ -50,9 +54,18 @@ class PresentationVerifier {
         return PresentationVerificationResult(presentationVerificationStatus, vcVerificationResults)
     }
 
+    fun verifyV2(presentation: String): PresentationVerificationResultV2 {
+
+        val presentationVerificationStatus: VerificationResult = getPresentationVerificationStatusV2(presentation)
+
+        val verifiableCredentials = JSONObject(presentation).getJSONArray(Shared.KEY_VERIFIABLE_CREDENTIAL)
+        val vcVerificationResults: List<VCResultV2> = getVCVerificationResultsV2(verifiableCredentials)
+
+        return PresentationVerificationResultV2(presentationVerificationStatus, vcVerificationResults)
+    }
+
     private fun getPresentationVerificationStatus(presentation: String): VPVerificationStatus {
         logger.info("Received Presentation For Verification - Start")
-        val proofVerificationStatus: VPVerificationStatus
         val vcJsonLdObject: JsonLDObject
 
         try {
@@ -61,65 +74,11 @@ class PresentationVerifier {
             throw PresentationNotSupportedException("Unsupported VP Token type")
         }
 
-        try {
-            logger.info("Proof verification - Start")
-            vcJsonLdObject.documentLoader = Util.getConfigurableDocumentLoader()
-            val ldProof: LdProof = LdProof.getFromJsonLDObject(vcJsonLdObject)
-
-            val canonicalHashBytes = URDNA2015Canonicalizer().canonicalize(ldProof, vcJsonLdObject)
-
-            val verificationMethod = ldProof.verificationMethod
-            val publicKeyObj = PublicKeyResolverFactory().get(verificationMethod)
-
-            when {
-                ldProof.type == ED25519_PROOF_TYPE_2018 && !ldProof.jws.isNullOrEmpty() -> {
-                    val signJWS: String = ldProof.jws
-                    val jwsObject = JWSObject.parse(signJWS)
-                    val signature = jwsObject.signature.decode()
-                    val actualData =
-                        JWSUtil.getJwsSigningInput(jwsObject.header, canonicalHashBytes)
-                    proofVerificationStatus = if (ED25519SignatureVerifierImpl().verify(
-                            publicKeyObj,
-                            actualData,
-                            signature
-                        )
-                    ) VPVerificationStatus.VALID else VPVerificationStatus.INVALID
-                }
-
-                ldProof.type == ED25519_PROOF_TYPE_2020 && !ldProof.proofValue.isNullOrEmpty() -> {
-                    val proofValue = ldProof.proofValue
-                    val signature = Multibase.decode(proofValue)
-                    proofVerificationStatus = if (ED25519SignatureVerifierImpl().verify(
-                            publicKeyObj,
-                            canonicalHashBytes,
-                            signature
-                        )
-                    ) VPVerificationStatus.VALID else VPVerificationStatus.INVALID
-                }
-
-                ldProof.type == JSON_WEB_PROOF_TYPE_2020 && !ldProof.jws.isNullOrEmpty() -> {
-                    val signJWS: String = ldProof.jws
-                    val jwsObject = JWSObject.parse(signJWS)
-                    if (jwsObject.header.algorithm != JWSAlgorithm.EdDSA) throw SignatureNotSupportedException(
-                        "Unsupported jws signature algorithm"
-                    )
-                    val signature = jwsObject.signature.decode()
-                    val actualData =
-                        JWSUtil.getJwsSigningInput(jwsObject.header, canonicalHashBytes)
-
-                    proofVerificationStatus = if (ED25519SignatureVerifierImpl().verify(
-                            publicKeyObj,
-                            actualData,
-                            signature
-                        )
-                    ) VPVerificationStatus.VALID else VPVerificationStatus.INVALID
-                }
-
-                else -> {
-                    proofVerificationStatus = VPVerificationStatus.INVALID
-                }
-            }
-
+        return try {
+            if (verifyPresentationProof(vcJsonLdObject))
+                VPVerificationStatus.VALID
+            else
+                VPVerificationStatus.INVALID
         } catch (e: Exception) {
             logger.severe("Error while verifying presentation proof: ${e.message}")
             when (e) {
@@ -135,7 +94,92 @@ class PresentationVerifier {
                 }
             }
         }
-        return proofVerificationStatus
+    }
+    private fun getPresentationVerificationStatusV2(presentation: String): VerificationResult {
+        logger.info("Received Presentation For Verification - Start")
+        val vcJsonLdObject: JsonLDObject
+
+        try {
+            vcJsonLdObject = JsonLDObject.fromJson(presentation)
+        } catch (e: RuntimeException) {
+            throw PresentationNotSupportedException("Unsupported VP Token type")
+        }
+        return try {
+            val isVerified = verifyPresentationProof(vcJsonLdObject)
+
+            if (isVerified) {
+                VerificationResult(
+                    true,
+                    "Presentation proof verification successful",
+                    "SUCCESS"
+                )
+            } else {
+                VerificationResult(
+                    false,
+                    "Signature verification failed",
+                    "SIGNATURE_VERIFICATION_FAILED"
+                )
+            }
+        } catch (e: PublicKeyNotFoundException) {
+            VerificationResult(false, e.message ?: "Public key not found", "PUBLIC_KEY_NOT_FOUND")
+        } catch (e: UnsupportedDidUrl) {
+            VerificationResult(false, e.message ?: "Unsupported DID", "UNSUPPORTED_DID")
+        } catch (e: SignatureVerificationException) {
+            VerificationResult(false, e.message ?: "Signature verification error", "SIGNATURE_VERIFICATION_EXCEPTION")
+        } catch (e: RuntimeException) {
+            VerificationResult(false, "Unsupported VP token type", "VP_UNSUPPORTED_FORMAT")
+        }
+    }
+    private fun verifyPresentationProof(vcJsonLdObject: JsonLDObject): Boolean {
+
+        vcJsonLdObject.documentLoader = Util.getConfigurableDocumentLoader()
+        val ldProof = LdProof.getFromJsonLDObject(vcJsonLdObject)
+
+        val canonicalHashBytes =
+            URDNA2015Canonicalizer().canonicalize(ldProof, vcJsonLdObject)
+
+        val publicKey =
+            PublicKeyResolverFactory().get(ldProof.verificationMethod)
+
+        return when {
+            ldProof.type == ED25519_PROOF_TYPE_2018 && !ldProof.jws.isNullOrEmpty() -> {
+                val jws = JWSObject.parse(ldProof.jws)
+                val actualData =
+                    JWSUtil.getJwsSigningInput(jws.header, canonicalHashBytes)
+
+                ED25519SignatureVerifierImpl().verify(
+                    publicKey,
+                    actualData,
+                    jws.signature.decode()
+                )
+            }
+
+            ldProof.type == ED25519_PROOF_TYPE_2020 && !ldProof.proofValue.isNullOrEmpty() -> {
+                ED25519SignatureVerifierImpl().verify(
+                    publicKey,
+                    canonicalHashBytes,
+                    Multibase.decode(ldProof.proofValue)
+                )
+            }
+
+            ldProof.type == JSON_WEB_PROOF_TYPE_2020 && !ldProof.jws.isNullOrEmpty() -> {
+                val jws = JWSObject.parse(ldProof.jws)
+                if (jws.header.algorithm != JWSAlgorithm.EdDSA) {
+                    throw SignatureNotSupportedException("Unsupported JWS algorithm")
+                }
+
+                val actualData =
+                    JWSUtil.getJwsSigningInput(jws.header, canonicalHashBytes)
+
+                ED25519SignatureVerifierImpl().verify(
+                    publicKey,
+                    actualData,
+                    jws.signature.decode()
+                )
+            }
+
+            else -> false
+        }
     }
 
     private fun getVCVerificationResults(verifiableCredentials: JSONArray): List<VCResult> {
@@ -159,6 +203,25 @@ class PresentationVerifier {
         }
     }
 
+    private fun getVCVerificationResultsV2(verifiableCredentials: JSONArray): List<VCResultV2> {
+        return verifiableCredentials.asIterable().map { item ->
+            val verificationResult: VerificationResult =
+                credentialsVerifier.verify((item as JSONObject).toString(), CredentialFormat.LDP_VC)
+
+            /*
+            Here we are adding the entire VC as a string in the method response. We know that this is not very efficient.
+            But in newer draft of OpenId4VP specifications the Presentation Exchange
+            is fully removed so we rather not use the submission_requirements for giving the VC reference
+            for response. As of now we could not find anything unique that can be referred in a vp_token
+            VC we will be going with the approach of sending whole VC back in response.
+            */
+            VCResultV2(
+                item.toString(),
+                verificationResult
+            )
+        }
+    }
+
     private fun getVCVerificationResultsWithCredentialStatus(verifiableCredentials: JSONArray, statusPurposeList: List<String>): List<VCResultWithCredentialStatus> {
         return verifiableCredentials.asIterable().map { item ->
             val credentialVerificationSummary = credentialsVerifier.verifyAndGetCredentialStatus((item as JSONObject).toString(), CredentialFormat.LDP_VC, statusPurposeList)
@@ -167,6 +230,16 @@ class PresentationVerifier {
             val credentialStatus = credentialVerificationSummary.credentialStatus
 
             VCResultWithCredentialStatus(item.toString(), singleVCVerification, credentialStatus)
+        }
+    }
+
+    private fun getVCVerificationResultsWithCredentialStatusV2(verifiableCredentials: JSONArray, statusPurposeList: List<String>): List<VCResultWithCredentialStatusV2> {
+        return verifiableCredentials.asIterable().map { item ->
+            val credentialVerificationSummary = credentialsVerifier.verifyAndGetCredentialStatus((item as JSONObject).toString(), CredentialFormat.LDP_VC, statusPurposeList)
+            val verificationResult: VerificationResult = credentialVerificationSummary.verificationResult
+            val credentialStatus = credentialVerificationSummary.credentialStatus
+
+            VCResultWithCredentialStatusV2(item.toString(), verificationResult, credentialStatus)
         }
     }
 
@@ -180,6 +253,18 @@ class PresentationVerifier {
         val vcVerificationResults: List<VCResultWithCredentialStatus> = getVCVerificationResultsWithCredentialStatus(verifiableCredentials, statusPurposeList)
 
         return PresentationResultWithCredentialStatus(presentationVerificationStatus, vcVerificationResults)
+    }
+
+    fun verifyAndGetCredentialStatusV2(
+        presentation: String,
+        statusPurposeList: List<String> = emptyList()
+    ): PresentationResultWithCredentialStatusV2 {
+        val presentationVerificationStatus = getPresentationVerificationStatusV2(presentation)
+
+        val verifiableCredentials = JSONObject(presentation).getJSONArray(Shared.KEY_VERIFIABLE_CREDENTIAL)
+        val vcVerificationResults: List<VCResultWithCredentialStatusV2> = getVCVerificationResultsWithCredentialStatusV2(verifiableCredentials, statusPurposeList)
+
+        return PresentationResultWithCredentialStatusV2(presentationVerificationStatus, vcVerificationResults)
     }
 }
 
