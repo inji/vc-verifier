@@ -1,6 +1,7 @@
 package io.mosip.vercred.vcverifier
 
 import io.mockk.mockkObject
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_CODE_VERIFICATION_FAILED
 import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatus
 import io.mosip.vercred.vcverifier.data.VPVerificationStatus
 import io.mosip.vercred.vcverifier.data.VerificationStatus
@@ -163,7 +164,7 @@ class PresentationVerifierTest {
         val result = PresentationVerifier().verifyV2(vp)
 
         assertTrue(result.proofVerificationResult.verificationStatus)
-        assertEquals("SUCCESS", result.proofVerificationResult.verificationErrorCode)
+        assertEquals("", result.proofVerificationResult.verificationErrorCode)
     }
 
     @Test
@@ -192,7 +193,7 @@ class PresentationVerifierTest {
         val result = PresentationVerifier().verifyV2(vp)
 
         assertFalse(result.proofVerificationResult.verificationStatus)
-        assertEquals("SIGNATURE_VERIFICATION_FAILED", result.proofVerificationResult.verificationErrorCode)
+        assertEquals(ERROR_CODE_VERIFICATION_FAILED, result.proofVerificationResult.verificationErrorCode)
     }
 
     @Test

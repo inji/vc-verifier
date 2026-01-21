@@ -10,6 +10,8 @@ import io.ipfs.multibase.Multibase
 import io.mosip.vercred.vcverifier.constants.CredentialFormat
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ED25519_PROOF_TYPE_2018
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ED25519_PROOF_TYPE_2020
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_CODE_VERIFICATION_FAILED
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_MESSAGE_VERIFICATION_FAILED
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JSON_WEB_PROOF_TYPE_2020
 import io.mosip.vercred.vcverifier.constants.Shared
 import io.mosip.vercred.vcverifier.data.PresentationVerificationResult
@@ -116,8 +118,8 @@ class PresentationVerifier {
             } else {
                 VerificationResult(
                     false,
-                    "ERROR_MESSAGE_VERIFICATION_FAILED",
-                    "ERROR_CODE_VERIFICATION_FAILED"
+                    ERROR_MESSAGE_VERIFICATION_FAILED,
+                    ERROR_CODE_VERIFICATION_FAILED
                 )
             }
         } catch (e: Exception) {
