@@ -461,7 +461,7 @@ class SdJwtValidator {
         if (iat <= 0) {
             throw ValidationException(
                 "Missing or invalid 'iat' in Key Binding JWT",
-                "${ERROR_CODE_INVALID}_KB_JWT_IAT"
+                "${ERROR_CODE_INVALID}KB_JWT_IAT"
             )
         }
 

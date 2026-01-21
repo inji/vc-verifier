@@ -120,14 +120,20 @@ class PresentationVerifier {
                     "SIGNATURE_VERIFICATION_FAILED"
                 )
             }
-        } catch (e: PublicKeyNotFoundException) {
-            VerificationResult(false, e.message ?: "Public key not found", "PUBLIC_KEY_NOT_FOUND")
-        } catch (e: UnsupportedDidUrl) {
-            VerificationResult(false, e.message ?: "Unsupported DID", "UNSUPPORTED_DID")
-        } catch (e: SignatureVerificationException) {
-            VerificationResult(false, e.message ?: "Signature verification error", "SIGNATURE_VERIFICATION_EXCEPTION")
-        } catch (e: RuntimeException) {
-            VerificationResult(false, "Unsupported VP token type", "VP_UNSUPPORTED_FORMAT")
+        } catch (e: Exception) {
+            logger.severe("Error while verifying presentation proof: ${e.message}")
+            when (e) {
+                is PublicKeyNotFoundException,
+                is IllegalStateException,
+                is UnsupportedDidUrl,
+                is InvalidKeySpecException,
+                is SignatureNotSupportedException,
+                is SignatureVerificationException -> throw e
+
+                else -> {
+                    throw UnknownException("Error while doing verification of verifiable presentation")
+                }
+            }
         }
     }
     private fun verifyPresentationProof(vcJsonLdObject: JsonLDObject): Boolean {

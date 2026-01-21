@@ -162,8 +162,8 @@ class PresentationVerifierTest {
 
         val result = PresentationVerifier().verifyV2(vp)
 
-        assertTrue(result.proofVerificationStatus.verificationStatus)
-        assertEquals("SUCCESS", result.proofVerificationStatus.verificationErrorCode)
+        assertTrue(result.proofVerificationResult.verificationStatus)
+        assertEquals("SUCCESS", result.proofVerificationResult.verificationErrorCode)
     }
 
     @Test
@@ -178,8 +178,8 @@ class PresentationVerifierTest {
 
         val result = PresentationVerifier().verifyV2(vp)
 
-        assertTrue(result.proofVerificationStatus.verificationStatus)
-        assertTrue(result.vcResults[0].status.verificationStatus)
+        assertTrue(result.proofVerificationResult.verificationStatus)
+        assertTrue(result.vcResults[0].verificationResult.verificationStatus)
         assertNotNull(result.vcResults[0].vc)
         assertNotEquals("", result.vcResults[0].vc)
     }
@@ -191,8 +191,8 @@ class PresentationVerifierTest {
 
         val result = PresentationVerifier().verifyV2(vp)
 
-        assertFalse(result.proofVerificationStatus.verificationStatus)
-        assertEquals("SIGNATURE_VERIFICATION_FAILED", result.proofVerificationStatus.verificationErrorCode)
+        assertFalse(result.proofVerificationResult.verificationStatus)
+        assertEquals("SIGNATURE_VERIFICATION_FAILED", result.proofVerificationResult.verificationErrorCode)
     }
 
     @Test
@@ -200,11 +200,7 @@ class PresentationVerifierTest {
     fun `V2 should return unsupported DID error when public key not found`() {
         val vp = readClasspathFile("vp/InvalidPublicKeyEd25519Signature2018SignedVP-didKey.json")
 
-        val result = PresentationVerifier().verifyV2(vp)
-
-        assertFalse(result.proofVerificationStatus.verificationStatus)
-        assertEquals("UNSUPPORTED_DID", result.proofVerificationStatus.verificationErrorCode)
-        assertNotNull(result.proofVerificationStatus.verificationMessage)
+        assertThrows<UnsupportedDidUrl> { PresentationVerifier().verify(vp) }
     }
 
 
@@ -222,7 +218,7 @@ class PresentationVerifierTest {
 
         val result = PresentationVerifier().verifyV2(vp)
 
-        assertFalse(result.proofVerificationStatus.verificationStatus)
+        assertFalse(result.proofVerificationResult.verificationStatus)
     }
 
     @Test
@@ -246,8 +242,8 @@ class PresentationVerifierTest {
                 listOf("revocation")
             )
 
-        assertFalse(result.proofVerificationStatus.verificationStatus)
-        assertTrue(result.vcResults[0].status.verificationStatus)
+        assertFalse(result.proofVerificationResult.verificationStatus)
+        assertTrue(result.vcResults[0].verificationResult.verificationStatus)
 
         val credentialStatus = result.vcResults[0].credentialStatus
         val entry = credentialStatus.entries.first()
@@ -278,8 +274,8 @@ class PresentationVerifierTest {
                 listOf("revocation")
             )
 
-        assertFalse(result.proofVerificationStatus.verificationStatus)
-        assertTrue(result.vcResults[0].status.verificationStatus)
+        assertFalse(result.proofVerificationResult.verificationStatus)
+        assertTrue(result.vcResults[0].verificationResult.verificationStatus)
 
         val credentialStatus = result.vcResults[0].credentialStatus
         val entry = credentialStatus.entries.first()
