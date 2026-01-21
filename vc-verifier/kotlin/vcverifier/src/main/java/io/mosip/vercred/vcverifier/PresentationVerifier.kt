@@ -56,12 +56,12 @@ class PresentationVerifier {
 
     fun verifyV2(presentation: String): PresentationVerificationResultV2 {
 
-        val presentationVerificationStatus: VerificationResult = getPresentationVerificationStatusV2(presentation)
+        val presentationVerificationResult: VerificationResult = getPresentationVerificationStatusV2(presentation)
 
         val verifiableCredentials = JSONObject(presentation).getJSONArray(Shared.KEY_VERIFIABLE_CREDENTIAL)
         val vcVerificationResults: List<VCResultV2> = getVCVerificationResultsV2(verifiableCredentials)
 
-        return PresentationVerificationResultV2(presentationVerificationStatus, vcVerificationResults)
+        return PresentationVerificationResultV2(presentationVerificationResult, vcVerificationResults)
     }
 
     private fun getPresentationVerificationStatus(presentation: String): VPVerificationStatus {

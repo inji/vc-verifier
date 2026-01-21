@@ -200,7 +200,7 @@ class PresentationVerifierTest {
     fun `V2 should return unsupported DID error when public key not found`() {
         val vp = readClasspathFile("vp/InvalidPublicKeyEd25519Signature2018SignedVP-didKey.json")
 
-        assertThrows<UnsupportedDidUrl> { PresentationVerifier().verify(vp) }
+        assertThrows<UnsupportedDidUrl> { PresentationVerifier().verifyV2(vp) }
     }
 
 
