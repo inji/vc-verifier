@@ -52,7 +52,7 @@ data model and proof structure.
 Currently, only Verifiable Presentations containing `ldp_vc` credentials are supported.
 
 * The verifier processes both the VP proof and each embedded VC.
-* Support for presentations containing other VC formats (e.g., `vc+sd-jwt`,`vc-cwt` ) is planned for future
+* Support for presentations containing other VC formats (e.g., `vc+sd-jwt`,`cwt_vc` ) is planned for future
   versions.
 
 ## 2.3 Limitations
