@@ -58,7 +58,7 @@ class PresentationVerifier {
 
     fun verifyV2(presentation: String): PresentationVerificationResultV2 {
 
-        val presentationVerificationResult: VerificationResult = getPresentationVerificationStatusV2(presentation)
+        val presentationVerificationResult: VerificationResult = getPresentationVerificationResult(presentation)
 
         val verifiableCredentials = JSONObject(presentation).getJSONArray(Shared.KEY_VERIFIABLE_CREDENTIAL)
         val vcVerificationResults: List<VCResultV2> = getVCVerificationResultsV2(verifiableCredentials)
@@ -97,7 +97,7 @@ class PresentationVerifier {
             }
         }
     }
-    private fun getPresentationVerificationStatusV2(presentation: String): VerificationResult {
+    private fun getPresentationVerificationResult(presentation: String): VerificationResult {
         logger.info("Received Presentation For Verification - Start")
         val vcJsonLdObject: JsonLDObject
 
@@ -267,12 +267,12 @@ class PresentationVerifier {
         presentation: String,
         statusPurposeList: List<String> = emptyList()
     ): PresentationResultWithCredentialStatusV2 {
-        val presentationVerificationStatus = getPresentationVerificationStatusV2(presentation)
+        val presentationVerificationResult = getPresentationVerificationResult(presentation)
 
         val verifiableCredentials = JSONObject(presentation).getJSONArray(Shared.KEY_VERIFIABLE_CREDENTIAL)
         val vcVerificationResults: List<VCResultWithCredentialStatusV2> = getVCVerificationResultsWithCredentialStatusV2(verifiableCredentials, statusPurposeList)
 
-        return PresentationResultWithCredentialStatusV2(presentationVerificationStatus, vcVerificationResults)
+        return PresentationResultWithCredentialStatusV2(presentationVerificationResult, vcVerificationResults)
     }
 }
 
