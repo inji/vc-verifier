@@ -110,14 +110,14 @@ class PresentationVerifier {
             if (isVerified) {
                 VerificationResult(
                     true,
-                    "Presentation proof verification successful",
-                    "SUCCESS"
+                    "",
+                    ""
                 )
             } else {
                 VerificationResult(
                     false,
-                    "Signature verification failed",
-                    "SIGNATURE_VERIFICATION_FAILED"
+                    "ERROR_MESSAGE_VERIFICATION_FAILED",
+                    "ERROR_CODE_VERIFICATION_FAILED"
                 )
             }
         } catch (e: Exception) {
