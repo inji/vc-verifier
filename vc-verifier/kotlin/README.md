@@ -10,7 +10,7 @@
     - 3.1 [LDP VC Validation](#31-ldp-vc-validation)
     - 3.2 [MSO MDOC Validation](#32-mso-mdoc-validation)
     - 3.3 [SD-JWT VC Validation](#33-sd-jwt-vc-validation)
-    - 3.4 [CWT VC Validation](#34-sd-jwt-vc-validation)
+    - 3.4 [CWT VC Validation](#34-cwt-vc-validation)
 4. [Verification Flow](#4-verification-flow)
     - 4.1 [Supported VC Formats and Signature Mechanisms](#41-supported-vc-formats-and-signature-mechanisms)
     - 4.2 [Verifiable Presentation (VP) Verification](#42-verifiable-presentation-vp-verification)
@@ -52,11 +52,11 @@ data model and proof structure.
 Currently, only Verifiable Presentations containing `ldp_vc` credentials are supported.
 
 * The verifier processes both the VP proof and each embedded VC.
-* Support for presentations containing other VC formats (e.g., `vc+sd-jwt`) is planned for future
+* Support for presentations containing other VC formats (e.g., `vc+sd-jwt`,`vc-cwt` ) is planned for future
   versions.
 
 ## 2.3 Limitations
-* RSA-based algorithms (e.g., RS256 / PS256)** are not supported for CWT verification due to limitations in the currently used COSE cryptographic library, which does not provide RSA signature verification support for COSE_Sign1.
+* RSA-based algorithms (e.g., RS256 / PS256) are not supported for CWT verification due to limitations in the currently used COSE cryptographic library, which does not provide RSA signature verification support for COSE_Sign1.
 
 
 ## 3. Validation Flow
