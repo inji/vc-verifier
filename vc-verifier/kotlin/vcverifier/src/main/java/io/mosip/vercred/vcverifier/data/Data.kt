@@ -63,3 +63,22 @@ data class CredentialVerificationSummary(
     val verificationResult: VerificationResult,
     val credentialStatus: Map<String, CredentialStatusResult>
 )
+
+data class PresentationVerificationResultV2(
+    var proofVerificationResult: VerificationResult,
+    var vcResults: List<VCResultV2>
+)
+data class VCResultV2(
+    val vc: String,
+    val verificationResult: VerificationResult
+)
+
+data class PresentationResultWithCredentialStatusV2(
+    var proofVerificationResult: VerificationResult,
+    var vcResults: List<VCResultWithCredentialStatusV2>
+)
+data class VCResultWithCredentialStatusV2(
+    val vc: String,
+    val verificationResult: VerificationResult,
+    val credentialStatus: Map<String, CredentialStatusResult>
+)
