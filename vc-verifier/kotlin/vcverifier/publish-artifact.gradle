@@ -28,7 +28,7 @@ publishing {
                         dependencyNode.appendNode('version', it.version)
                     }
                     asNode().appendNode('name', "vcverifier")
-                    asNode().appendNode('url', "https://github.com/mosip/vc-verifier")
+                    asNode().appendNode('url', "https://github.com/inji/vc-verifier")
                     asNode().appendNode('description', "Kotlin library to generate QR code from VC and decode the data")
 
                     asNode().appendNode('licenses').appendNode('license').with {
@@ -37,9 +37,9 @@ publishing {
                     }
 
                     asNode().appendNode('scm').with {
-                        appendNode('connection', 'scm:git:git://github.com/mosip/vc-verifier.git')
-                        appendNode('developerConnection', 'scm:git:ssh://github.com:mosip/vc-verifier.git')
-                        appendNode('url', "https://github.com/mosip/vc-verifier")
+                        appendNode('connection', 'scm:git:git://github.com/inji/vc-verifier.git')
+                        appendNode('developerConnection', 'scm:git:ssh://github.com:inji/vc-verifier.git')
+                        appendNode('url', "https://github.com/inji/vc-verifier")
                         appendNode('tag', "HEAD")
                     }
 
@@ -48,7 +48,7 @@ publishing {
                         appendNode('name', 'Mosip')
                         appendNode('email', 'mosip.emailnotifier@gmail.com')
                         appendNode('organization', 'io.inji')
-                        appendNode("organizationUrl", "https://github.com/mosip/vc-verifier")
+                        appendNode("organizationUrl", "https://inji.io")
                     }
 
                     def pluginsNode = asNode().appendNode('build').appendNode('plugins')
@@ -96,7 +96,7 @@ publishing {
             }
             groupId = "io.inji"
             artifactId = "vcverifier-aar"
-            version = "1.7.0-RC5"
+            version = "1.7.0-SNAPSHOT"
             if (project.gradle.startParameter.taskNames.any { it.contains('assembleRelease') }) {
                 artifacts {
                     aar {
@@ -110,7 +110,7 @@ publishing {
             artifact(tasks.named("jarRelease").get())
             groupId = "io.inji"
             artifactId = "vcverifier-jar"
-            version = "1.7.0-RC5"
+            version = "1.7.0-SNAPSHOT"
             artifact(tasks.named("javadocJar").get())
             artifact(tasks.named("sourcesJar").get())
             pom {
@@ -123,7 +123,7 @@ publishing {
                         dependencyNode.appendNode('version', it.version)
                     }
                     asNode().appendNode('name', "vcverifier")
-                    asNode().appendNode('url', "https://github.com/mosip/vc-verifier")
+                    asNode().appendNode('url', "https://github.com/inji/vc-verifier")
                     asNode().appendNode('description', "Kotlin library to generate QR code from VC and decode the data")
 
                     asNode().appendNode('licenses').appendNode('license').with {
@@ -132,9 +132,9 @@ publishing {
                     }
 
                     asNode().appendNode('scm').with {
-                        appendNode('connection', 'scm:git:git://github.com/mosip/vc-verifier.git')
-                        appendNode('developerConnection', 'scm:git:ssh://github.com:mosip/vc-verifier.git')
-                        appendNode('url', "https://github.com/mosip/vc-verifier")
+                        appendNode('connection', 'scm:git:git://github.com/inji/vc-verifier.git')
+                        appendNode('developerConnection', 'scm:git:ssh://github.com:inji/vc-verifier.git')
+                        appendNode('url', "https://github.com/inji/vc-verifier")
                         appendNode('tag', "HEAD")
                     }
 
@@ -143,7 +143,7 @@ publishing {
                         appendNode('name', 'Mosip')
                         appendNode('email', 'mosip.emailnotifier@gmail.com')
                         appendNode('organization', 'io.inji')
-                        appendNode("organizationUrl", "https://github.com/mosip/vc-verifier")
+                        appendNode("organizationUrl", "https://inji.io")
                     }
 
                     def pluginsNode = asNode().appendNode('build').appendNode('plugins')

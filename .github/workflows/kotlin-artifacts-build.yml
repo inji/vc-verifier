@@ -46,7 +46,7 @@ jobs:
       RELEASE_TYPE: ${{ inputs.release_type }}
     secrets:
       OSSRH_USER: ${{ secrets.OSSRH_USER }}
-      OSSRH_URL: ${{ secrets.OSSRH_CENTRAL_URL }}
+      OSSRH_URL: ${{ secrets.GRADLE_OSSRH_URL }}
       OSSRH_SECRET: ${{ secrets.OSSRH_SECRET }}
       OSSRH_TOKEN: ${{ secrets.OSSRH_TOKEN }}
       GPG_SECRET: ${{ secrets.GPG_SECRET }}
@@ -65,7 +65,7 @@ jobs:
       PUBLICATION_TYPE: ${{ inputs.publication_type }}
     secrets:
       OSSRH_USER: ${{ secrets.OSSRH_USER }}
-      OSSRH_URL: ${{ secrets.OSSRH_GRADLE_URL }}
+      OSSRH_URL: ${{ secrets.GRADLE_OSSRH_URL }}
       OSSRH_SECRET: ${{ secrets.OSSRH_SECRET }}
       OSSRH_TOKEN: ${{ secrets.OSSRH_TOKEN }}
       GPG_SECRET: ${{ secrets.GPG_SECRET }}
