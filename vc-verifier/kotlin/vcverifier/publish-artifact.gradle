@@ -48,7 +48,7 @@ publishing {
                         appendNode('name', 'Mosip')
                         appendNode('email', 'mosip.emailnotifier@gmail.com')
                         appendNode('organization', 'io.inji')
-                        appendNode("organizationUrl", "https://github.com/mosip/vc-verifier")
+                        appendNode("organizationUrl", 'https://inji.io')
                     }
 
                     def pluginsNode = asNode().appendNode('build').appendNode('plugins')
@@ -96,7 +96,7 @@ publishing {
             }
             groupId = "io.inji"
             artifactId = "vcverifier-aar"
-            version = "1.7.0-RC4"
+            version = "1.7.0-SNAPSHOT"
             if (project.gradle.startParameter.taskNames.any { it.contains('assembleRelease') }) {
                 artifacts {
                     aar {
@@ -110,7 +110,7 @@ publishing {
             artifact(tasks.named("jarRelease").get())
             groupId = "io.inji"
             artifactId = "vcverifier-jar"
-            version = "1.7.0-RC4"
+            version = "1.7.0-SNAPSHOT"
             artifact(tasks.named("javadocJar").get())
             artifact(tasks.named("sourcesJar").get())
             pom {
