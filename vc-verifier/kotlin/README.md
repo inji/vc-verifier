@@ -10,6 +10,7 @@
     - 3.1 [LDP VC Validation](#31-ldp-vc-validation)
     - 3.2 [MSO MDOC Validation](#32-mso-mdoc-validation)
     - 3.3 [SD-JWT VC Validation](#33-sd-jwt-vc-validation)
+    - 3.4 [CWT VC Validation](#34-cwt-vc-validation)
 4. [Verification Flow](#4-verification-flow)
     - 4.1 [Supported VC Formats and Signature Mechanisms](#41-supported-vc-formats-and-signature-mechanisms)
     - 4.2 [Verifiable Presentation (VP) Verification](#42-verifiable-presentation-vp-verification)
@@ -40,6 +41,8 @@ The verifier supports multiple VC formats in alignment with global standards:
 | `ldp_vc`                 | W3C Linked Data Proof Verifiable Credentials [(v2.0)](https://www.w3.org/TR/vc-data-model-2.0/) ([v1.1](https://www.w3.org/TR/vc-data-model-1.1/)) |
 | `mso_mdoc`               | ISO/IEC 18013-5 compliant mobile documents                                                                                                         |
 | `vc+sd-jwt`, `dc+sd-jwt` | [IETF SD-JWT based Verifiable Credentials](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/10/)                                        |
+| `cwt_vc`                 | [IETF CBOR Web Token (CWT)](https://datatracker.ietf.org/doc/html/rfc8392)                                                                         |
+
 
 🔸 Each format includes validation and cryptographic verification logic tailored to its respective
 data model and proof structure.
@@ -49,8 +52,12 @@ data model and proof structure.
 Currently, only Verifiable Presentations containing `ldp_vc` credentials are supported.
 
 * The verifier processes both the VP proof and each embedded VC.
-* Support for presentations containing other VC formats (e.g., `vc+sd-jwt`) is planned for future
+* Support for presentations containing other VC formats (e.g., `vc+sd-jwt`,`cwt_vc` ) is planned for future
   versions.
+
+## 2.3 Limitations
+* RSA-based algorithms (e.g., RS256 / PS256) are not supported for CWT verification due to limitations in the currently used COSE cryptographic library, which does not provide RSA signature verification support for COSE_Sign1.
+
 
 ## 3. Validation Flow
 
@@ -63,6 +70,7 @@ Each format has a dedicated validator:
 * `LdpValidator` for LDP VC
 * `MsoMdocValidator` for MSO MDOC
 * `SdJwtValidator` for SD-JWT VC/DC
+* `CwtValidator` for CWT VC
 
 ⚠️ **Note:** The details below summarize major validation flows. These are not exhaustive. Please
 refer to the implementation classes for complete rules.
@@ -117,6 +125,68 @@ refer to the implementation classes for complete rules.
     * Verifies signature using resolved key from `cnf`
 * **Validation class:** `SdJwtValidator`
 
+### 3.4 CWT VC Validation
+
+CWT VC validation handles CBOR-encoded Verifiable Credentials encapsulated in a `COSE_Sign1` structure,
+as defined by the IETF CWT and COSE specifications.
+
+* **Input validation:**
+
+    * Rejects empty credentials
+    * Validates that the credential is a well-formed hexadecimal string
+
+* **COSE decoding:**
+
+    * Decodes the hex input into CBOR bytes
+    * Parses the credential as a `COSE_Sign1` object
+
+* **COSE structure validation:**
+
+    * Ensures the decoded object is a CBOR array
+    * Validates that the array has exactly 4 elements:
+
+        1. Protected header (bstr)
+        2. Unprotected header (map)
+        3. Payload (bstr)
+        4. Signature (bstr)
+
+* **Protected header validation:**
+
+    * Decodes the protected header byte string
+    * Ensures it resolves to a CBOR map
+    * Validates presence of mandatory `alg` header
+    * Ensures `alg` is a numeric COSE algorithm identifier
+
+* **CWT payload validation:**
+
+    * Decodes the payload into a CBOR map containing CWT claims
+    * Rejects non-map payload structures
+
+* **Numeric date validation (RFC 8392):**
+
+    * Validates standard CWT temporal claims:
+
+        * `exp` (Expiration Time)
+        * `nbf` (Not Before)
+        * `iat` (Issued At)
+    * Ensures:
+
+        * `exp` is not in the past
+        * `nbf` is not in the future
+        * `iat` is not set in the future
+
+* **Error handling:**
+
+    * Returns structured validation errors for:
+
+        * Missing or invalid fields
+        * Expired credentials
+        * Invalid CBOR / COSE structures
+        * Temporal inconsistencies
+    * Unexpected errors are mapped to a generic validation error
+
+* **Validation class:** `CwtValidator`
+
 ## 4. Verification Flow
 
 Verification confirms that the credential or presentation was cryptographically signed by the issuer
@@ -138,6 +208,7 @@ and [IETF SD-JWT](https://datatracker.ietf.org/doc/draft-ietf-oauth-selective-di
 | `mso_mdoc`  | COSE (CBOR Object Signing and Encryption)                              | ES256                               | Uses COSE_Sign1                                                                           |
 | `vc+sd-jwt` | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519) |                                                                                           |
 | `dc+sd-jwt` | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519) |                                                                                           |
+| `cwt_vc`    | COSE_Sign1 with issuer-based key resolution (DID or HTTPS JWKS)        | ES256, EdDSA (as per COSE alg)      | COSE_Sign1 (CBOR Web Token, tag 61)                                                       |
 
 ### 4.2 Verifiable Presentation (VP) Verification
 
@@ -269,7 +340,8 @@ fun verifyAndGetCredentialStatus(
     * `credentialFormat`: Enum — one of `LDP_VC`,
       `VC_SD_JWT`,
       `DC_SD_JWT`,
-      `MSO_MDOC`
+      `MSO_MDOC`,
+      `CWT_VC`  
     * `statusPurposeList`: List of purposes such as `"revocation"`, `"suspension"` (optional)
 
 * **Returns:**
@@ -293,7 +365,8 @@ fun verify(
     * `credentialFormat`: Enum — one of `LDP_VC`,
       `VC_SD_JWT`,
       `DC_SD_JWT`,
-      `MSO_MDOC`
+      `MSO_MDOC`,
+      `CWT_VC`
 * **Returns:** `VerificationResult` with:
     * `verificationStatus`: `true` if valid; otherwise `false`
     * `verificationMessage`: details of validation/syntax errors
@@ -318,7 +391,8 @@ fun getCredentialStatus(
     * `credentialFormat`: Enum — one of `LDP_VC`,
       `VC_SD_JWT`,
       `DC_SD_JWT`,
-      `MSO_MDOC`
+      `MSO_MDOC`,
+      `CWT_VC`
     * `statusPurposeList`: List of purposes such as `"revocation"`, `"suspension"` (optional)
 * **Returns:** A map of `CredentialStatusResult`, one per purpose, each containing:
     * `purpose`: status purpose (e.g., `"revocation"`)
@@ -699,6 +773,7 @@ The VP proof is invalid. The first VC is valid and not revoked; the second VC is
 | `ldp_vc`                  | ✔️         | ✔️                     | ✔️           | ✔️         |
 | `mso_mdoc`                | ✔️         | ✔️                     | ❌            | ❌          |
 | `vc+sd-jwt` / `dc+sd-jwt` | ✔️         | ✔️                     | ❌            | ❌          |
+| `cwt_vc`                  | ✔️         | ✔️                     | ❌            | ❌          |
 
 #### API operations matrix
 
@@ -830,6 +905,30 @@ For other unknown exceptions, error code will be `ERR_GENERIC`
 | iat in KB JWT payload     | ERR_INVALID_KB_JWT_IAT             |
 | sd_hash in KB JWT payload | ERR_INVALID_SD_HASH                |
 
+**cwt_vc Format VC Error Codes**
+
+| Validation Area        | Error Code                              |
+| ---------------------- | --------------------------------------- |
+| credential empty       | ERR_INVALID_EMPTY                       |
+| credential hex format  | ERR_INVALID_HEX                         |
+| COSE structure         | ERR_INVALID_COSE_STRUCTURE              |
+| protected header       | ERR_INVALID_PROTECTED_HEADER            |
+| alg missing            | ERR_MISSING_ALG                         |
+| alg invalid            | ERR_INVALID_ALG                         |
+| CWT payload structure  | ERR_INVALID_CWT_STRUCTURE               |
+| exp (expiration)       | ERR_VC_EXPIRED                          |
+| nbf (not before)       | ERR_CURRENT_DATE_BEFORE_PROCESSING_DATE |
+| iat (issued at)        | ERR_INVALID_IAT                         |
+| CBOR decode failure    | ERR_INVALID_CBOR                        |
+| COSE tag missing       | ERR_INVALID_CWT_TAG                     |
+| issuer (iss) missing   | ERR_MISSING_ISS                         |
+| issuer (iss) invalid   | ERR_INVALID_ISS                         |
+| public key not found   | ERR_PUBLIC_KEY_NOT_FOUND                |
+| signature verification | ERR_INVALID_SIGNATURE                   |
+
+For other unknown exceptions, error code will be `ERR_GENERIC`
+
+
 **Status Check Error Codes**
 
 | Error Code                | Description                                   |
@@ -846,6 +945,7 @@ For other unknown exceptions, error code will be `ERR_GENERIC`
 | UNKNOWN_ERROR             | Unknown error occurred during status check    |
 
 For other unknown exceptions, error code will be `ERR_INVALID_UNKNOWN`
+
 
 
 
