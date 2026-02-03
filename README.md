@@ -1,4 +1,4 @@
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?branch=develop&project=mosip_vc-verifier&metric=alert_status)](https://sonarcloud.io/dashboard?branch=develop&id=mosip_vc-verifier)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?branch=develop&project=inji_vc-verifier&metric=alert_status)](https://sonarcloud.io/dashboard?branch=develop&id=inji_vc-verifier)
 # vc-verifier
 
 **VC Verifier Library** is a comprehensive Java/Kotlin library designed to enable the validation and verification of **Verifiable Credentials (VCs)**, a crucial component in modern decentralized identity systems. This library provides a robust mechanism for verifying the authenticity and integrity of VCs, ensuring that the claims made within the credential are both valid and trustworthy.
