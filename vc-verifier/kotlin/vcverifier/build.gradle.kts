@@ -68,7 +68,7 @@ dependencies {
     implementation(libs.annotation.jvm)
     implementation(libs.authelete.sd.jwt)
     implementation(libs.threetenbp)
-    implementation(libs.cose.lib)
+    implementation(libs.upokecenter.cbor)
     implementation(libs.authlete.cbor)
 
     testImplementation(libs.mockk)
