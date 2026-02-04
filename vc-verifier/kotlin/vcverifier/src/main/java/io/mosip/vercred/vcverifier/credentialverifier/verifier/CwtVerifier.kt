@@ -139,8 +139,7 @@ class CwtVerifier {
         } catch (exception: Exception) {
             when (exception) {
                 is PublicKeyNotFoundException,
-                is SignatureVerificationException,
-                is UnsupportedDidUrl -> throw exception
+                is SignatureVerificationException -> throw exception
                 else -> throw UnknownException(
                     "Error while verifying CWT credential: ${exception.message}"
                 )
