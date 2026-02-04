@@ -13,15 +13,15 @@ This document provides a comprehensive overview of validating and verifying **CW
 
 ## Steps Involved
 
-1. Add enum value `CWT_VC("cwt-vc")` in `CredentialFormat`.
-2. Create a new class `CwtVerifiableCredential` that implements the `VerifiableCredential` interface.
-   - `validate` method validates credential structure and claims.
-   - `verify` method verifies cryptographic signature.
-3. Create a class `CwtValidator` to validate credential structure and claims.
-4. Create a class `CwtVerifier` to verify the credential signature.
-5. Implement validation checks for COSE, headers, claims, and numeric dates.
-6. Implement signature verification using issuer public key.
-7. Register `CwtVerifiableCredential` in `CredentialVerifierFactory`.
+1. Added the enum value `CWT_VC("cwt-vc")` to `CredentialFormat`.
+2. Created a new class `CwtVerifiableCredential` that implemented the `VerifiableCredential` interface.
+    - The `validate` method validated the credential structure and claims.
+    - The `verify` method verified the cryptographic signature.
+3. Created a `CwtValidator` class to validate the credential structure and claims.
+4. Created a `CwtVerifier` class to verify the credential signature.
+5. Implemented validation checks for COSE, headers, claims, and numeric date fields.
+6. Implemented signature verification using the issuer’s public key.
+7. Registered `CwtVerifiableCredential` in `CredentialVerifierFactory`.
 
 ---
 
