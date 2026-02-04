@@ -63,6 +63,7 @@ dependencies {
     implementation(libs.jackson.annotations)
     implementation(libs.nimbusJoseJwt)
     implementation(libs.springWeb)
+    implementation(libs.cbor)
     implementation (libs.identity)
     implementation(libs.annotation.jvm)
     implementation(libs.authelete.sd.jwt)
