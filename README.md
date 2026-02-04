@@ -49,6 +49,7 @@ import io.mosip.vercred.vcverifier.keyResolver.types.http.HttpsPublicKeyResolver
 | `mso_mdoc`  | COSE (CBOR Object Signing and Encryption)                              | ES256                               | Uses COSE_Sign1                                                                           |
 | `vc+sd-jwt` | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519) | -                                                                                         |
 | `dc+sd-jwt` | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519) | -                                                                                         |
+| `cwt_vc`    | COSE_Sign1 (CBOR Web Token – RFC 8392)                                 | ES256, EdDSA (COSE alg based)       | COSE_Sign1                                                                                |
 
 #### Project Structure
 
