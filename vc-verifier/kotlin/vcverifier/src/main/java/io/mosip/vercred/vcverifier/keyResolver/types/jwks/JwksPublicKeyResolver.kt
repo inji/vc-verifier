@@ -30,8 +30,8 @@ class JwksPublicKeyResolver : PublicKeyResolver {
 
             return getPublicKeyFromJWK(jwk, kty)
         } catch (e: Exception) {
-            logger.severe("Error fetching public key string $e")
-            throw PublicKeyNotFoundException("Public key string not found")
+            throw if (e is PublicKeyNotFoundException) e
+                             else PublicKeyNotFoundException("Failed to resolve JWKS public key: ${e.message}")
         }
     }
 
