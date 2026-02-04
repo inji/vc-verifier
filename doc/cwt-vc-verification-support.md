@@ -34,7 +34,9 @@ sequenceDiagram
    CredentialVerifierFactory->>CwtVerifiableCredential: Create instance
    CredentialsVerifier->>CwtVerifiableCredential: Validate
    CwtVerifiableCredential->>CwtValidator: Validate
-   CwtValidator-->>CwtVerifiableCredential: Result
+   CredentialsVerifier->>CwtVerifiableCredential: Verify
+   CwtVerifiableCredential->>CwtVerifier: Verify
+   CwtVerifier-->>CwtVerifiableCredential: Result
    CwtVerifiableCredential-->>CredentialsVerifier: Result
 ```
 
