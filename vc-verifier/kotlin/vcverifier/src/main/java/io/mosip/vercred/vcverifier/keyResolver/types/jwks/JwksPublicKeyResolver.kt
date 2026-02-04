@@ -31,7 +31,7 @@ class JwksPublicKeyResolver : PublicKeyResolver {
             return getPublicKeyFromJWK(jwk, kty)
         } catch (e: Exception) {
             throw if (e is PublicKeyNotFoundException) e
-                             else PublicKeyNotFoundException("Failed to resolve JWKS public key: ${e.message}")
+            else PublicKeyNotFoundException("Failed to resolve JWKS public key: ${e.message}").apply { initCause(e) }
         }
     }
 
