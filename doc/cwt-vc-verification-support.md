@@ -38,7 +38,7 @@ sequenceDiagram
    CwtVerifiableCredential-->>CredentialsVerifier: Result
 ```
 
-###  Sequence diagram - validation process
+### Sequence diagram - validation process
 
 ```mermaid
 sequenceDiagram
@@ -71,7 +71,7 @@ sequenceDiagram
     end
 ```
 
-###  Sequence diagram - verification process
+### Sequence diagram - verification process
 
 ```mermaid
 sequenceDiagram
