@@ -64,7 +64,7 @@ mockWebServer = { group = "com.squareup.okhttp3", name = "mockwebserver", versio
 annotation-jvm = { group = "androidx.annotation", name = "annotation-jvm", version.ref = "annotationJvm" }
 cbor = { group = "co.nstant.in", name = "cbor", version.ref = "cbor" }
 identity = { group = "com.android.identity", name = "identity-credential", version.ref = "identity" }
-upokecenter-cbor = { group = "com.upokecenter.cbor", name = "cbor", version.ref = "cborLibrary" }
+upokecenter-cbor = { group = "com.upokecenter", name = "cbor", version.ref = "cborLibrary" }
 authlete-cbor = { group = "com.authlete", name = "cbor", version.ref = "authleteCbor" }
 
 [plugins]
