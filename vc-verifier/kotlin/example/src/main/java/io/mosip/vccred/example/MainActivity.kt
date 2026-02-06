@@ -25,6 +25,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.mosip.vccred.example.ui.theme.VcverifierTheme
 import io.mosip.vercred.vcverifier.CredentialsVerifier
+import io.mosip.vercred.vcverifier.credentialverifier.CredentialVerifierFactory
 import io.mosip.vercred.vcverifier.constants.CredentialFormat
 import io.mosip.vercred.vcverifier.data.VerificationResult
 
@@ -50,8 +51,19 @@ fun VerifyVC(modifier: Modifier = Modifier) {
     Column(modifier = Modifier.padding(30.dp)) {
         Button(
             onClick = {
-                val thread = Thread{
-                    verificationResult.value = verifyVc()
+                verificationResult.value = VerificationResult(false, "Processing...", "")
+                
+                val thread = Thread {
+                    try {
+                        val result = verifyVc()
+                        verificationResult.value = result
+                    } catch (e: Exception) {
+                        verificationResult.value = VerificationResult(
+                            false, 
+                            "Error: ${e.message ?: e.toString()}", 
+                            "VERIFY_FAILED"
+                        )
+                    }
                 }
                 thread.start()
             },
@@ -63,7 +75,7 @@ fun VerifyVC(modifier: Modifier = Modifier) {
 
 
             Text(
-                text = "Verify VC",
+                text = "Verify JWTVC",
                 modifier = modifier
             )
         }
@@ -73,7 +85,7 @@ fun VerifyVC(modifier: Modifier = Modifier) {
                 painter = painterResource(
                     id = if (verificationResult.value?.verificationStatus == true) {
                         R.drawable.success
-                    } else if(verificationResult.value?.verificationStatus == false){
+                    } else if(verificationResult.value?.verificationStatus == false && verificationResult.value?.verificationMessage != "Processing..."){
                         R.drawable.error
                     } else {
                         R.drawable.pending
@@ -83,7 +95,9 @@ fun VerifyVC(modifier: Modifier = Modifier) {
                 modifier = Modifier.size(80.dp)
             )
             Text(
-                text = verificationResult.value?.verificationMessage ?: "Status: Waiting...",
+                text = verificationResult.value?.verificationMessage.takeIf { !it.isNullOrEmpty() } 
+                       ?: if (verificationResult.value?.verificationStatus == true) "SUCCESS: Credential Verified!" 
+                       else "Status: Waiting...",
                 modifier = modifier.fillMaxWidth(),
                 maxLines = 5,
                 overflow = TextOverflow.Ellipsis
@@ -94,10 +108,47 @@ fun VerifyVC(modifier: Modifier = Modifier) {
 }
 
 
-fun verifyVc(): VerificationResult{
+fun verifyVc(): VerificationResult {
+    // ---------------------------------------------------------
+    // OLD LOGIC (LDP VC) - Commented out for PR isolation
+    // ---------------------------------------------------------
+    /*
     val credentialsVerifier = CredentialsVerifier()
     return credentialsVerifier.verify(farmerVc, CredentialFormat.LDP_VC)
+    */
+
+    return try {
+        val factory = CredentialVerifierFactory()
+        val jwtVerifier = factory.get(CredentialFormat.JWT_VC)
+
+        // Step 1: Structural/Payload/Expiry Check
+        // This catches missing 'vc' claims, expired VCs, and bad JSON structure
+        val validationStatus = jwtVerifier.validate(employeeJwtVc)
+        
+        if (!validationStatus.validationMessage.isNullOrEmpty()) {
+            return VerificationResult(
+                false, 
+                validationStatus.validationMessage, 
+                validationStatus.validationErrorCode
+            )
+        }
+
+        // Step 2: Cryptographic Signature Check
+        val isJwtSignatureValid = jwtVerifier.verify(employeeJwtVc)
+
+        if (isJwtSignatureValid) {
+            VerificationResult(true, "SUCCESS: JWT Signature Verified!", "")
+        } else {
+            VerificationResult(false, "JWT Signature Verification Failed", "INVALID_SIGNATURE")
+        }
+
+    } catch (e: Exception) {
+        // Catches unexpected tampering (like extra characters or crypto failures)
+        VerificationResult(false, "JWT Verification Error: ${e.message}", "VERIFICATION_ERROR")
+    }
 }
+
+val employeeJwtVc = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImRpZDpqd2s6ZXlKcmRIa2lPaUpGUXlJc0luZ2lPaUp0YUhsWFZXRnlORzVoVTBodVkzZHlVRmRGZGxRNFlVNHhXVGxUUW5GTFFpMXFWRmxaZFdNemFHeE5JaXdpZVNJNkltOTRkRFJYTFhoRE15MVFlVmxqVnpoMU9YRm9iMXBYT0UxR2NWRkxhbGxKYlZkdGNuQXRaWEI1WmtraUxDSmpjbllpT2lKUUxUSTFOaUo5In0.eyJpc3MiOiJkaWQ6andrOmV5SnJkSGtpT2lKRlF5SXNJbmdpT2lKdGFIbFhWV0Z5Tkc1aFUwaHVZM2R5VUZkRmRsUTRZVTR4V1RsVFFuRkxRaTFxVkZsWmRXTXphR3hOSWl3aWVTSTZJbTk0ZERSWExYaERNeTFRZVZsalZ6aDFPWEZvYjFwWE9FMUdjVkZMYWxsSmJWZHRjbkF0WlhCNVpra2lMQ0pqY25ZaU9pSlFMVEkxTmlKOSIsInN1YiI6ImRpZDpqd2s6ZXlKcmRIa2lPaUpGUXlJc0luZ2lPaUp0YUhsWFZXRnlORzVoVTBodVkzZHlVRmRGZGxRNFlVNHhXVGxUUW5GTFFpMXFWRmxaZFdNemFHeE5JaXdpZVNJNkltOTRkRFJYTFhoRE15MVFlVmxqVnpoMU9YRm9iMXBYT0UxR2NWRkxhbGxKYlZkdGNuQXRaWEI1WmtraUxDSmpjbllpT2lKUUxUSTFOaUo5IiwianRpIjoidXJuOnV1aWQ6MDE5MTI1MDgtMDg4My00YTNkLThlZGUtZmNhNDNlZTQ1NDEyIiwidmMiOnsiQGNvbnRleHQiOlsiaHR0cHM6Ly93d3cudzMub3JnLzIwMTgvY3JlZGVudGlhbHMvdjEiXSwidHlwZSI6WyJWZXJpZmlhYmxlQ3JlZGVudGlhbCIsIkVtcGxveWVlQ3JlZGVudGlhbCJdLCJjcmVkZW50aWFsU3ViamVjdCI6eyJpZCI6ImRpZDpqd2s6ZXlKcmRIa2lPaUpGUXlJc0luZ2lPaUp0YUhsWFZXRnlORzVoVTBodVkzZHlVRmRGZGxRNFlVNHhXVGxUUW5GTFFpMXFWRmxaZFdNemFHeE5JaXdpZVNJNkltOTRkRFJYTFhoRE15MVFlVmxqVnpoMU9YRm9iMXBYT0UxR2NWRkxhbGxKYlZkdGNuQXRaWEI1WmtraUxDSmpjbllpT2lKUUxUSTFOaUo5IiwiZW1wbG95ZWVJZCI6IkUxMjM0NSIsIm5hbWUiOiJBbnVwIEt1bWFyIiwicm9sZSI6IlNvZnR3YXJlIEVuZ2luZWVyIn19LCJpYXQiOjE3NzA0MDI1NDYsIm5iZiI6MTc3MDQwMjU0NiwiZXhwIjoxODAxOTYwMTQ2fQ.ZnJiVrpTRbrJGHS_2ndm8Dyxuf_yIbLsAaxWXHgQsOjoe0w1X1EHunbQPXIOWYjEpFTjA_XDhSoIgXis9vQdTQ"
 
 @Preview(showBackground = true)
 @Composable
