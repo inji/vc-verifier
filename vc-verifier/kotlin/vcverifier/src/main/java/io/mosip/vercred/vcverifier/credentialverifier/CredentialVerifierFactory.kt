@@ -5,6 +5,7 @@ import io.mosip.vercred.vcverifier.credentialverifier.types.CwtVerifiableCredent
 import io.mosip.vercred.vcverifier.credentialverifier.types.LdpVerifiableCredential
 import io.mosip.vercred.vcverifier.credentialverifier.types.SdJwtVerifiableCredential
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerifiableCredential
+import io.mosip.vercred.vcverifier.credentialverifier.types.JwtVerifiableCredential
 
 class CredentialVerifierFactory {
     fun get(credentialFormat: CredentialFormat): VerifiableCredential {
@@ -14,6 +15,7 @@ class CredentialVerifierFactory {
             CredentialFormat.VC_SD_JWT -> SdJwtVerifiableCredential()
             CredentialFormat.DC_SD_JWT -> SdJwtVerifiableCredential()
             CredentialFormat.CWT_VC -> CwtVerifiableCredential()
+            CredentialFormat.JWT_VC -> JwtVerifiableCredential()
         }
     }
 }
