@@ -17,10 +17,18 @@ class JwtVerifier {
         // 1. Parse the JWT - will throw an exception if structure is invalid
         val jwsObject = JWSObject.parse(credential)
         
+        // Fix for CodeRabbit: Restrict accepted algorithms to prevent confusion attacks
+        val alg = jwsObject.header.algorithm.name
+        if (alg == "none") {
+            throw SecurityException("Unsecured JWTs (alg: none) are not allowed")
+        }
+
         // 2. Extract Issuer to resolve the correct public key
-        val payload = jwsObject.payload.toJSONObject()
+        // Fix for CodeRabbit: Added null-check for payload to prevent NPE
+        val payload = jwsObject.payload.toJSONObject() 
+            ?: throw IllegalArgumentException("JWT payload is not a valid JSON object")
         val issuer = payload["iss"]?.toString() 
-            ?: throw IllegalArgumentException("Missing required 'iss' claim in JWT payload")
+            ?: throw IllegalArgumentException("Missing required 'iss' claim")
 
         // 3. Resolve Public Key (handles did:jwk and other Mosip-supported formats)
         val factory = PublicKeyResolverFactory()

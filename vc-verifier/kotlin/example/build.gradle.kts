@@ -55,11 +55,11 @@ android {
 // Exclude duplicate classes and force versions
 configurations.all {
     resolutionStrategy {
-        exclude(module = "bcprov-jdk15to18")
-        exclude(module = "bcutil-jdk18on")
-        exclude(module = "bcprov-jdk15on")
-        exclude(module = "bcutil-jdk15on")
-        exclude(module = "titanium-json-ld")
+        exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
+        exclude(group = "org.bouncycastle", module = "bcutil-jdk18on")
+        exclude(group = "org.bouncycastle", module = "bcprov-jdk15on")
+        exclude(group = "org.bouncycastle", module = "bcutil-jdk15on")
+        exclude(group = "com.apicatalog", module = "titanium-json-ld")
     }
 }
 dependencies {
