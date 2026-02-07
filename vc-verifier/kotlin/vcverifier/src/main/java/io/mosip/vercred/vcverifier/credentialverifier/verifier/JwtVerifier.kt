@@ -17,10 +17,18 @@ class JwtVerifier {
         // 1. Parse the JWT - will throw an exception if structure is invalid
         val jwsObject = JWSObject.parse(credential)
         
-        // Fix for CodeRabbit: Restrict accepted algorithms to prevent confusion attacks
-        val alg = jwsObject.header.algorithm.name
-        if (alg == "none") {
-            throw SecurityException("Unsecured JWTs (alg: none) are not allowed")
+        // Fix for CodeRabbit: Use a strict allowlist of algorithms to prevent confusion attacks
+        val alg = jwsObject.header.algorithm
+        val allowedAlgorithms = setOf(
+            com.nimbusds.jose.JWSAlgorithm.RS256,
+            com.nimbusds.jose.JWSAlgorithm.RS384,
+            com.nimbusds.jose.JWSAlgorithm.RS512,
+            com.nimbusds.jose.JWSAlgorithm.ES256,
+            com.nimbusds.jose.JWSAlgorithm.ES384,
+            com.nimbusds.jose.JWSAlgorithm.ES512
+        )
+        if (alg !in allowedAlgorithms) {
+            throw SecurityException("Unsupported or disallowed JWT algorithm: ${alg.name}")
         }
 
         // 2. Extract Issuer to resolve the correct public key
@@ -31,9 +39,9 @@ class JwtVerifier {
             ?: throw IllegalArgumentException("Missing required 'iss' claim")
 
         // 3. Resolve Public Key (handles did:jwk and other Mosip-supported formats)
+        // Fix for CodeRabbit: Removed unnecessary Elvis operator as factory.get throws on failure
         val factory = PublicKeyResolverFactory()
-        val publicKey = factory.get(URI.create(issuer)) 
-            ?: throw IllegalStateException("Could not resolve public key for issuer: $issuer")
+        val publicKey = factory.get(URI.create(issuer))
 
         // 4. Select the appropriate cryptographic verifier based on Key Algorithm
         val verifier = when (publicKey) {
