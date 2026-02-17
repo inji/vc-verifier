@@ -109,9 +109,6 @@ fun VerifyVC(modifier: Modifier = Modifier) {
 
 
 fun verifyVc(): VerificationResult {
-    // ---------------------------------------------------------
-    // OLD LOGIC (LDP VC) - Commented out for PR isolation
-    // ---------------------------------------------------------
     /*
     val credentialsVerifier = CredentialsVerifier()
     return credentialsVerifier.verify(farmerVc, CredentialFormat.LDP_VC)
@@ -120,9 +117,6 @@ fun verifyVc(): VerificationResult {
     return try {
         val factory = CredentialVerifierFactory()
         val jwtVerifier = factory.get(CredentialFormat.JWT_VC)
-
-        // Step 1: Structural/Payload/Expiry Check
-        // This catches missing 'vc' claims, expired VCs, and bad JSON structure
         val validationStatus = jwtVerifier.validate(employeeJwtVc)
         
         if (!validationStatus.validationMessage.isNullOrEmpty()) {
@@ -132,8 +126,6 @@ fun verifyVc(): VerificationResult {
                 validationStatus.validationErrorCode
             )
         }
-
-        // Step 2: Cryptographic Signature Check
         val isJwtSignatureValid = jwtVerifier.verify(employeeJwtVc)
 
         if (isJwtSignatureValid) {
@@ -143,7 +135,6 @@ fun verifyVc(): VerificationResult {
         }
 
     } catch (e: Exception) {
-        // Catches unexpected tampering (like extra characters or crypto failures)
         VerificationResult(false, "JWT Verification Error: ${e.message}", "VERIFICATION_ERROR")
     }
 }
