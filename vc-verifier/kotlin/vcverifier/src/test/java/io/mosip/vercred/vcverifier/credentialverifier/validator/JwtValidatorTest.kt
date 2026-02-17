@@ -13,7 +13,7 @@ class JwtValidatorTest {
 
     private fun loadSampleJwt(fileName: String): String {
         val file = ResourceUtils.getFile("classpath:jwt_vc/$fileName")
-        return String(Files.readAllBytes(file.toPath()))
+        return String(Files.readAllBytes(file.toPath())).trim()
     }
 
     private fun modifyJwtPayload(jwt: String, modify: (JSONObject) -> Unit): String {

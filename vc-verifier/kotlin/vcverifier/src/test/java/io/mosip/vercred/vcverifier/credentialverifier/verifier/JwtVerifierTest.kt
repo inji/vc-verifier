@@ -21,14 +21,18 @@ class JwtVerifierTest {
         unmockkAll()
     }
 
+    private fun loadSampleJwt(fileName: String): String {
+        val file = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "jwt_vc/$fileName")
+        return String(Files.readAllBytes(file.toPath())).trim()
+    }
+
     @Test
     fun `should verify jwt successfully`() {
-        val file = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "jwt_vc/validJwt.txt")
-        val vc = String(Files.readAllBytes(file.toPath()))
+        val vc = loadSampleJwt("validJwt.txt")
 
         val payloadBase64 = vc.split(".")[1]
         val payloadJson = JSONObject(String(Base64.getUrlDecoder().decode(payloadBase64)))
-        val issuer = payloadJson.getString("iss") // This will be your did:jwk string
+        val issuer = payloadJson.getString("iss")
 
         val resolver = DidJwkPublicKeyResolver()
         val parsedDid = ParsedDID(issuer, DidMethod.JWK, issuer.removePrefix("did:jwk:"), issuer)
@@ -41,15 +45,23 @@ class JwtVerifierTest {
     }
 
     @Test
-    fun `should return false for tampered jwt`() {
-        val file = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "jwt_vc/invalidJwt.txt")
-        val vc = String(Files.readAllBytes(file.toPath()))
+    fun `should throw for tampered jwt`() {
+        val validVc = loadSampleJwt("validJwt.txt") 
+        val invalidVc = loadSampleJwt("invalidJwt.txt")
+
+        // Using real key from valid JWT to genuinely test signature rejection
+        val payloadBase64 = validVc.split(".")[1]
+        val payloadJson = JSONObject(String(Base64.getUrlDecoder().decode(payloadBase64)))
+        val issuer = payloadJson.getString("iss")
+        val realPublicKey = DidJwkPublicKeyResolver().extractPublicKey(
+            ParsedDID(issuer, DidMethod.JWK, issuer.removePrefix("did:jwk:"), issuer)
+        )
 
         mockkConstructor(PublicKeyResolverFactory::class)
-        every { anyConstructed<PublicKeyResolverFactory>().get(any()) } returns mockk()
+        every { anyConstructed<PublicKeyResolverFactory>().get(any()) } returns realPublicKey
 
         assertThrows(Exception::class.java) {
-            JwtVerifier().verify(vc)
+            JwtVerifier().verify(invalidVc)
         }
     }
 }
