@@ -60,6 +60,18 @@ class JwtValidator {
                 return ValidationStatus("Missing 'vc' or 'credentialSubject' claim", "INVALID_VC_FORMAT")
             }
 
+            val sub = claims.subject
+            val credentialSubjectId = (vcClaim["credentialSubject"] as? Map<*, *>)?.get("id")?.toString()
+            if (sub != null && credentialSubjectId != null && sub != credentialSubjectId) {
+                return ValidationStatus("Claim 'sub' must match 'credentialSubject.id'", "INVALID_VC_FORMAT")
+            }
+
+            val jti = claims.jwtid
+            val vcId = vcClaim["id"]?.toString()
+            if (jti != null && vcId != null && jti != vcId) {
+                return ValidationStatus("Claim 'jti' must match 'vc.id'", "INVALID_VC_FORMAT")
+            }
+
             return SUCCESS
         } catch (e: Exception) {
             return ValidationStatus("Invalid JWT structure: ${e.message}", "INVALID_JWT")

@@ -95,4 +95,30 @@ class JwtValidatorTest {
 
         assertEquals("INVALID_VC_FORMAT", status.validationErrorCode)
     }
+
+    @Test
+    fun `should fail if sub does not match credentialSubject id`() {
+        val vc = modifyJwtPayload(loadSampleJwt("validJwt.txt")) { 
+            it.put("sub", "mismatched-id")
+            // Ensuring credentialSubject.id is different from sub
+            val vcMap = it.getJSONObject("vc")
+            val subject = vcMap.getJSONObject("credentialSubject")
+            subject.put("id", "actual-id")
+        }
+        val status = validator.validate(vc)
+        assertEquals("INVALID_VC_FORMAT", status.validationErrorCode)
+        assertEquals("Claim 'sub' must match 'credentialSubject.id'", status.validationMessage)
+    }
+
+    @Test
+    fun `should fail if jti does not match vc id`() {
+        val vc = modifyJwtPayload(loadSampleJwt("validJwt.txt")) { 
+            it.put("jti", "urn:uuid:mismatched-jti")
+            val vcMap = it.getJSONObject("vc")
+            vcMap.put("id", "urn:uuid:actual-vc-id")
+        }
+        val status = validator.validate(vc)
+        assertEquals("INVALID_VC_FORMAT", status.validationErrorCode)
+        assertEquals("Claim 'jti' must match 'vc.id'", status.validationMessage)
+    }
 }
