@@ -8,21 +8,32 @@ import java.net.URI
 class JwtVerifier {
     /**
      * Verifies the cryptographic signature of a JWT-based Verifiable Credential.
-     * Leverages centralized utility for cross-algorithm and cross-key support (RSA/EC/EdDSA).
+     * Aligns with RFC 7515 by prioritizing JWS header for key identification.
      */
     fun verify(credential: String): Boolean {
         val jwsObject = JWSObject.parse(credential)
+        val header = jwsObject.header
         val payload = jwsObject.payload.toJSONObject() 
             ?: throw IllegalArgumentException("JWT payload is not a valid JSON object")
-        val issuer = payload["iss"]?.toString() 
-            ?: throw IllegalArgumentException("Missing required 'iss' claim")
+
+        val kid = header.keyID
+        val issuerClaim = payload["iss"]?.toString()
+
+        val issuerUri = when {
+            kid != null -> URI.create(kid) 
+            issuerClaim != null -> URI.create(issuerClaim) 
+            else -> throw IllegalArgumentException("Missing key identification hint in header (kid) or payload (iss)")
+        }
+
         val factory = PublicKeyResolverFactory()
-        val publicKey = factory.get(URI.create(issuer))
+        val publicKey = factory.get(issuerUri)
+        
         val isVerified = verifyJwt(
             credential, 
             publicKey, 
-            jwsObject.header.algorithm.name
+            header.algorithm.name
         )
+        
         if (!isVerified) {
             throw SecurityException("Cryptographic signature verification failed. The token data has been tampered with.")
         }

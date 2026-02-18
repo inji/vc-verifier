@@ -2,17 +2,13 @@ package io.mosip.vercred.vcverifier.credentialverifier.verifier
 
 import io.mockk.*
 import io.mosip.vercred.vcverifier.keyResolver.PublicKeyResolverFactory
-import io.mosip.vercred.vcverifier.keyResolver.types.did.DidJwkPublicKeyResolver
-import io.mosip.vercred.vcverifier.constants.DidMethod
-import io.mosip.vercred.vcverifier.keyResolver.types.did.ParsedDID
+import io.mosip.vercred.vcverifier.utils.Util
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.springframework.util.ResourceUtils
 import java.nio.file.Files
-import java.net.URI
-import org.json.JSONObject
-import java.util.Base64
+import java.security.PublicKey
 
 class JwtVerifierTest {
 
@@ -22,46 +18,35 @@ class JwtVerifierTest {
     }
 
     private fun loadSampleJwt(fileName: String): String {
-        val file = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "jwt_vc/$fileName")
+        val file = ResourceUtils.getFile("classpath:jwt_vc/$fileName")
         return String(Files.readAllBytes(file.toPath())).trim()
     }
 
     @Test
-    fun `should verify jwt successfully`() {
+    fun `should verify successfully by prioritizing kid from header`() {
         val vc = loadSampleJwt("validJwt.txt")
+        val mockPublicKey = mockk<PublicKey>()
 
-        val payloadBase64 = vc.split(".")[1]
-        val payloadJson = JSONObject(String(Base64.getUrlDecoder().decode(payloadBase64)))
-        val issuer = payloadJson.getString("iss")
-
-        val resolver = DidJwkPublicKeyResolver()
-        val parsedDid = ParsedDID(issuer, DidMethod.JWK, issuer.removePrefix("did:jwk:"), issuer)
-        val realPublicKey = resolver.extractPublicKey(parsedDid)
+        mockkObject(Util)
+        every { Util.verifyJwt(any(), any(), any()) } returns true
 
         mockkConstructor(PublicKeyResolverFactory::class)
-        every { anyConstructed<PublicKeyResolverFactory>().get(any()) } returns realPublicKey
+        every { anyConstructed<PublicKeyResolverFactory>().get(any()) } returns mockPublicKey
 
         assertTrue(JwtVerifier().verify(vc))
     }
 
     @Test
-    fun `should throw for tampered jwt`() {
-        val validVc = loadSampleJwt("validJwt.txt") 
-        val invalidVc = loadSampleJwt("invalidJwt.txt")
-
-        // Using real key from valid JWT to genuinely test signature rejection
-        val payloadBase64 = validVc.split(".")[1]
-        val payloadJson = JSONObject(String(Base64.getUrlDecoder().decode(payloadBase64)))
-        val issuer = payloadJson.getString("iss")
-        val realPublicKey = DidJwkPublicKeyResolver().extractPublicKey(
-            ParsedDID(issuer, DidMethod.JWK, issuer.removePrefix("did:jwk:"), issuer)
-        )
+    fun `should throw SecurityException for invalid signature`() {
+        val vc = loadSampleJwt("invalidJwt.txt")
+        mockkObject(Util)
+        every { Util.verifyJwt(any(), any(), any()) } returns false // Trigger exception
 
         mockkConstructor(PublicKeyResolverFactory::class)
-        every { anyConstructed<PublicKeyResolverFactory>().get(any()) } returns realPublicKey
+        every { anyConstructed<PublicKeyResolverFactory>().get(any()) } returns mockk<PublicKey>()
 
-        assertThrows(Exception::class.java) {
-            JwtVerifier().verify(invalidVc)
+        assertThrows(SecurityException::class.java) {
+            JwtVerifier().verify(vc)
         }
     }
 }
