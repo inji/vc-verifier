@@ -16,13 +16,13 @@ class JwtVerifier {
         val payload = jwsObject.payload.toJSONObject() 
             ?: throw IllegalArgumentException("JWT payload is not a valid JSON object")
 
-        val kid = header.keyID
+        val kid = header.keyID ?: header.jwk?.keyID
         val issuerClaim = payload["iss"]?.toString()
 
         val issuerUri = when {
             kid != null -> URI.create(kid) 
             issuerClaim != null -> URI.create(issuerClaim) 
-            else -> throw IllegalArgumentException("Missing key identification hint in header (kid) or payload (iss)")
+            else -> throw IllegalArgumentException("Missing key identification hint in header (kid, jwk) or payload (iss)")
         }
 
         val factory = PublicKeyResolverFactory()
