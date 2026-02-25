@@ -35,7 +35,8 @@ class JwtVerifier {
         )
         
         if (!isVerified) {
-            throw SecurityException("Cryptographic signature verification failed. The token data has been tampered with.")
+            println("Cryptographic signature verification failed. The token data has been tampered with.") 
+            return false
         }
 
         return true

@@ -7,8 +7,7 @@ import java.util.Base64
 
 class JwtValidator {
     companion object {
-        val SUCCESS = ValidationStatus("", "")
-        private const val CLOCK_SKEW_MS = 60 * 1000L
+        private const val CLOCK_SKEW_MS = 3000L
     }
     private val jwtRegex = Regex("^[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+$")
 
@@ -24,6 +23,8 @@ class JwtValidator {
                 }
             }
         } catch (e: Exception) {
+            e.printStackTrace()
+            return ValidationStatus("Failed to parse JWT header: ${e.message}", "MALFORMED_INPUT")
         }
 
         if (!jwtRegex.matches(trimmedCredential)) {
@@ -72,7 +73,7 @@ class JwtValidator {
                 return ValidationStatus("Claim 'jti' must match 'vc.id'", "INVALID_VC_FORMAT")
             }
 
-            return SUCCESS
+            return ValidationStatus("", "")
         } catch (e: Exception) {
             return ValidationStatus("Invalid JWT structure: ${e.message}", "INVALID_JWT")
         }
