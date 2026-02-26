@@ -1,44 +1,62 @@
 package io.mosip.vercred.vcverifier.credentialverifier.verifier
 
 import com.nimbusds.jose.JWSObject
+import com.nimbusds.jose.jwk.AsymmetricJWK
 import io.mosip.vercred.vcverifier.keyResolver.PublicKeyResolverFactory
 import io.mosip.vercred.vcverifier.utils.Util.verifyJwt
+import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import java.net.URI
 
 class JwtVerifier {
+
+    private val factory = PublicKeyResolverFactory()
+
     /**
      * Verifies the cryptographic signature of a JWT-based Verifiable Credential.
-     * Aligns with RFC 7515 by prioritizing JWS header for key identification.
+     * Aligns with OID4VCI and RFC 7515.
      */
     fun verify(credential: String): Boolean {
-        val jwsObject = JWSObject.parse(credential)
-        val header = jwsObject.header
-        val payload = jwsObject.payload.toJSONObject() 
-            ?: throw IllegalArgumentException("JWT payload is not a valid JSON object")
+        return try {
+            val jwsObject = JWSObject.parse(credential)
+            val header = jwsObject.header
+            val payload = jwsObject.payload.toJSONObject()
+                ?: throw IllegalArgumentException("JWT payload is not a valid JSON object")
 
-        val kid = header.keyID ?: header.jwk?.keyID
-        val issuerClaim = payload["iss"]?.toString()
+            val publicKey = if (header.jwk != null) {
+                val asymmetricJwk = header.jwk as? AsymmetricJWK 
+                    ?: throw IllegalArgumentException("Embedded JWK is not an asymmetric key")
+                asymmetricJwk.toPublicKey()
+            } else {
+                val jkuString = header.toJSONObject()["jku"]?.toString()
+                val kid = header.keyID
+                val issuerClaim = payload["iss"]?.toString()
 
-        val issuerUri = when {
-            kid != null -> URI.create(kid) 
-            issuerClaim != null -> URI.create(issuerClaim) 
-            else -> throw IllegalArgumentException("Missing key identification hint in header (kid, jwk) or payload (iss)")
+                val verificationUri = when {
+                    jkuString != null -> URI.create(jkuString)
+                    !issuerClaim.isNullOrBlank() -> URI.create(issuerClaim)
+                    else -> throw IllegalArgumentException("Missing key identification hint (jku, iss, or embedded jwk).")
+                }
+                factory.get(verificationUri, kid)
+            }
+
+            val isVerified = verifyJwt(
+                credential,
+                publicKey,
+                header.algorithm.name
+            )
+            
+            if (!isVerified) {
+                println("Cryptographic signature verification failed. The token data has been tampered with.")
+            }
+            
+            isVerified
+
+        } catch (e: SignatureVerificationException) {
+            println("Cryptographic signature verification failed: ${e.message}")
+            false
+        } catch (e: Exception) {
+            println("JWT Verification Error: ${e.message}")
+            false
         }
-
-        val factory = PublicKeyResolverFactory()
-        val publicKey = factory.get(issuerUri)
-        
-        val isVerified = verifyJwt(
-            credential, 
-            publicKey, 
-            header.algorithm.name
-        )
-        
-        if (!isVerified) {
-            println("Cryptographic signature verification failed. The token data has been tampered with.") 
-            return false
-        }
-
-        return true
     }
 }
