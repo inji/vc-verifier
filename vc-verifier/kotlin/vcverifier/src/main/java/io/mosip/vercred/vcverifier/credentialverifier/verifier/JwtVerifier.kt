@@ -33,8 +33,13 @@ class JwtVerifier {
 
                 val verificationUri = when {
                     jkuString != null -> URI.create(jkuString)
+                    kid != null && (kid.startsWith("did:") || kid.startsWith("http")) -> URI.create(kid)
+                    kid != null && !issuerClaim.isNullOrBlank() && issuerClaim.startsWith("did:") -> {
+                        val separator = if (kid.startsWith("#")) "" else "#"
+                        URI.create("$issuerClaim$separator$kid")
+                    }
                     !issuerClaim.isNullOrBlank() -> URI.create(issuerClaim)
-                    else -> throw IllegalArgumentException("Missing key identification hint (jku, iss, or embedded jwk).")
+                    else -> throw IllegalArgumentException("Missing key identification hint (jku, kid, iss, or embedded jwk).")
                 }
                 factory.get(verificationUri, kid)
             }
