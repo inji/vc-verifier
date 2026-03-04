@@ -134,10 +134,10 @@ tasks.register<Jar>("jarRelease") {
     }
     manifest {
         attributes["Implementation-Title"] = project.name
-        attributes["Implementation-Version"] = "1.3.0-SNAPSHOT"
+        attributes["Implementation-Version"] = "1.7.0"
     }
     archiveBaseName.set("${project.name}-release")
-    archiveVersion.set("1.4.0-SNAPSHOT")
+    archiveVersion.set("1.7.0")
     destinationDirectory.set(layout.buildDirectory.dir("libs"))
 }
 
