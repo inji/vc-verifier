@@ -4,6 +4,7 @@ import io.mockk.mockkObject
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.LDP_VC
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.MSO_MDOC
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.VC_SD_JWT
+import io.mosip.vercred.vcverifier.constants.CredentialFormat.JWT_VC
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.CONTEXT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_GENERIC
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING
@@ -225,5 +226,17 @@ class CredentialsVerifierTest {
         assertFalse(revocationResult!!.isValid)
         assertNull(revocationResult.error)
 
+    }
+
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS)
+    fun `should return true for valid jwt vc credential verification success`() {
+        val vc = readClasspathFile("jwt_vc/validJwt.txt")
+
+        val verificationResult = CredentialsVerifier().verify(vc, JWT_VC)
+
+        assertEquals("", verificationResult.verificationMessage)
+        assertTrue(verificationResult.verificationStatus)
+        assertEquals("", verificationResult.verificationErrorCode)
     }
 }

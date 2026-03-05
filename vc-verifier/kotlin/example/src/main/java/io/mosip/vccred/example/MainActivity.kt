@@ -25,6 +25,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.mosip.vccred.example.ui.theme.VcverifierTheme
 import io.mosip.vercred.vcverifier.CredentialsVerifier
+import io.mosip.vercred.vcverifier.credentialverifier.CredentialVerifierFactory
 import io.mosip.vercred.vcverifier.constants.CredentialFormat
 import io.mosip.vercred.vcverifier.data.VerificationResult
 
@@ -50,8 +51,19 @@ fun VerifyVC(modifier: Modifier = Modifier) {
     Column(modifier = Modifier.padding(30.dp)) {
         Button(
             onClick = {
-                val thread = Thread{
-                    verificationResult.value = verifyVc()
+                verificationResult.value = VerificationResult(false, "Processing...", "")
+                
+                val thread = Thread {
+                    try {
+                        val result = verifyVc()
+                        verificationResult.value = result
+                    } catch (e: Exception) {
+                        verificationResult.value = VerificationResult(
+                            false, 
+                            "Error: ${e.message ?: e.toString()}", 
+                            "VERIFY_FAILED"
+                        )
+                    }
                 }
                 thread.start()
             },
@@ -73,7 +85,7 @@ fun VerifyVC(modifier: Modifier = Modifier) {
                 painter = painterResource(
                     id = if (verificationResult.value?.verificationStatus == true) {
                         R.drawable.success
-                    } else if(verificationResult.value?.verificationStatus == false){
+                    } else if(verificationResult.value?.verificationStatus == false && verificationResult.value?.verificationMessage != "Processing..."){
                         R.drawable.error
                     } else {
                         R.drawable.pending
@@ -83,7 +95,9 @@ fun VerifyVC(modifier: Modifier = Modifier) {
                 modifier = Modifier.size(80.dp)
             )
             Text(
-                text = verificationResult.value?.verificationMessage ?: "Status: Waiting...",
+                text = verificationResult.value?.verificationMessage.takeIf { !it.isNullOrEmpty() } 
+                       ?: if (verificationResult.value?.verificationStatus == true) "SUCCESS: Credential Verified!" 
+                       else "Status: Waiting...",
                 modifier = modifier.fillMaxWidth(),
                 maxLines = 5,
                 overflow = TextOverflow.Ellipsis
@@ -94,10 +108,38 @@ fun VerifyVC(modifier: Modifier = Modifier) {
 }
 
 
-fun verifyVc(): VerificationResult{
+fun verifyVc(): VerificationResult {
+    /*
     val credentialsVerifier = CredentialsVerifier()
     return credentialsVerifier.verify(farmerVc, CredentialFormat.LDP_VC)
+    */
+
+    return try {
+        val factory = CredentialVerifierFactory()
+        val jwtVerifier = factory.get(CredentialFormat.JWT_VC)
+        val validationStatus = jwtVerifier.validate(employeeJwtVc)
+        
+        if (!validationStatus.validationMessage.isNullOrEmpty()) {
+            return VerificationResult(
+                false, 
+                validationStatus.validationMessage, 
+                validationStatus.validationErrorCode
+            )
+        }
+        val isJwtSignatureValid = jwtVerifier.verify(employeeJwtVc)
+
+        if (isJwtSignatureValid) {
+            VerificationResult(true, "SUCCESS: JWT Signature Verified!", "")
+        } else {
+            VerificationResult(false, "JWT Signature Verification Failed", "INVALID_SIGNATURE")
+        }
+
+    } catch (e: Exception) {
+        VerificationResult(false, "JWT Verification Error: ${e.message}", "VERIFICATION_ERROR")
+    }
 }
+
+val employeeJwtVc = MOCK_JWT_STRING
 
 @Preview(showBackground = true)
 @Composable
