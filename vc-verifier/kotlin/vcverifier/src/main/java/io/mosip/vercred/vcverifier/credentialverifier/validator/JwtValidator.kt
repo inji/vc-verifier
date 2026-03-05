@@ -17,7 +17,7 @@ class JwtValidator {
         try {
             val parts = trimmedCredential.split(".")
             if (parts.isNotEmpty()) {
-                val headerJson = String(Base64Decoder().decodeFromBase64(parts[0]))
+                val headerJson = String(Base64Decoder().decodeFromBase64Url(parts[0]))
                 if (headerJson.contains("\"alg\":\"none\"", ignoreCase = true)) {
                     return ValidationStatus("JWT algorithm 'none' is not allowed", "INVALID_ALGORITHM")
                 }
