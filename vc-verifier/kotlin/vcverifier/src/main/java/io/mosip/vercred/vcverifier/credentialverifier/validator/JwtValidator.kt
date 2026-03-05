@@ -3,7 +3,7 @@ package io.mosip.vercred.vcverifier.credentialverifier.validator
 import com.nimbusds.jwt.SignedJWT
 import io.mosip.vercred.vcverifier.data.ValidationStatus
 import java.util.Date
-import java.util.Base64
+import io.mosip.vercred.vcverifier.utils.Base64Decoder
 
 class JwtValidator {
     companion object {
@@ -17,7 +17,7 @@ class JwtValidator {
         try {
             val parts = trimmedCredential.split(".")
             if (parts.isNotEmpty()) {
-                val headerJson = String(Base64.getUrlDecoder().decode(parts[0]))
+                val headerJson = String(Base64Decoder().decodeFromBase64(parts[0]))
                 if (headerJson.contains("\"alg\":\"none\"", ignoreCase = true)) {
                     return ValidationStatus("JWT algorithm 'none' is not allowed", "INVALID_ALGORITHM")
                 }
