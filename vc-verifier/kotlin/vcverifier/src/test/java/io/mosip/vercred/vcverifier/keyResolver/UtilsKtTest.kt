@@ -1,6 +1,9 @@
 package io.mosip.vercred.vcverifier.keyResolver
 
+import io.ipfs.multibase.Base58
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ES256K_KEY_TYPE_2019
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.RSA_KEY_TYPE
+import io.mosip.vercred.vcverifier.exception.PublicKeyNotFoundException
 import io.mosip.vercred.vcverifier.exception.PublicKeyResolutionFailedException
 import io.mosip.vercred.vcverifier.exception.PublicKeyTypeNotSupportedException
 import io.mosip.vercred.vcverifier.testHelpers.assertPublicKey
@@ -204,5 +207,32 @@ class UtilsKtTest {
         assertThrows<PublicKeyTypeNotSupportedException> {
             jwkToPublicKey(jwkJson)
         }
+    }
+
+    @Test
+    fun `getPublicKeyObjectFromPublicKeyMultibase throws PublicKeyNotFoundException when RSA has invalid multicodec header`() {
+        val invalidHeader = byteArrayOf(0x00, 0x00) // wrong header bytes
+        val fakeRsaKeyBody = ByteArray(32) { it.toByte() }
+        val rawBytes = invalidHeader + fakeRsaKeyBody
+
+        val multibaseEncoded = "z" + Base58.encode(rawBytes)
+
+        val exception = assertThrows<PublicKeyNotFoundException> {
+            getPublicKeyObjectFromPublicKeyMultibase(multibaseEncoded, RSA_KEY_TYPE)
+        }
+
+        assertEquals("Public key object is null: Invalid RSA multicodec header", exception.message)
+    }
+
+    @Test
+    fun `getPublicKeyObjectFromPublicKeyMultibase throws PublicKeyNotFoundException when key type is unsupported`() {
+        val rawBytes = ByteArray(34) { it.toByte() } // dummy bytes, content doesn't matter
+        val multibaseEncoded = "z" + Base58.encode(rawBytes)
+
+        val exception = assertThrows<PublicKeyNotFoundException> {
+            getPublicKeyObjectFromPublicKeyMultibase(multibaseEncoded, "UNSUPPORTED_KEY_TYPE")
+        }
+
+        assertEquals("Public key object is null: Unsupported key type: UNSUPPORTED_KEY_TYPE", exception.message)
     }
 }

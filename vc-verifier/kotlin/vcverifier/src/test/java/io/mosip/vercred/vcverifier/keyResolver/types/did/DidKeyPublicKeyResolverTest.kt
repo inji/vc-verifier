@@ -6,13 +6,15 @@ import io.mockk.unmockkAll
 import io.mosip.vercred.vcverifier.constants.DidMethod
 import io.mosip.vercred.vcverifier.exception.PublicKeyTypeNotSupportedException
 import io.mosip.vercred.vcverifier.testHelpers.assertPublicKey
-import io.mosip.vercred.vcverifier.testHelpers.validDidKey
+import io.mosip.vercred.vcverifier.testHelpers.validECR1DidKey
+import io.mosip.vercred.vcverifier.testHelpers.validEdDidKey
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.security.PublicKey
+
 
 class DidKeyPublicKeyResolverTest {
     @AfterEach
@@ -25,10 +27,19 @@ class DidKeyPublicKeyResolverTest {
 
     @Test
     fun `should resolve valid Ed25519 did key`() {
-        val publicKey: PublicKey = resolver.extractPublicKey(createParsedDid(validDidKey))
+        val publicKey: PublicKey = resolver.extractPublicKey(createParsedDid(validEdDidKey))
 
         val expectedEncodedPublicKey =
             "[48, 42, 48, 5, 6, 3, 43, 101, 112, 3, 33, 0, -104, 111, -113, -128, 30, 39, -124, -13, 109, 42, -42, -40, -42, 108, 43, 71, -113, 52, 13, 48, -52, 87, 69, -103, 118, 53, 52, 53, 86, 66, -93, 22]"
+        assertPublicKey(publicKey, expectedEncodedPublicKey)
+    }
+
+    @Test
+    fun `should resolve valid P256 did key`() {
+        val es256DidKey = validECR1DidKey
+        val publicKey: PublicKey = resolver.extractPublicKey(createParsedDid(es256DidKey))
+        val expectedEncodedPublicKey =
+            "[48, 89, 48, 19, 6, 7, 42, -122, 72, -50, 61, 2, 1, 6, 8, 42, -122, 72, -50, 61, 3, 1, 7, 3, 66, 0, 4, -26, -11, 115, 86, 100, -126, 79, -47, -74, 93, 12, 14, 1, 120, -80, 119, -18, 91, 118, 43, 60, 57, -107, -91, 112, 98, -34, -86, 63, 34, -89, -92, 66, 113, -106, -40, -46, -78, -11, 101, 56, -111, 11, 41, 21, -44, -78, -9, 56, 112, 126, -127, -77, 115, -3, -119, 102, -115, 126, -31, 98, -25, 121, 95]"
         assertPublicKey(publicKey, expectedEncodedPublicKey)
     }
 
@@ -44,8 +55,9 @@ class DidKeyPublicKeyResolverTest {
             assertThrows(PublicKeyTypeNotSupportedException::class.java) {
                 resolver.extractPublicKey(createParsedDid(unsupportedKeyTypeDidKey))
             }
+        print(keyTypeNotSupportedException.message)
         assertEquals(
-            "KeyType - 18 is not supported. Supported: ed25519",
+            "KeyType - 18 is not supported. Supported: ed25519, ecr1",
             keyTypeNotSupportedException.message
         )
     }

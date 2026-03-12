@@ -5,6 +5,7 @@ import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ES256K_KEY_TYPE_2019
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ES256_KEY_TYPE_2019
 import io.mosip.vercred.vcverifier.constants.DidMethod
 import io.mosip.vercred.vcverifier.exception.PublicKeyNotFoundException
 import io.mosip.vercred.vcverifier.exception.PublicKeyResolutionFailedException
@@ -12,6 +13,7 @@ import io.mosip.vercred.vcverifier.networkManager.HttpMethod
 import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
 import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient.Companion.sendHTTPRequest
 import io.mosip.vercred.vcverifier.testHelpers.assertPublicKey
+import io.mosip.vercred.vcverifier.testHelpers.encodedEcP256PublicKey
 import io.mosip.vercred.vcverifier.testHelpers.encodedEcdsaPublicKey
 import io.mosip.vercred.vcverifier.testHelpers.encodedEd25519PublicKey
 import io.mosip.vercred.vcverifier.testHelpers.validDidWeb
@@ -101,6 +103,63 @@ class DidWebPublicKeyResolverTest {
 
         assertPublicKey(resolvedPublicKey, encodedEd25519PublicKey)
     }
+    // Key type - EcdsaSecp256r1VerificationKey2019 (P-256 / ES256)
+
+    @Test
+    fun `should resolve public key from PEM of ECR1 key type`() {
+        val pem =
+            "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAErw8pST9k/peYjQscA9h1AHCC04yO\n8z/FcbzaXMjJavWQUEufNVd9B6/4BlA9v86aEEql1RSCU7m3v+GaRxrvIw==\n-----END PUBLIC KEY-----"
+        mockDidDocument(mapOf("publicKeyPem" to pem), ES256_KEY_TYPE_2019)
+
+        val publicKey = resolver.extractPublicKey(createParsedDid())
+
+        assertPublicKey(publicKey, encodedEcP256PublicKey)
+    }
+
+    @Test
+    fun `should resolve public key from multibase of ECR1 key type`() {
+        val publicKeyMultibaseInfo = mapOf(
+            "publicKeyMultibase" to "zDnaeuSeAxxoAznJQNqSx1iHYJ55wiHbv4VcTDUZQrbPGTZMn",
+        )
+        mockDidDocument(publicKeyMultibaseInfo, ES256_KEY_TYPE_2019)
+
+        val publicKey = resolver.extractPublicKey(createParsedDid())
+
+        assertPublicKey(publicKey, encodedEcP256PublicKey)
+    }
+
+    @Test
+    fun `should resolve public key from JWK of ECR1 key type`() {
+        val publicKeyJwkInfo = mapOf(
+            "publicKeyJwk" to """
+        {
+            "kty": "EC",
+            "crv": "P-256",
+            "x": "rw8pST9k_peYjQscA9h1AHCC04yO8z_FcbzaXMjJavU",
+            "y": "kFBLnzVXfQev-AZQPb_OmhBKpdUUglO5t7_hmkca7yM",
+            "alg": "ES256",
+            "use": "sig"
+        }
+    """.trimIndent()
+        )
+        mockDidDocument(publicKeyJwkInfo, ES256_KEY_TYPE_2019)
+
+        val publicKey = resolver.extractPublicKey(createParsedDid())
+
+        assertPublicKey(publicKey, encodedEcP256PublicKey)
+    }
+
+    @Test
+    fun `should resolve public key from HEX of ECR1 key type`() {
+        val publicKeyHexInfo = mapOf(
+            "publicKeyHex" to "03af0f29493f64fe97988d0b1c03d875007082d38c8ef33fc571bcda5cc8c96af5",
+        )
+        mockDidDocument(publicKeyHexInfo, ES256_KEY_TYPE_2019)
+
+        val publicKey = resolver.extractPublicKey(createParsedDid())
+
+        assertPublicKey(publicKey, encodedEcP256PublicKey)
+    }
 
     // Key type - EcdsaSecp256k1VerificationKey2019
 
@@ -125,6 +184,7 @@ class DidWebPublicKeyResolverTest {
 
         assertPublicKey(resolvedPublicKey, encodedEcdsaPublicKey)
     }
+
 
     @Test
     fun `should resolve public key from HEX of ES256K key type`() {

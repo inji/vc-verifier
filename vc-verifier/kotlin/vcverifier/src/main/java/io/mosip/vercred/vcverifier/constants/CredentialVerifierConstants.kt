@@ -29,12 +29,18 @@ object CredentialVerifierConstants {
     const val JWS_ES256_SIGN_ALGO_CONST = "ES256"
 
     const val RSA_KEY_TYPE = "RsaVerificationKey2018"
+
+    const val RSA_PROOF_TYPE = "RsaSignature2018"
     const val ED25519_KEY_TYPE_2018 = "Ed25519VerificationKey2018"
     const val ED25519_PROOF_TYPE_2018 = "Ed25519Signature2018"
     const val ED25519_PROOF_TYPE_2020 = "Ed25519Signature2020"
     const val JSON_WEB_PROOF_TYPE_2020 = "JsonWebSignature2020"
     const val ED25519_KEY_TYPE_2020 = "Ed25519VerificationKey2020"
     const val ES256K_KEY_TYPE_2019 = "EcdsaSecp256k1VerificationKey2019"
+
+    const val ES256K_PROOF_TYPE_2019 = "EcdsaSecp256k1Signature2019"
+
+    const val ES256_PROOF_TYPE_2019 = "EcdsaSecp256r1Signature2019"
 
     const val ES256_KEY_TYPE_2019 = "EcdsaSecp256r1VerificationKey2019"
 
@@ -45,7 +51,10 @@ object CredentialVerifierConstants {
     const val ERROR_CODE_VERIFICATION_FAILED = "ERR_SIGNATURE_VERIFICATION_FAILED"
 
     // This is used to turn public key bytes into a buffer in DER format
-    const val DER_PUBLIC_KEY_PREFIX = "302a300506032b6570032100"
-
+    const val ED_DER_PUBLIC_KEY_PREFIX = "302a300506032b6570032100"
+    const val P256_DER_PUBLIC_KEY_PREFIX = "3059301306072a8648ce3d020106082a8648ce3d030107034200"
     const val COMPRESSED_HEX_KEY_LENGTH = 33
+
+    const val RSA_MULTICODEC_FIRST = 0x12.toByte()
+    const val RSA_MULTICODEC_SECOND = 0x05.toByte()
 }

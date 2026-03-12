@@ -5,20 +5,33 @@ import com.nimbusds.jose.jwk.JWK
 import com.nimbusds.jose.jwk.KeyType
 import io.ipfs.multibase.Base58
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.COMPRESSED_HEX_KEY_LENGTH
-import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.DER_PUBLIC_KEY_PREFIX
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ED25519_ALGORITHM
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ED25519_KEY_TYPE_2018
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ED25519_KEY_TYPE_2020
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ED25519_PROOF_TYPE_2018
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ED25519_PROOF_TYPE_2020
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ED_DER_PUBLIC_KEY_PREFIX
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ES256K_KEY_TYPE_2019
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ES256K_PROOF_TYPE_2019
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ES256_KEY_TYPE_2019
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ES256_PROOF_TYPE_2019
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JWK_KEY_TYPE_EC
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JWS_EDDSA_SIGN_ALGO_CONST
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JWS_ES256K_SIGN_ALGO_CONST
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JWS_ES256_SIGN_ALGO_CONST
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JWS_RS256_SIGN_ALGO_CONST
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.P256
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.P256_DER_PUBLIC_KEY_PREFIX
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.RSA_ALGORITHM
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.RSA_KEY_TYPE
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.RSA_MULTICODEC_FIRST
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.RSA_MULTICODEC_SECOND
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.RSA_PROOF_TYPE
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.SECP256K1
 import io.mosip.vercred.vcverifier.exception.PublicKeyNotFoundException
 import io.mosip.vercred.vcverifier.exception.PublicKeyResolutionFailedException
 import io.mosip.vercred.vcverifier.exception.PublicKeyTypeNotSupportedException
+import io.mosip.vercred.vcverifier.exception.SignatureNotSupportedException
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
 import org.bouncycastle.jce.ECNamedCurveTable
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -29,16 +42,12 @@ import java.io.StringReader
 import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.PublicKey
-import java.security.cert.CertificateFactory
-import java.security.cert.X509Certificate
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECParameterSpec
 import java.security.spec.ECPoint
 import java.security.spec.ECPublicKeySpec
-import java.security.spec.RSAPublicKeySpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.logging.Logger
-import java.util.Base64
 
 
 private val base64Decoder = Base64Decoder()
@@ -56,7 +65,18 @@ private val PUBLIC_KEY_ALGORITHM: Map<String, String> = mapOf(
     RSA_KEY_TYPE to RSA_ALGORITHM,
     ED25519_KEY_TYPE_2018 to ED25519_ALGORITHM,
     ED25519_KEY_TYPE_2020 to ED25519_ALGORITHM,
+    ES256_KEY_TYPE_2019 to JWK_KEY_TYPE_EC,
 )
+
+fun getJwsAlgorithmFromProofType(proofType: String): String {
+    return when (proofType) {
+        ED25519_PROOF_TYPE_2018, ED25519_PROOF_TYPE_2020 -> JWS_EDDSA_SIGN_ALGO_CONST
+        ES256K_PROOF_TYPE_2019 -> JWS_ES256K_SIGN_ALGO_CONST
+        ES256_PROOF_TYPE_2019 -> JWS_ES256_SIGN_ALGO_CONST
+        RSA_PROOF_TYPE -> JWS_RS256_SIGN_ALGO_CONST
+        else -> throw SignatureNotSupportedException("Unsupported signature suite")
+    }
+}
 
 private const val SECP256K1_PRIME_MODULUS =
     "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F"
@@ -137,13 +157,13 @@ private fun getECPublicKey(jwk: Map<String, Any>): PublicKey {
         ?: throw PublicKeyResolutionFailedException("Missing 'x'")
 
     val yBase64 = jwk["y"]?.toString()
-        ?: throw PublicKeyResolutionFailedException("Missing 'x'")
+        ?: throw PublicKeyResolutionFailedException("Missing 'y'")
     val xBytes = Base64Decoder().decodeFromBase64Url(xBase64)
     val yBytes = Base64Decoder().decodeFromBase64Url(yBase64)
 
     val x = BigInteger(1, xBytes)
     val y = BigInteger(1, yBytes)
-    val ecPoint = java.security.spec.ECPoint(x, y)
+    val ecPoint = ECPoint(x, y)
 
     val ecSpec = when (curve) {
         SECP256K1 -> ECNamedCurveTable.getParameterSpec(SECP256K1)
@@ -157,23 +177,58 @@ private fun getECPublicKey(jwk: Map<String, Any>): PublicKey {
     return keyFactory.generatePublic(pubKeySpec)
 }
 
-fun getPublicKeyObjectFromPublicKeyMultibase(publicKeyPem: String, keyType: String): PublicKey {
+fun getPublicKeyObjectFromPublicKeyMultibase(publicKeyMultibase: String, keyType: String): PublicKey {
     try {
-        val rawPublicKeyWithHeader = Base58.decode(publicKeyPem.substring(1))
-        val rawPublicKey = rawPublicKeyWithHeader.copyOfRange(2, rawPublicKeyWithHeader.size)
-        val publicKey = Hex.decode(DER_PUBLIC_KEY_PREFIX) + rawPublicKey
-        val pubKeySpec = X509EncodedKeySpec(publicKey)
+        val rawPublicKeyWithHeader = Base58.decode(publicKeyMultibase.substring(1))
+
+        val publicKeyBytes = when (keyType) {
+
+            ED25519_KEY_TYPE_2020 -> {
+                val raw = rawPublicKeyWithHeader.copyOfRange(2, rawPublicKeyWithHeader.size)
+                Hex.decode(ED_DER_PUBLIC_KEY_PREFIX) + raw
+            }
+
+            ES256_KEY_TYPE_2019 -> {
+                val raw = rawPublicKeyWithHeader.copyOfRange(2, rawPublicKeyWithHeader.size)
+                val decompressed = decompressP256Key(raw)
+                Hex.decode(P256_DER_PUBLIC_KEY_PREFIX) + decompressed
+            }
+
+            RSA_KEY_TYPE -> {
+                if (rawPublicKeyWithHeader[0] != RSA_MULTICODEC_FIRST ||
+                    rawPublicKeyWithHeader[1] != RSA_MULTICODEC_SECOND
+                ) {
+                    throw PublicKeyTypeNotSupportedException("Invalid RSA multicodec header")
+                }
+
+                rawPublicKeyWithHeader.copyOfRange(2, rawPublicKeyWithHeader.size)
+            }
+
+            else -> throw PublicKeyTypeNotSupportedException("Unsupported key type: $keyType")
+        }
+
+        val pubKeySpec = X509EncodedKeySpec(publicKeyBytes)
         val keyFactory = KeyFactory.getInstance(PUBLIC_KEY_ALGORITHM[keyType], provider)
+
         return keyFactory.generatePublic(pubKeySpec)
+
     } catch (e: Exception) {
         logger.severe("Error while getting public key object from Multibase: ${e.message}")
-        throw PublicKeyNotFoundException("Public key object is null")
+        throw PublicKeyNotFoundException("Public key object is null: ${e.message}")
     }
 }
 
+private fun decompressP256Key(compressed: ByteArray): ByteArray {
+    val params = ECNamedCurveTable.getParameterSpec("secp256r1")
+    val curve = params.curve
+
+    val point: org.bouncycastle.math.ec.ECPoint? = curve.decodePoint(compressed)
+    return point?.getEncoded(false) ?: throw IllegalArgumentException("Invalid compressed EC point")
+}
 fun getPublicKeyFromHex(hexKey: String, keyType: String): PublicKey {
     return when (keyType) {
-        ES256K_KEY_TYPE_2019 -> getECPublicKeyFromHex(hexKey)
+        ES256_KEY_TYPE_2019 -> getECR1PublicKeyFromHex(hexKey)
+        ES256K_KEY_TYPE_2019 -> getECK1PublicKeyFromHex(hexKey)
         ED25519_KEY_TYPE_2020 -> getEdPublicKeyFromHex(hexKey)
         else -> throw PublicKeyTypeNotSupportedException("Unsupported key type: $keyType")
     }
@@ -192,7 +247,7 @@ internal fun getEdPublicKeyFromHex(hexKey: String): PublicKey {
     return KeyFactory.getInstance(ED25519_ALGORITHM, provider).generatePublic(keySpec)
 }
 
-fun getECPublicKeyFromHex(hexKey: String): PublicKey {
+fun getECK1PublicKeyFromHex(hexKey: String): PublicKey {
     val keyFactory = KeyFactory.getInstance(JWK_KEY_TYPE_EC, provider)
     val keyBytes = hexStringToByteArray(hexKey)
     val ecPoint = decodeSecp256k1PublicKey(keyBytes)
@@ -200,6 +255,34 @@ fun getECPublicKeyFromHex(hexKey: String): PublicKey {
     val pubKeySpec = ECPublicKeySpec(ecPoint, ecSpec)
 
     return keyFactory.generatePublic(pubKeySpec) as ECPublicKey
+}
+
+fun getECR1PublicKeyFromHex(hexKey: String): PublicKey {
+    val keyFactory = KeyFactory.getInstance(JWK_KEY_TYPE_EC, provider)
+    val keyBytes = hexStringToByteArray(hexKey)
+
+    val ecPoint = decodeP256PublicKey(keyBytes)
+
+    val params = ECNamedCurveTable.getParameterSpec("secp256r1")
+
+    val ecSpec = ECNamedCurveSpec(
+        "secp256r1",
+        params.curve,
+        params.g,
+        params.n,
+        params.h
+    )
+
+    val pubKeySpec = ECPublicKeySpec(ecPoint, ecSpec)
+
+    return keyFactory.generatePublic(pubKeySpec)
+}
+
+private fun decodeP256PublicKey(keyBytes: ByteArray): ECPoint {
+    val params = ECNamedCurveTable.getParameterSpec("secp256r1")
+    val point = params.curve.decodePoint(keyBytes)
+
+    return ECPoint(point.xCoord.toBigInteger(), point.yCoord.toBigInteger())
 }
 
 private fun hexStringToByteArray(hex: String): ByteArray {
