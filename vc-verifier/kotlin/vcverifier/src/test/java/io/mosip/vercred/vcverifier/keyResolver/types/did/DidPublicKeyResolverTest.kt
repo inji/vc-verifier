@@ -8,8 +8,8 @@ import io.mockk.unmockkAll
 import io.mockk.verify
 import io.mosip.vercred.vcverifier.constants.DidMethod
 import io.mosip.vercred.vcverifier.testHelpers.validDidJwk
-import io.mosip.vercred.vcverifier.testHelpers.validDidKey
 import io.mosip.vercred.vcverifier.testHelpers.validDidWeb
+import io.mosip.vercred.vcverifier.testHelpers.validEdDidKey
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -58,15 +58,15 @@ class DidPublicKeyResolverTest {
         } returns mockk()
 
 
-        didPublicKeyResolver.resolve(validDidKey)
+        didPublicKeyResolver.resolve(validEdDidKey)
 
         verify(exactly = 1) {
             anyConstructed<DidKeyPublicKeyResolver>().extractPublicKey(
                 ParsedDID(
-                    did = validDidKey,
+                    did = validEdDidKey,
                     method = DidMethod.KEY,
-                    id = validDidKey.split("did:key:")[1],
-                    didUrl = validDidKey
+                    id = validEdDidKey.split("did:key:")[1],
+                    didUrl = validEdDidKey
                 ), null
             )
         }

@@ -72,6 +72,19 @@ class CredentialsVerifierTest {
 
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
+    fun `should return true for ES256 signed valid credential verification success`() {
+        val vc = readClasspathFile("ldp_vc/ES256SignedVC.json")
+        mockHttpResponse("https://868c-2405-201-1029-3025-a153-97e5-f47f-3b16.ngrok-free.app/.well-known/did.json",readClasspathFile("ldp_vc/public_key/didEcr1Key.json"))
+
+        val verificationResult = CredentialsVerifier().verify(vc, LDP_VC)
+
+        assertEquals("", verificationResult.verificationMessage)
+        assertTrue(verificationResult.verificationStatus)
+        assertEquals("", verificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should return true for valid credential verification success`() {
         val vc = readClasspathFile("ldp_vc/PS256SignedMosipVC.json")
         mockHttpResponse("https://api.collab.mosip.net/.well-known/ida-public-key.json",readClasspathFile("ldp_vc/public_key/idaPublicKey.json"))
@@ -85,7 +98,7 @@ class CredentialsVerifierTest {
 
     @Test
     fun `should return true for valid credential verification success using ES256K`() {
-        mockHttpResponse("https://vharsh.github.io/DID/echarsh/did.json",readClasspathFile("ldp_vc/public_key/didEcKey.json"))
+        mockHttpResponse("https://vharsh.github.io/DID/echarsh/did.json",readClasspathFile("ldp_vc/public_key/didEck1Key.json"))
         val vc = readClasspathFile("ldp_vc/ES256KSignedMockVC.json")
 
         val verificationResult = CredentialsVerifier().verify(vc, LDP_VC)

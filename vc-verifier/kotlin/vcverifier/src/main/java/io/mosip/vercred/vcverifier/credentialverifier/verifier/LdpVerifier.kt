@@ -12,8 +12,10 @@ import io.mosip.vercred.vcverifier.exception.PublicKeyNotFoundException
 import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.UnknownException
 import io.mosip.vercred.vcverifier.keyResolver.PublicKeyResolverFactory
+import io.mosip.vercred.vcverifier.keyResolver.getJwsAlgorithmFromProofType
 import io.mosip.vercred.vcverifier.signature.SignatureFactory
 import io.mosip.vercred.vcverifier.signature.impl.ED25519SignatureVerifierImpl
+import io.mosip.vercred.vcverifier.signature.impl.ES256KSignatureVerifierImpl
 import io.mosip.vercred.vcverifier.utils.Util
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.security.Security
@@ -54,12 +56,19 @@ class LdpVerifier {
                 return signatureVerifier.verify(publicKeyObj, actualData, signature)
             }
 
-            //Currently we are getting proofValue only in ED25519Signature2020 sunbird VC
             else if (!ldProof.proofValue.isNullOrEmpty()) {
+
                 val proofValue = ldProof.proofValue
+
                 val signature = Multibase.decode(proofValue)
-                val signatureVerifier = ED25519SignatureVerifierImpl()
-                return signatureVerifier.verify(publicKeyObj, canonicalHashBytes, signature)
+                val jwsAlgorithm = getJwsAlgorithmFromProofType(ldProof.type)
+                val signatureVerifier = SignatureFactory().get(jwsAlgorithm)
+
+                return signatureVerifier.verify(
+                    publicKeyObj,
+                    canonicalHashBytes,
+                    signature
+                )
             }
             false
         } catch (exception: Exception) {
