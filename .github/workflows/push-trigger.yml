@@ -22,6 +22,7 @@ on:
 
 jobs:
   build-maven-vc-verifier:
+    needs: lint-check
     uses: mosip/kattu/.github/workflows/gradle-build.yml@master
 
     with:
