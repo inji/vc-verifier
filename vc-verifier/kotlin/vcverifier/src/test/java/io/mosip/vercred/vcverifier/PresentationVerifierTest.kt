@@ -169,6 +169,28 @@ class PresentationVerifierTest {
 
     @Test
     @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should return success for valid ES256AlgorithmVP`() {
+        val vp = readClasspathFile("vp/ES256AlgorithmVP.json")
+
+        val result = PresentationVerifier().verifyV2(vp)
+
+        assertTrue(result.proofVerificationResult.verificationStatus)
+        assertEquals("", result.proofVerificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should return success for valid ES256KAlgorithmVP`() {
+        val vp = readClasspathFile("vp/ES256KAlgorithmVP.json")
+
+        val result = PresentationVerifier().verifyV2(vp)
+
+        assertTrue(result.proofVerificationResult.verificationStatus)
+        assertEquals("", result.proofVerificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
     fun `V2 should return success for valid JsonWebSignature2020 VP`() {
         mockHttpResponse(
             "https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json",
@@ -203,8 +225,7 @@ class PresentationVerifierTest {
 
         assertThrows<UnsupportedDidUrl> { PresentationVerifier().verifyV2(vp) }
     }
-
-
+    
     @Test
     fun `V2 should throw error when VP is not JSON-LD`() {
         assertThrows<PresentationNotSupportedException> {
