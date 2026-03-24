@@ -24,7 +24,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.mosip.vccred.example.ui.theme.VcverifierTheme
-import io.mosip.vercred.vcverifier.CredentialsVerifier
 import io.mosip.vercred.vcverifier.credentialverifier.CredentialVerifierFactory
 import io.mosip.vercred.vcverifier.constants.CredentialFormat
 import io.mosip.vercred.vcverifier.data.VerificationResult
@@ -116,7 +115,7 @@ fun verifyVc(): VerificationResult {
 
     return try {
         val factory = CredentialVerifierFactory()
-        val jwtVerifier = factory.get(CredentialFormat.JWT_VC)
+        val jwtVerifier = factory.get(CredentialFormat.JWT_VC_JSON)
         val validationStatus = jwtVerifier.validate(employeeJwtVc)
         
         if (!validationStatus.validationMessage.isNullOrEmpty()) {

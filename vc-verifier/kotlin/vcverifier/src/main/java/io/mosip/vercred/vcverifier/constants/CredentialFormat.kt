@@ -6,7 +6,7 @@ enum class CredentialFormat(val value: String) {
     VC_SD_JWT("vc+sd-jwt"),
     DC_SD_JWT("dc+sd-jwt"),
     MSO_MDOC("mso_mdoc"),
-    JWT_VC("jwt_vc_json");
+    JWT_VC_JSON("jwt_vc_json");
 
     companion object {
         fun fromValue(value: String): CredentialFormat? {
