@@ -6,10 +6,12 @@ import io.mosip.vercred.vcverifier.keyResolver.PublicKeyResolverFactory
 import io.mosip.vercred.vcverifier.utils.Util.verifyJwt
 import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import java.net.URI
+import java.util.logging.Logger
 
 class JwtVerifier {
 
     private val factory = PublicKeyResolverFactory()
+    private val logger = Logger.getLogger(JwtVerifier::class.java.name)
 
     /**
      * Verifies the cryptographic signature of a JWT-based Verifiable Credential.
@@ -51,16 +53,16 @@ class JwtVerifier {
             )
             
             if (!isVerified) {
-                println("Cryptographic signature verification failed. The token data has been tampered with.")
+                logger.severe("Cryptographic signature verification failed. The token data has been tampered with.")
             }
             
             isVerified
 
         } catch (e: SignatureVerificationException) {
-            println("Cryptographic signature verification failed: ${e.message}")
+            logger.severe("Cryptographic signature verification failed: ${e.message}")
             false
         } catch (e: Exception) {
-            println("JWT Verification Error: ${e.message}")
+            logger.severe("JWT Verification Error: ${e.message}")
             false
         }
     }
