@@ -12,6 +12,8 @@ import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ED25519
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ED25519_PROOF_TYPE_2020
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_CODE_VERIFICATION_FAILED
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_MESSAGE_VERIFICATION_FAILED
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ES256K_PROOF_TYPE_2019
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ES256_PROOF_TYPE_2019
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JSON_WEB_PROOF_TYPE_2020
 import io.mosip.vercred.vcverifier.constants.Shared
 import io.mosip.vercred.vcverifier.data.PresentationVerificationResult
@@ -33,6 +35,7 @@ import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.UnknownException
 import io.mosip.vercred.vcverifier.keyResolver.PublicKeyResolverFactory
 import io.mosip.vercred.vcverifier.signature.impl.ED25519SignatureVerifierImpl
+import io.mosip.vercred.vcverifier.signature.impl.ES256KSignatureVerifierImpl
 import io.mosip.vercred.vcverifier.utils.Util
 import io.mosip.vercred.vcverifier.utils.asIterable
 import org.json.JSONArray
@@ -170,22 +173,53 @@ class PresentationVerifier {
                 )
             }
 
-            ldProof.type == JSON_WEB_PROOF_TYPE_2020 && !ldProof.jws.isNullOrEmpty() -> {
-                val jws = JWSObject.parse(ldProof.jws)
-                if (jws.header.algorithm != JWSAlgorithm.EdDSA) {
-                    throw SignatureNotSupportedException("Unsupported JWS algorithm")
-                }
+            (ldProof.type == ES256K_PROOF_TYPE_2019 || ldProof.type == ES256_PROOF_TYPE_2019) && !ldProof.proofValue.isNullOrEmpty() -> {
+                ES256KSignatureVerifierImpl().verify(
+                    publicKey,
+                    canonicalHashBytes,
+                    Multibase.decode(ldProof.proofValue)
+                )
+            }
 
+            (ldProof.type == ES256K_PROOF_TYPE_2019 || ldProof.type == ES256_PROOF_TYPE_2019) && !ldProof.jws.isNullOrEmpty() -> {
+                val jws = JWSObject.parse(ldProof.jws)
                 val actualData =
                     JWSUtil.getJwsSigningInput(jws.header, canonicalHashBytes)
 
-                ED25519SignatureVerifierImpl().verify(
+                ES256KSignatureVerifierImpl().verify(
                     publicKey,
                     actualData,
                     jws.signature.decode()
                 )
             }
 
+            ldProof.type == JSON_WEB_PROOF_TYPE_2020 && !ldProof.jws.isNullOrEmpty() -> {
+                val jws = JWSObject.parse(ldProof.jws)
+                if (jws.header.algorithm != JWSAlgorithm.EdDSA && jws.header.algorithm != JWSAlgorithm.ES256K && jws.header.algorithm != JWSAlgorithm.ES256) {
+                    throw SignatureNotSupportedException("Unsupported JWS algorithm")
+                }
+
+                val actualData =
+                    JWSUtil.getJwsSigningInput(jws.header, canonicalHashBytes)
+
+                when {
+                    (jws.header.algorithm == JWSAlgorithm.EdDSA) -> {
+                        ED25519SignatureVerifierImpl().verify(
+                            publicKey,
+                            actualData,
+                            jws.signature.decode()
+                        )
+                    }
+                    (jws.header.algorithm == JWSAlgorithm.ES256K || jws.header.algorithm == JWSAlgorithm.ES256) -> {
+                        ES256KSignatureVerifierImpl().verify(
+                            publicKey,
+                            actualData,
+                            jws.signature.decode()
+                        )
+                    }
+                    else -> false
+                }
+            }
             else -> false
         }
     }
@@ -275,4 +309,3 @@ class PresentationVerifier {
         return PresentationResultWithCredentialStatusV2(presentationVerificationResult, vcVerificationResults)
     }
 }
-
