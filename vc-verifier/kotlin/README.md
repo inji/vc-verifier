@@ -11,6 +11,7 @@
     - 3.2 [MSO MDOC Validation](#32-mso-mdoc-validation)
     - 3.3 [SD-JWT VC Validation](#33-sd-jwt-vc-validation)
     - 3.4 [CWT VC Validation](#34-cwt-vc-validation)
+    - 3.5 [JWT VC JSON Validation](#35-jwt-vc-json-validation)
 4. [Verification Flow](#4-verification-flow)
     - 4.1 [Supported VC Formats and Signature Mechanisms](#41-supported-vc-formats-and-signature-mechanisms)
     - 4.2 [Verifiable Presentation (VP) Verification](#42-verifiable-presentation-vp-verification)
@@ -42,6 +43,7 @@ The verifier supports multiple VC formats in alignment with global standards:
 | `mso_mdoc`               | ISO/IEC 18013-5 compliant mobile documents                                                                                                         |
 | `vc+sd-jwt`, `dc+sd-jwt` | [IETF SD-JWT based Verifiable Credentials](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/10/)                                        |
 | `cwt_vc`                 | [IETF CBOR Web Token (CWT)](https://datatracker.ietf.org/doc/html/rfc8392)                                                                         |
+| `jwt_vc_json`            | JSON Web Signature (JWS) with issuer-based key resolution                                                                                          | PS256, RS256, ES256, ES256K, EdDSA (Ed25519) | RFC 7515 JWS — key resolved via embedded JWK, `jku`, `kid`, or `iss` DID/HTTPS endpoint   |
 
 
 🔸 Each format includes validation and cryptographic verification logic tailored to its respective
@@ -71,6 +73,7 @@ Each format has a dedicated validator:
 * `MsoMdocValidator` for MSO MDOC
 * `SdJwtValidator` for SD-JWT VC/DC
 * `CwtValidator` for CWT VC
+* `JwtValidator` for JWT VC JSON
 
 ⚠️ **Note:** The details below summarize major validation flows. These are not exhaustive. Please
 refer to the implementation classes for complete rules.
@@ -187,6 +190,48 @@ as defined by the IETF CWT and COSE specifications.
 
 * **Validation class:** `CwtValidator`
 
+### 3.5 JWT VC JSON Validation
+
+JWT VC JSON validation handles W3C Verifiable Credentials encoded as signed JSON Web Tokens (JWTs),
+as defined by the [W3C VC Data Model v1.1](https://www.w3.org/TR/2022/REC-vc-data-model-20220303/#json-web-token).
+
+* **Input validation:**
+
+    * Rejects credentials with an empty or blank string
+    * Validates that the credential is a well-formed, three-part JWT (`header.payload.signature`)
+
+* **Header validation:**
+
+    * Decodes the JWT header and checks for the `alg` claim
+    * Rejects credentials that use the `none` algorithm
+    * If present, validates `typ` — must be `"JWT"`
+
+* **Payload validation:**
+
+    * Parses the JWT payload and validates required claims:
+        * `iss` (Issuer): must be present and non-blank
+        * `vc` (Verifiable Credential): must be present and contain a `credentialSubject`
+    * **Claim consistency checks:**
+        * If both `sub` and `vc.credentialSubject.id` are present, they must match
+        * If both `jti` and `vc.id` are present, they must match
+
+* **Temporal validation:**
+
+    * `exp` (Expiration Time): if present, the credential must not be expired
+    * `nbf` (Not Before): if present, the current time must not be before this value
+
+* **Error handling:**
+
+    * Returns structured validation errors for:
+        * Missing or invalid JWT format
+        * Disallowed `alg: none`
+        * Missing or mismatched required claims
+        * Expired credentials
+        * Not-yet-valid credentials
+    * Unexpected errors are mapped to an `INVALID_JWT` error code
+
+* **Validation class:** `JwtValidator`
+
 ## 4. Verification Flow
 
 Verification confirms that the credential or presentation was cryptographically signed by the issuer
@@ -202,13 +247,14 @@ and [IETF SD-JWT](https://datatracker.ietf.org/doc/draft-ietf-oauth-selective-di
 
 #### Supported VC Formats and Their Signature Mechanisms
 
-| VC format   | Issuer Signature Mechanism                                             | Verification Algorithms             | Signature Suites / Proof Types                                                            |
-|-------------|------------------------------------------------------------------------|-------------------------------------|-------------------------------------------------------------------------------------------|
-| `ldp_vc`    | Linked Data Proof                                                      | PS256, RS256, EdDSA (Ed25519)       | RsaSignature2018, Ed25519Signature2018, Ed25519Signature2020, EcdsaSecp256k1Signature2019 |
-| `mso_mdoc`  | COSE (CBOR Object Signing and Encryption)                              | ES256                               | Uses COSE_Sign1                                                                           |
-| `vc+sd-jwt` | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519) |                                                                                           |
-| `dc+sd-jwt` | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519) |                                                                                           |
-| `cwt_vc`    | COSE_Sign1 with issuer-based key resolution (DID or HTTPS JWKS)        | ES256, EdDSA (as per COSE alg)      | COSE_Sign1 (CBOR Web Token, tag 61)                                                       |
+| VC format     | Issuer Signature Mechanism                                             | Verification Algorithms                            | Signature Suites / Proof Types                                                            |
+|---------------|------------------------------------------------------------------------|----------------------------------------------------|-------------------------------------------------------------------------------------------|
+| `ldp_vc`      | Linked Data Proof                                                      | PS256, RS256, EdDSA (Ed25519), ES256, ES256K       | RsaSignature2018, Ed25519Signature2018, Ed25519Signature2020, EcdsaSecp256k1Signature2019 |
+| `mso_mdoc`    | COSE (CBOR Object Signing and Encryption)                              | ES256                                              | Uses COSE_Sign1                                                                           |
+| `vc+sd-jwt`   | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519), ES256, ES256K | -                                                                                         |
+| `dc+sd-jwt`   | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519), ES256, ES256K | -                                                                                         |
+| `cwt_vc`      | COSE_Sign1 (CBOR Web Token – RFC 8392)                                 | ES256, EdDSA (COSE alg based)                      | COSE_Sign1                                                                                |
+| `jwt_vc_json` | JSON Web Signature (JWS) with issuer-based key resolution              | PS256, RS256, ES256, ES256K, EdDSA (Ed25519)       | RFC 7515 JWS — key resolved via embedded JWK, `jku`, `kid`, or `iss` DID/HTTPS endpoint   |
 
 ### 4.2 Verifiable Presentation (VP) Verification
 
@@ -341,7 +387,8 @@ fun verifyAndGetCredentialStatus(
       `VC_SD_JWT`,
       `DC_SD_JWT`,
       `MSO_MDOC`,
-      `CWT_VC`  
+      `CWT_VC`,
+      `JWT_VC_JSON`
     * `statusPurposeList`: List of purposes such as `"revocation"`, `"suspension"` (optional)
 
 * **Returns:**
@@ -366,7 +413,8 @@ fun verify(
       `VC_SD_JWT`,
       `DC_SD_JWT`,
       `MSO_MDOC`,
-      `CWT_VC`
+      `CWT_VC`,
+      `JWT_VC_JSON`
 * **Returns:** `VerificationResult` with:
     * `verificationStatus`: `true` if valid; otherwise `false`
     * `verificationMessage`: details of validation/syntax errors
@@ -774,6 +822,7 @@ The VP proof is invalid. The first VC is valid and not revoked; the second VC is
 | `mso_mdoc`                | ✔️         | ✔️                     | ❌            | ❌          |
 | `vc+sd-jwt` / `dc+sd-jwt` | ✔️         | ✔️                     | ❌            | ❌          |
 | `cwt_vc`                  | ✔️         | ✔️                     | ❌            | ❌          |
+| `jwt_vc_json`             | ✔️         | ✔️                     | ❌            | ❌          |
 
 #### API operations matrix
 
@@ -789,8 +838,14 @@ The VP proof is invalid. The first VC is valid and not revoked; the second VC is
 ## Public Key Extraction
 
 The verifier extracts the public key differently based on the credential format.
-For LDP-VCs and Verifiable Presentations, the key is resolved from the proof’s verificationMethod, which may point to a DID URL (did:web, did:key, did:jwk) or an HTTPS endpoint containing a JWK/PEM/Multibase/HEX key. The verifier dereferences this URL, loads the corresponding document, and extracts the public key using the appropriate encoding.
-For SD-JWT and DC-SD-JWT credentials, the issuer’s public key is not resolved through verificationMethod; instead, it comes from the cnf (confirmation) claim inside the SD-JWT payload—either cnf.jwk or a cnf.kid mapping to a JWKS. This provides the public key required to verify the optional key-binding proof.
+- For LDP-VCs and Verifiable Presentations, the key is resolved from the proof’s verificationMethod, which may point to a DID URL (did:web, did:key, did:jwk) or an HTTPS endpoint containing a JWK/PEM/Multibase/HEX key. The verifier dereferences this URL, loads the corresponding document, and extracts the public key using the appropriate encoding.
+- For SD-JWT and DC-SD-JWT credentials, the issuer's public key is not resolved through verificationMethod; instead, it comes from the cnf (confirmation) claim inside the SD-JWT payload—either cnf.jwk or a cnf.kid mapping to a JWKS. This provides the public key required to verify the optional key-binding proof.
+- For JWT VC JSON (`jwt_vc_json`) credentials, the public key is resolved from the JWT header and payload using the following priority order:
+  1. **Embedded JWK** (`jwk` header parameter) — the public key is directly extracted from the header.
+  2. **JKU + KID** (`jku` header parameter) — the JWK Set URI is fetched and the key matching `kid` is used.
+  3. **KID as DID/HTTP URL** — if `kid` starts with `did:` or `http`, it is resolved directly as a URI.
+  4. **Issuer DID + KID fragment** — if `kid` is a fragment (e.g., `#key-1`) and `iss` is a DID, they are combined into a full DID URL for resolution.
+  5. **Issuer URI** (`iss`) — used as a fallback when no other key hint is present.
 
 ### Resolution Mechanisms
 
@@ -928,6 +983,23 @@ For other unknown exceptions, error code will be `ERR_GENERIC`
 
 For other unknown exceptions, error code will be `ERR_GENERIC`
 
+**jwt_vc_json Format VC Error Codes**
+
+| Field / Validation Area     | Error Code                    | Description                                                         |
+|-----------------------------|-------------------------------|---------------------------------------------------------------------|
+| JWT structure               | `MALFORMED_INPUT`             | The structure of a valid JWT is not followed                        |
+| alg in header (`none`)      | `INVALID_ALGORITHM`           | Algorithm `none` is not permitted                                   |
+| typ in header               | `INVALID_HEADER`              | `typ` must be `"JWT"` when present                                  |
+| iss in payload              | `INVALID_VC_FORMAT`           | `iss` claim is missing or blank                                     |
+| vc / credentialSubject      | `INVALID_VC_FORMAT`           | `vc` claim is absent or `credentialSubject` is missing inside `vc`  |
+| sub vs credentialSubject.id | `INVALID_VC_FORMAT`           | `sub` claim must match `credentialSubject.id` when both are present |
+| jti vs vc.id                | `INVALID_VC_FORMAT`           | `jti` claim must match `vc.id` when both are present                |
+| exp (expiration)            | `ERROR_CODE_VC_EXPIRED`       | Credential has expired (current time > `exp` + clock skew)          |
+| nbf (not before)            | `ERROR_CODE_VC_NOT_YET_VALID` | Credential is not yet valid (current time < `nbf` - clock skew)     |
+| JWT parse failure           | `INVALID_JWT`                 | JWT cannot be parsed (malformed base64url or JSON)                  |
+
+For other unknown exceptions, error code will be `ERR_GENERIC`
+
 
 **Status Check Error Codes**
 
@@ -945,9 +1017,3 @@ For other unknown exceptions, error code will be `ERR_GENERIC`
 | UNKNOWN_ERROR             | Unknown error occurred during status check    |
 
 For other unknown exceptions, error code will be `ERR_INVALID_UNKNOWN`
-
-
-
-
-
-

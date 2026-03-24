@@ -43,13 +43,14 @@ import io.mosip.vercred.vcverifier.keyResolver.types.http.HttpsPublicKeyResolver
 
 #### Supported VC Formats and Their Signature Mechanisms
 
-| VC format   | Issuer Signature Mechanism                                             | Verification Algorithms             | Signature Suites / Proof Types                                                            |
-|-------------|------------------------------------------------------------------------|-------------------------------------|-------------------------------------------------------------------------------------------|
-| `ldp_vc`    | Linked Data Proof                                                      | PS256, RS256, EdDSA (Ed25519)       | RsaSignature2018, Ed25519Signature2018, Ed25519Signature2020, EcdsaSecp256k1Signature2019 |
-| `mso_mdoc`  | COSE (CBOR Object Signing and Encryption)                              | ES256                               | Uses COSE_Sign1                                                                           |
-| `vc+sd-jwt` | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519) | -                                                                                         |
-| `dc+sd-jwt` | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519) | -                                                                                         |
-| `cwt_vc`    | COSE_Sign1 (CBOR Web Token – RFC 8392)                                 | ES256, EdDSA (COSE alg based)       | COSE_Sign1                                                                                |
+| VC format     | Issuer Signature Mechanism                                             | Verification Algorithms                            | Signature Suites / Proof Types                                                            |
+|---------------|------------------------------------------------------------------------|----------------------------------------------------|-------------------------------------------------------------------------------------------|
+| `ldp_vc`      | Linked Data Proof                                                      | PS256, RS256, EdDSA (Ed25519), ES256, ES256K       | RsaSignature2018, Ed25519Signature2018, Ed25519Signature2020, EcdsaSecp256k1Signature2019 |
+| `mso_mdoc`    | COSE (CBOR Object Signing and Encryption)                              | ES256                                              | Uses COSE_Sign1                                                                           |
+| `vc+sd-jwt`   | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519), ES256, ES256K | -                                                                                         |
+| `dc+sd-jwt`   | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256,ES256, EdDSA (Ed25519), ES256, ES256K | -                                                                                         |
+| `cwt_vc`      | COSE_Sign1 (CBOR Web Token – RFC 8392)                                 | ES256, EdDSA (COSE alg based)                      | COSE_Sign1                                                                                |
+| `jwt_vc_json` | JSON Web Signature (JWS) with issuer-based key resolution              | PS256, RS256, ES256, ES256K, EdDSA (Ed25519)       | RFC 7515 JWS — key resolved via embedded JWK, `jku`, `kid`, or `iss` DID/HTTPS endpoint   |
 
 #### Project Structure
 
