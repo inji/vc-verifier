@@ -31,7 +31,8 @@ abstract class ECDSASignatureVerifier : SignatureVerifier {
         if (curveName == null) {
             throw SignatureVerificationException("Unable to determine curve name for $algorithmName validation")
         }
-        if (validCurves.none { curveName.contains(it, ignoreCase = true) }) {
+        val normalizedCurve = curveName.lowercase()
+        if (validCurves.none { normalizedCurve.contains(it, ignoreCase = true) }) {
             throw SignatureVerificationException("Key curve '$curveName' does not match proof type $algorithmName")
         }
         if (signature == null || signature.size != ECDSA_SIGNATURE_LENGTH) {
@@ -51,7 +52,7 @@ abstract class ECDSASignatureVerifier : SignatureVerifier {
                     return verify(derSignature)
                 }
         } catch (e: Exception) {
-            throw SignatureVerificationException("Error while doing signature verification using $algorithmName algorithm: ${e.message}")
+            throw SignatureVerificationException("Error while doing signature verification using $algorithmName algorithm: $e")
         }
     }
 

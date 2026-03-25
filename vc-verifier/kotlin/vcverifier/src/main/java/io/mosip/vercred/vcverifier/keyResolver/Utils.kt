@@ -32,6 +32,7 @@ import io.mosip.vercred.vcverifier.exception.PublicKeyNotFoundException
 import io.mosip.vercred.vcverifier.exception.PublicKeyResolutionFailedException
 import io.mosip.vercred.vcverifier.exception.PublicKeyTypeNotSupportedException
 import io.mosip.vercred.vcverifier.exception.SignatureNotSupportedException
+import io.mosip.vercred.vcverifier.signature.bouncyCastleProvider
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
 import org.bouncycastle.jce.ECNamedCurveTable
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -59,7 +60,7 @@ private val X509_HEADER_PREFIX_ED_KEY = byteArrayOf(
     0x2B, 0x65, 0x70, 0x03, 0x21, 0x00
 )
 
-private var provider: BouncyCastleProvider = BouncyCastleProvider()
+private var provider: BouncyCastleProvider = bouncyCastleProvider
 
 private val PUBLIC_KEY_ALGORITHM: Map<String, String> = mapOf(
     RSA_KEY_TYPE to RSA_ALGORITHM,
@@ -290,13 +291,13 @@ private fun hexStringToByteArray(hex: String): ByteArray {
 }
 
 
-private fun decodeSecp256k1PublicKey(keyBytes: ByteArray): java.security.spec.ECPoint {
+private fun decodeSecp256k1PublicKey(keyBytes: ByteArray): ECPoint {
     require(keyBytes.size == COMPRESSED_HEX_KEY_LENGTH) { "Invalid compressed public key length" }
 
     val x = BigInteger(1, keyBytes.copyOfRange(1, keyBytes.size))
     val y = recoverYCoordinate(x, keyBytes[0] == 3.toByte())
 
-    return java.security.spec.ECPoint(x, y)
+    return ECPoint(x, y)
 }
 
 // Recover the Y-coordinate from X using the Secp256k1 curve equation
