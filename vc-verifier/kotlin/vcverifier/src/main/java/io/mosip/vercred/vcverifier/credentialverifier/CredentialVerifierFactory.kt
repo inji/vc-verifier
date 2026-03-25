@@ -15,7 +15,7 @@ class CredentialVerifierFactory {
             CredentialFormat.VC_SD_JWT -> SdJwtVerifiableCredential()
             CredentialFormat.DC_SD_JWT -> SdJwtVerifiableCredential()
             CredentialFormat.CWT_VC -> CwtVerifiableCredential()
-            CredentialFormat.JWT_VC -> JwtVerifiableCredential()
+            CredentialFormat.JWT_VC_JSON -> JwtVerifiableCredential()
         }
     }
 }
