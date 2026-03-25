@@ -192,6 +192,9 @@ class PresentationVerifier {
             (ldProof.type == ES256K_PROOF_TYPE_2019) && !ldProof.jws.isNullOrEmpty() -> {
                 val jws = JWSObject.parse(ldProof.jws)
                 val actualData = JWSUtil.getJwsSigningInput(jws.header, canonicalHashBytes)
+                if (jws.header.algorithm != JWSAlgorithm.ES256K) {
+                    throw SignatureNotSupportedException("Unsupported JWS algorithm")
+                }
                 ES256KSignatureVerifierImpl().verify(
                     publicKey,
                     actualData,
@@ -202,6 +205,9 @@ class PresentationVerifier {
             (ldProof.type == ES256_PROOF_TYPE_2019) && !ldProof.jws.isNullOrEmpty() -> {
                 val jws = JWSObject.parse(ldProof.jws)
                 val actualData = JWSUtil.getJwsSigningInput(jws.header, canonicalHashBytes)
+                if (jws.header.algorithm != JWSAlgorithm.ES256) {
+                    throw SignatureNotSupportedException("Unsupported JWS algorithm")
+                }
                 ES256SignatureVerifierImpl().verify(
                     publicKey,
                     actualData,
