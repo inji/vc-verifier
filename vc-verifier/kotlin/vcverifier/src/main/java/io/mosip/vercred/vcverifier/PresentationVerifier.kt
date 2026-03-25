@@ -42,12 +42,37 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.security.spec.InvalidKeySpecException
 import java.util.logging.Logger
-
+import java.security.interfaces.ECPublicKey
+import org.bouncycastle.jce.spec.ECNamedCurveSpec
+import java.security.PublicKey
 
 class PresentationVerifier {
     private val logger = Logger.getLogger(PresentationVerifier::class.java.name)
 
     private val credentialsVerifier: CredentialsVerifier = CredentialsVerifier()
+
+    /**
+     * Validates that the resolved EC public key's curve matches the expected curve
+     * for the given proof type (ES256 → P-256/secp256r1, ES256K → secp256k1).
+     * Silently skips if the curve name cannot be determined from the key spec.
+     */
+    private fun validateECKeyCurve(publicKey: PublicKey, proofType: String) {
+        val ecKey = publicKey as? ECPublicKey ?: return
+        val curveName = (ecKey.params as? ECNamedCurveSpec)?.name ?: return // non-BC key; skip
+
+        val valid = when (proofType) {
+            ES256_PROOF_TYPE_2019  -> curveName.equals("P-256",       ignoreCase = true)
+                    || curveName.equals("secp256r1",   ignoreCase = true)
+                    || curveName.equals("prime256v1",  ignoreCase = true)
+            ES256K_PROOF_TYPE_2019 -> curveName.equals("secp256k1",   ignoreCase = true)
+            else -> true
+        }
+        if (!valid) {
+            throw SignatureVerificationException(
+                "Key curve '$curveName' does not match proof type '$proofType'"
+            )
+        }
+    }
 
     fun verify(presentation: String): PresentationVerificationResult {
 
@@ -174,6 +199,7 @@ class PresentationVerifier {
             }
 
             (ldProof.type == ES256K_PROOF_TYPE_2019 || ldProof.type == ES256_PROOF_TYPE_2019) && !ldProof.proofValue.isNullOrEmpty() -> {
+                validateECKeyCurve(publicKey, ldProof.type)
                 ES256KSignatureVerifierImpl().verify(
                     publicKey,
                     canonicalHashBytes,
@@ -182,10 +208,9 @@ class PresentationVerifier {
             }
 
             (ldProof.type == ES256K_PROOF_TYPE_2019 || ldProof.type == ES256_PROOF_TYPE_2019) && !ldProof.jws.isNullOrEmpty() -> {
+                validateECKeyCurve(publicKey, ldProof.type)
                 val jws = JWSObject.parse(ldProof.jws)
-                val actualData =
-                    JWSUtil.getJwsSigningInput(jws.header, canonicalHashBytes)
-
+                val actualData = JWSUtil.getJwsSigningInput(jws.header, canonicalHashBytes)
                 ES256KSignatureVerifierImpl().verify(
                     publicKey,
                     actualData,
@@ -211,6 +236,9 @@ class PresentationVerifier {
                         )
                     }
                     (jws.header.algorithm == JWSAlgorithm.ES256K || jws.header.algorithm == JWSAlgorithm.ES256) -> {
+                        val expectedProofType = if (jws.header.algorithm == JWSAlgorithm.ES256K)
+                            ES256K_PROOF_TYPE_2019 else ES256_PROOF_TYPE_2019
+                        validateECKeyCurve(publicKey, expectedProofType)
                         ES256KSignatureVerifierImpl().verify(
                             publicKey,
                             actualData,
