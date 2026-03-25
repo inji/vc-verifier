@@ -249,7 +249,7 @@ and [IETF SD-JWT](https://datatracker.ietf.org/doc/draft-ietf-oauth-selective-di
 
 | VC format     | Issuer Signature Mechanism                                             | Verification Algorithms                      | Signature Suites / Proof Types                                                            |
 |---------------|------------------------------------------------------------------------|----------------------------------------------|-------------------------------------------------------------------------------------------|
-| `ldp_vc`      | Linked Data Proof                                                      | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | RsaSignature2018, Ed25519Signature2018, Ed25519Signature2020, EcdsaSecp256k1Signature2019 |
+| `ldp_vc`      | Linked Data Proof                                                      | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | RsaSignature2018, Ed25519Signature2018, Ed25519Signature2020, EcdsaSecp256r1Signature2019, EcdsaSecp256k1Signature2019 |
 | `mso_mdoc`    | COSE (CBOR Object Signing and Encryption)                              | ES256                                        | Uses COSE_Sign1                                                                           |
 | `vc+sd-jwt`   | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | -                                                                                         |
 | `dc+sd-jwt`   | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | -                                                                                         |
@@ -851,17 +851,17 @@ The verifier extracts the public key differently based on the credential format.
 
 | Resolution Type             | Description                                                  | Supported Key Formats    |
 |-----------------------------|--------------------------------------------------------------|--------------------------|
-| DID (key, web)              | Uses DID Document resolution to extract verification method. | JWK, HEX, PEM, Multibase |
+| DID (key, web, jwk)         | Uses DID Document resolution to extract verification method. | JWK, HEX, PEM, Multibase |
 | HTTPS-based (JWK, key, web) | Uses HTTP endpoint to resolve  a public key document.        | JWK, HEX, PEM, Multibase |
 
 | Source    | Variant | Where is the key?        | If document: key format | Supported Key Types           |
 |-----------|---------|--------------------------|-------------------------|-------------------------------|
 | DID/HTTPS | JWK     | **In-line with the URL** | —                       | ED25519, ECCR1, ECCK1, RSA256 |
-| DID/HTTPS | KEY     | **In-line with the URL** | —                       | ED25519                       |
+| DID/HTTPS | KEY     | **In-line with the URL** | —                       | ED25519, ECCR1                |
 | DID/HTTPS | WEB     | **DID Document**         | **JWK**                 | ED25519, ECCR1, ECCK1, RSA256 |
-|           |         |                          | **HEX**                 | ECCK1, ED25519                |
-|           |         |                          | **PEM**                 | ED25519, RSA256               |
-|           |         |                          | **Multi-base**          | ED25519, RSA256               |
+|           |         |                          | **HEX**                 | ED25519, ECCR1, ECCK1         |
+|           |         |                          | **PEM**                 | ED25519, ECCR1, RSA256        |
+|           |         |                          | **Multi-base**          | ED25519, ECCR1, RSA256        |
 
 ## Error Codes
 
