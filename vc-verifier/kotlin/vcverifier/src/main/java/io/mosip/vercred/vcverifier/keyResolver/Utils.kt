@@ -293,9 +293,10 @@ private fun hexStringToByteArray(hex: String): ByteArray {
 
 private fun decodeSecp256k1PublicKey(keyBytes: ByteArray): ECPoint {
     require(keyBytes.size == COMPRESSED_HEX_KEY_LENGTH) { "Invalid compressed public key length" }
+    require(keyBytes[0] == 0x02.toByte() || keyBytes[0] == 0x03.toByte()) { "Invalid compressed public key prefix" }
 
     val x = BigInteger(1, keyBytes.copyOfRange(1, keyBytes.size))
-    val y = recoverYCoordinate(x, keyBytes[0] == 3.toByte())
+    val y = recoverYCoordinate(x, keyBytes[0] == 0x03.toByte())
 
     return ECPoint(x, y)
 }
