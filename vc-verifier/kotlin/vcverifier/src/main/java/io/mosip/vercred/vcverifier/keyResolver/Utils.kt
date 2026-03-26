@@ -60,7 +60,7 @@ private val X509_HEADER_PREFIX_ED_KEY = byteArrayOf(
     0x2B, 0x65, 0x70, 0x03, 0x21, 0x00
 )
 
-private var provider: BouncyCastleProvider = bouncyCastleProvider
+private var provider: BouncyCastleProvider = BouncyCastleProvider()
 
 private val PUBLIC_KEY_ALGORITHM: Map<String, String> = mapOf(
     RSA_KEY_TYPE to RSA_ALGORITHM,
@@ -296,7 +296,7 @@ private fun decodeSecp256k1PublicKey(keyBytes: ByteArray): ECPoint {
     require(keyBytes[0] == 0x02.toByte() || keyBytes[0] == 0x03.toByte()) { "Invalid compressed public key prefix" }
 
     val x = BigInteger(1, keyBytes.copyOfRange(1, keyBytes.size))
-    val y = recoverYCoordinate(x, keyBytes[0] == 0x03.toByte())
+    val y = recoverYCoordinate(x, keyBytes[0] == 3.toByte())
 
     return ECPoint(x, y)
 }

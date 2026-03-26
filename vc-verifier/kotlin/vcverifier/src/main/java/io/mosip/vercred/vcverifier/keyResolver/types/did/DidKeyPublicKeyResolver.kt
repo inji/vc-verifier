@@ -4,15 +4,12 @@ import io.ipfs.multibase.Multibase
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JWK_KEY_TYPE_EC
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JWS_EDDSA_SIGN_ALGO_CONST
 import io.mosip.vercred.vcverifier.exception.PublicKeyTypeNotSupportedException
-import io.mosip.vercred.vcverifier.exception.UnknownException
-import io.mosip.vercred.vcverifier.signature.bouncyCastleProvider
 import org.bouncycastle.asn1.edec.EdECObjectIdentifiers
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.security.KeyFactory
 import java.security.PublicKey
-import java.security.spec.InvalidKeySpecException
 import java.security.spec.X509EncodedKeySpec
 import java.util.Arrays
 
@@ -23,7 +20,7 @@ private const val MULTICODEC_TRAILING_BYTE = 0x01.toByte()
 private const val P256_KEY_PREFIX_FIRST = 0x80.toByte()
 private const val P256_KEY_PREFIX_SECOND = 0x24.toByte()
 class DidKeyPublicKeyResolver : DidPublicKeyResolver() {
-    private val provider: BouncyCastleProvider = bouncyCastleProvider
+    private val provider: BouncyCastleProvider = BouncyCastleProvider()
 
     override fun extractPublicKey(parsedDID: ParsedDID, keyId: String?): PublicKey {
         val decodedKey = Multibase.decode(parsedDID.id)
