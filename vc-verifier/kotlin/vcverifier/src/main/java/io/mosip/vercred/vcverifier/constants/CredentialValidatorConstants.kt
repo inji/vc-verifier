@@ -8,6 +8,7 @@ object CredentialValidatorConstants {
 
     const val ISSUER = "issuer"
     const val CREDENTIAL_SUBJECT = "credentialSubject"
+    const val HOLDER = "holder"
     const val PROOF = "proof"
     const val TYPE = "type"
     const val CONTEXT = "@context"
