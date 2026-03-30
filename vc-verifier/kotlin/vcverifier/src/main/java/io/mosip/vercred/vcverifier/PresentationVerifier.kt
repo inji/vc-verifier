@@ -167,8 +167,15 @@ class PresentationVerifier {
             ?: throw HolderBindingException(VERIFIABLE_CREDENTIAL_MISSING_MSG, HOLDER_VERIFICATION_FAIL_ERROR)
 
         credentials.filterIsInstance<Map<String, Any>>().forEach { vc ->
-            val subjectId = (vc[CREDENTIAL_SUBJECT] as? Map<*, *>)?.get(ID) as? String
-                ?: throw HolderBindingException(SUBJECT_ID_MISSING_MSG, HOLDER_VERIFICATION_FAIL_ERROR)
+            val subject = vc[CREDENTIAL_SUBJECT]
+            val subjectId = when (subject) {
+                is Map<*, *> -> subject[ID] as? String
+                is List<*> -> (subject.firstOrNull() as? Map<*, *>)?.get(ID) as? String
+                else -> null
+            } ?: throw HolderBindingException(
+                SUBJECT_ID_MISSING_MSG,
+                HOLDER_VERIFICATION_FAIL_ERROR
+            )
 
             val isMatch = when (supportedHolders) {
                 "did:key:" -> holderId.trim() == subjectId.trim()
