@@ -119,9 +119,9 @@ class PresentationVerifier {
         }
         return try {
             val isVerified = verifyPresentationProof(vcJsonLdObject)
-            validateHolderBindingForDidKeyAndJwk(vcJsonLdObject)
 
             if (isVerified) {
+                validateHolderBindingForDidKeyAndJwk(vcJsonLdObject)
                 VerificationResult(
                     true,
                     "",
@@ -162,7 +162,8 @@ class PresentationVerifier {
             return
         }
 
-        val verifiableCredentials = vcJsonLdObject.jsonObject[KEY_VERIFIABLE_CREDENTIAL] as? List<*>
+        val verifiableCredentials = vcJsonLdObject.jsonObject[KEY_VERIFIABLE_CREDENTIAL]
+            ?.let { it as? List<*> ?: listOf(it) }
             ?: throw HolderBindingException(VERIFIABLE_CREDENTIAL_MISSING_MSG, HOLDER_VERIFICATION_FAIL_ERROR)
 
         verifiableCredentials.filterIsInstance<Map<String, Any>>().forEach { credential ->

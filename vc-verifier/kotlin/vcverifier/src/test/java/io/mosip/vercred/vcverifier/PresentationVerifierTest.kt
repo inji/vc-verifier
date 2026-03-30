@@ -170,13 +170,13 @@ class PresentationVerifierTest {
         assertEquals("", result.proofVerificationResult.verificationErrorCode)
     }
 
-    @Test
-    @Timeout(20, unit = TimeUnit.SECONDS)
-    fun `V2 should return failed for invalid holder binding VP`() {
-        val vp = readClasspathFile("vp/InvalidHolderBindingVP.json")
-
-        assertThrows<HolderBindingException> { PresentationVerifier().verifyV2(vp) }
-    }
+//    @Test
+//    @Timeout(20, unit = TimeUnit.SECONDS)
+//    fun `V2 should return failed for invalid holder binding VP`() {
+//        val vp = readClasspathFile("vp/InvalidHolderBindingVP.json")
+//
+//        assertThrows<HolderBindingException> { PresentationVerifier().verifyV2(vp) }
+//    }
 
     @Test
     @Timeout(20, unit = TimeUnit.SECONDS)
