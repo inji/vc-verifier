@@ -8,12 +8,20 @@ import info.weboftrust.ldsignatures.canonicalizer.URDNA2015Canonicalizer
 import info.weboftrust.ldsignatures.util.JWSUtil
 import io.ipfs.multibase.Multibase
 import io.mosip.vercred.vcverifier.constants.CredentialFormat
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.CREDENTIAL_SUBJECT
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.HOLDER
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ID
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ED25519_PROOF_TYPE_2018
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ED25519_PROOF_TYPE_2020
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_CODE_VERIFICATION_FAILED
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_MESSAGE_VERIFICATION_FAILED
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.HOLDER_MISMATCH_MSG
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.HOLDER_MISSING_MSG
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.HOLDER_VERIFICATION_FAIL_ERROR
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JSON_WEB_PROOF_TYPE_2020
-import io.mosip.vercred.vcverifier.constants.Shared
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.SUBJECT_ID_MISSING_MSG
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.VERIFIABLE_CREDENTIAL_MISSING_MSG
+import io.mosip.vercred.vcverifier.constants.Shared.KEY_VERIFIABLE_CREDENTIAL
 import io.mosip.vercred.vcverifier.data.PresentationVerificationResult
 import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatus
 import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatusV2
@@ -26,20 +34,22 @@ import io.mosip.vercred.vcverifier.data.VPVerificationStatus
 import io.mosip.vercred.vcverifier.data.VerificationResult
 import io.mosip.vercred.vcverifier.data.VerificationStatus
 import io.mosip.vercred.vcverifier.exception.DidResolverExceptions.UnsupportedDidUrl
+import io.mosip.vercred.vcverifier.exception.HolderBindingException
 import io.mosip.vercred.vcverifier.exception.PresentationNotSupportedException
 import io.mosip.vercred.vcverifier.exception.PublicKeyNotFoundException
 import io.mosip.vercred.vcverifier.exception.SignatureNotSupportedException
 import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.UnknownException
+import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.keyResolver.PublicKeyResolverFactory
 import io.mosip.vercred.vcverifier.signature.impl.ED25519SignatureVerifierImpl
+import io.mosip.vercred.vcverifier.utils.Base64Decoder
 import io.mosip.vercred.vcverifier.utils.Util
 import io.mosip.vercred.vcverifier.utils.asIterable
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.spec.InvalidKeySpecException
 import java.util.logging.Logger
-
 
 class PresentationVerifier {
     private val logger = Logger.getLogger(PresentationVerifier::class.java.name)
@@ -50,7 +60,7 @@ class PresentationVerifier {
 
         val presentationVerificationStatus: VPVerificationStatus = getPresentationVerificationStatus(presentation)
 
-        val verifiableCredentials = JSONObject(presentation).getJSONArray(Shared.KEY_VERIFIABLE_CREDENTIAL)
+        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
         val vcVerificationResults: List<VCResult> = getVCVerificationResults(verifiableCredentials)
 
         return PresentationVerificationResult(presentationVerificationStatus, vcVerificationResults)
@@ -60,7 +70,7 @@ class PresentationVerifier {
 
         val presentationVerificationResult: VerificationResult = getPresentationVerificationResult(presentation)
 
-        val verifiableCredentials = JSONObject(presentation).getJSONArray(Shared.KEY_VERIFIABLE_CREDENTIAL)
+        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
         val vcVerificationResults: List<VCResultV2> = getVCVerificationResultsV2(verifiableCredentials)
 
         return PresentationVerificationResultV2(presentationVerificationResult, vcVerificationResults)
@@ -72,17 +82,19 @@ class PresentationVerifier {
 
         try {
             vcJsonLdObject = JsonLDObject.fromJson(presentation)
-        } catch (e: RuntimeException) {
+        } catch (_: RuntimeException) {
             throw PresentationNotSupportedException("Unsupported VP Token type")
         }
 
         return try {
-            if (verifyPresentationProof(vcJsonLdObject))
+            if (verifyPresentationProof(vcJsonLdObject)) {
+                checkHolderBinding(vcJsonLdObject)
                 VPVerificationStatus.VALID
+            }
             else
                 VPVerificationStatus.INVALID
         } catch (e: Exception) {
-            logger.severe("Error while verifying presentation proof: ${e.message}")
+            logger.severe("Error while verifying presentation : ${e.message}")
             when (e) {
                 is PublicKeyNotFoundException,
                 is IllegalStateException,
@@ -103,11 +115,12 @@ class PresentationVerifier {
 
         try {
             vcJsonLdObject = JsonLDObject.fromJson(presentation)
-        } catch (e: RuntimeException) {
+        } catch (_: RuntimeException) {
             throw PresentationNotSupportedException("Unsupported VP Token type")
         }
         return try {
             val isVerified = verifyPresentationProof(vcJsonLdObject)
+            checkHolderBinding(vcJsonLdObject)
 
             if (isVerified) {
                 VerificationResult(
@@ -123,14 +136,15 @@ class PresentationVerifier {
                 )
             }
         } catch (e: Exception) {
-            logger.severe("Error while verifying presentation proof: ${e.message}")
+            logger.severe("Error while verifying presentation : ${e.message}")
             when (e) {
                 is PublicKeyNotFoundException,
                 is IllegalStateException,
                 is UnsupportedDidUrl,
                 is InvalidKeySpecException,
                 is SignatureNotSupportedException,
-                is SignatureVerificationException -> throw e
+                is SignatureVerificationException,
+                is HolderBindingException -> throw e
 
                 else -> {
                     throw UnknownException("Error while doing verification of verifiable presentation")
@@ -138,6 +152,70 @@ class PresentationVerifier {
             }
         }
     }
+
+    private fun checkHolderBinding(vcJsonLdObject: JsonLDObject) {
+        val holderId = vcJsonLdObject.jsonObject[HOLDER] as? String
+            ?: throw ValidationException(HOLDER_MISSING_MSG, HOLDER_VERIFICATION_FAIL_ERROR)
+        val supportedDidMethods = setOf("did:key:", "did:jwk:")
+        val supportedHolders = supportedDidMethods.find { holderId.startsWith(it) }
+        if (supportedHolders == null) {
+            logger.info("Skipping holder binding check for method: $holderId")
+            return
+        }
+
+        val credentials = vcJsonLdObject.jsonObject[KEY_VERIFIABLE_CREDENTIAL] as? List<*>
+            ?: throw HolderBindingException(VERIFIABLE_CREDENTIAL_MISSING_MSG, HOLDER_VERIFICATION_FAIL_ERROR)
+
+        credentials.filterIsInstance<Map<String, Any>>().forEach { vc ->
+            val subjectId = (vc[CREDENTIAL_SUBJECT] as? Map<*, *>)?.get(ID) as? String
+                ?: throw HolderBindingException(SUBJECT_ID_MISSING_MSG, HOLDER_VERIFICATION_FAIL_ERROR)
+
+            val isMatch = when (supportedHolders) {
+                "did:key:" -> holderId.trim() == subjectId.trim()
+                else -> idsMatchJwk(holderId.trim(), subjectId.trim())
+            }
+
+            if (!isMatch) {
+                throw HolderBindingException(
+                    HOLDER_MISMATCH_MSG.format(holderId, subjectId),
+                    HOLDER_VERIFICATION_FAIL_ERROR
+                )
+            }
+        }
+    }
+
+    private fun idsMatchJwk(id1: String, id2: String): Boolean {
+        val jwkRegex = Regex("""^did:jwk:([^?;#]+)""")
+        val encodedId1 = jwkRegex.find(id1)?.groupValues?.get(1) ?: return false
+        val encodedId2 = jwkRegex.find(id2)?.groupValues?.get(1) ?: return false
+
+        return try {
+            val b64 = Base64Decoder()
+            val jsonId1 = JSONObject(String(b64.decodeFromBase64Url(encodedId1)))
+            val jsonId2 = JSONObject(String(b64.decodeFromBase64Url(encodedId2)))
+
+            val kty = jsonId1.optString("kty")
+            if (kty != jsonId2.optString("kty")) return false
+
+            when (kty) {
+                "EC"  -> jsonId1.optString("crv") == jsonId2.optString("crv") &&
+                        jsonId1.optString("x") == jsonId2.optString("x") &&
+                        jsonId1.optString("y") == jsonId2.optString("y")
+
+                "OKP" -> jsonId1.optString("crv") == jsonId2.optString("crv") &&
+                        jsonId1.optString("x") == jsonId2.optString("x")
+
+                "RSA" -> jsonId1.optString("n") == jsonId2.optString("n") &&
+                        jsonId1.optString("e") == jsonId2.optString("e")
+
+                else -> false
+            }
+        } catch (e: Exception) {
+            logger.warning("JWK decoding failed: ${e.message}")
+            false
+        }
+    }
+
     private fun verifyPresentationProof(vcJsonLdObject: JsonLDObject): Boolean {
 
         vcJsonLdObject.documentLoader = Util.getConfigurableDocumentLoader()
@@ -257,7 +335,7 @@ class PresentationVerifier {
     ): PresentationResultWithCredentialStatus {
         val presentationVerificationStatus = getPresentationVerificationStatus(presentation)
 
-        val verifiableCredentials = JSONObject(presentation).getJSONArray(Shared.KEY_VERIFIABLE_CREDENTIAL)
+        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
         val vcVerificationResults: List<VCResultWithCredentialStatus> = getVCVerificationResultsWithCredentialStatus(verifiableCredentials, statusPurposeList)
 
         return PresentationResultWithCredentialStatus(presentationVerificationStatus, vcVerificationResults)
@@ -269,10 +347,9 @@ class PresentationVerifier {
     ): PresentationResultWithCredentialStatusV2 {
         val presentationVerificationResult = getPresentationVerificationResult(presentation)
 
-        val verifiableCredentials = JSONObject(presentation).getJSONArray(Shared.KEY_VERIFIABLE_CREDENTIAL)
+        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
         val vcVerificationResults: List<VCResultWithCredentialStatusV2> = getVCVerificationResultsWithCredentialStatusV2(verifiableCredentials, statusPurposeList)
 
         return PresentationResultWithCredentialStatusV2(presentationVerificationResult, vcVerificationResults)
     }
 }
-
