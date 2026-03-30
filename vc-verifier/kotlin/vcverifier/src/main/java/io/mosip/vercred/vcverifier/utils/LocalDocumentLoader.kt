@@ -46,6 +46,8 @@ object LocalDocumentLoader : ConfigurableDocumentLoader() {
                 "/contexts/mock-identity-context.json"
             url.toString().contains("https://inji.github.io/inji-config/contexts/farmer.json") ->
                 "/contexts/farmer-context-inji.json"
+            url.toString().contains("https://inji.github.io/inji-config/contexts/mosip-identity-context.json") ->
+                "/contexts/mosip-identity-context-2.json"
             else -> throw IllegalArgumentException("Unexpected context: $url")
         }
     }
