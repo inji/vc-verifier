@@ -40,7 +40,6 @@ import io.mosip.vercred.vcverifier.exception.PublicKeyNotFoundException
 import io.mosip.vercred.vcverifier.exception.SignatureNotSupportedException
 import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.UnknownException
-import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.keyResolver.PublicKeyResolverFactory
 import io.mosip.vercred.vcverifier.signature.impl.ED25519SignatureVerifierImpl
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
@@ -88,7 +87,7 @@ class PresentationVerifier {
 
         return try {
             if (verifyPresentationProof(vcJsonLdObject)) {
-                checkHolderBinding(vcJsonLdObject)
+                validateHolderBindingForDidKeyAndJwk(vcJsonLdObject)
                 VPVerificationStatus.VALID
             }
             else
@@ -120,7 +119,7 @@ class PresentationVerifier {
         }
         return try {
             val isVerified = verifyPresentationProof(vcJsonLdObject)
-            checkHolderBinding(vcJsonLdObject)
+            validateHolderBindingForDidKeyAndJwk(vcJsonLdObject)
 
             if (isVerified) {
                 VerificationResult(
@@ -153,67 +152,67 @@ class PresentationVerifier {
         }
     }
 
-    private fun checkHolderBinding(vcJsonLdObject: JsonLDObject) {
-        val holderId = vcJsonLdObject.jsonObject[HOLDER] as? String
-            ?: throw ValidationException(HOLDER_MISSING_MSG, HOLDER_VERIFICATION_FAIL_ERROR)
-        val supportedDidMethods = setOf("did:key:", "did:jwk:")
-        val supportedHolders = supportedDidMethods.find { holderId.startsWith(it) }
-        if (supportedHolders == null) {
-            logger.info("Skipping holder binding check for method: $holderId")
+    private fun validateHolderBindingForDidKeyAndJwk(vcJsonLdObject: JsonLDObject) {
+        val holderDid = vcJsonLdObject.jsonObject[HOLDER] as? String
+            ?: throw HolderBindingException(HOLDER_MISSING_MSG, HOLDER_VERIFICATION_FAIL_ERROR)
+        val supportedDidPrefixes = setOf("did:key:", "did:jwk:")
+        val matchedDidPrefix = supportedDidPrefixes.find { holderDid.startsWith(it) }
+        if (matchedDidPrefix == null) {
+            logger.info("Skipping holder binding check for method: $holderDid")
             return
         }
 
-        val credentials = vcJsonLdObject.jsonObject[KEY_VERIFIABLE_CREDENTIAL] as? List<*>
+        val verifiableCredentials = vcJsonLdObject.jsonObject[KEY_VERIFIABLE_CREDENTIAL] as? List<*>
             ?: throw HolderBindingException(VERIFIABLE_CREDENTIAL_MISSING_MSG, HOLDER_VERIFICATION_FAIL_ERROR)
 
-        credentials.filterIsInstance<Map<String, Any>>().forEach { vc ->
-            val subject = vc[CREDENTIAL_SUBJECT]
-            val subjectId = when (subject) {
-                is Map<*, *> -> subject[ID] as? String
-                is List<*> -> (subject.firstOrNull() as? Map<*, *>)?.get(ID) as? String
+        verifiableCredentials.filterIsInstance<Map<String, Any>>().forEach { credential ->
+            val credentialSubject = credential[CREDENTIAL_SUBJECT]
+            val subjectDid = when (credentialSubject) {
+                is Map<*, *> -> credentialSubject[ID] as? String
+                is List<*> -> (credentialSubject.firstOrNull() as? Map<*, *>)?.get(ID) as? String
                 else -> null
             } ?: throw HolderBindingException(
                 SUBJECT_ID_MISSING_MSG,
                 HOLDER_VERIFICATION_FAIL_ERROR
             )
 
-            val isMatch = when (supportedHolders) {
-                "did:key:" -> holderId.trim() == subjectId.trim()
-                else -> idsMatchJwk(holderId.trim(), subjectId.trim())
+            val isHolderBoundToSubject = when (matchedDidPrefix) {
+                "did:key:" -> holderDid.trim() == subjectDid.trim()
+                else -> areDidJwkEquivalent(holderDid.trim(), subjectDid.trim())
             }
 
-            if (!isMatch) {
+            if (!isHolderBoundToSubject) {
                 throw HolderBindingException(
-                    HOLDER_MISMATCH_MSG.format(holderId, subjectId),
+                    HOLDER_MISMATCH_MSG.format(holderDid, subjectDid),
                     HOLDER_VERIFICATION_FAIL_ERROR
                 )
             }
         }
     }
 
-    private fun idsMatchJwk(id1: String, id2: String): Boolean {
+    private fun areDidJwkEquivalent(holderDid: String, subjectDid: String): Boolean {
         val jwkRegex = Regex("""^did:jwk:([^?;#]+)""")
-        val encodedId1 = jwkRegex.find(id1)?.groupValues?.get(1) ?: return false
-        val encodedId2 = jwkRegex.find(id2)?.groupValues?.get(1) ?: return false
+        val encodedJwkHolder = jwkRegex.find(holderDid)?.groupValues?.get(1) ?: return false
+        val encodedJwkSubject = jwkRegex.find(subjectDid)?.groupValues?.get(1) ?: return false
 
         return try {
-            val b64 = Base64Decoder()
-            val jsonId1 = JSONObject(String(b64.decodeFromBase64Url(encodedId1)))
-            val jsonId2 = JSONObject(String(b64.decodeFromBase64Url(encodedId2)))
+            val base64UrlDecoder = Base64Decoder()
+            val holderJwk = JSONObject(String(base64UrlDecoder.decodeFromBase64Url(encodedJwkHolder)))
+            val subjectJwk = JSONObject(String(base64UrlDecoder.decodeFromBase64Url(encodedJwkSubject)))
 
-            val kty = jsonId1.optString("kty")
-            if (kty != jsonId2.optString("kty")) return false
+            val keyType = holderJwk.optString("kty")
+            if (keyType != subjectJwk.optString("kty")) return false
 
-            when (kty) {
-                "EC"  -> jsonId1.optString("crv") == jsonId2.optString("crv") &&
-                        jsonId1.optString("x") == jsonId2.optString("x") &&
-                        jsonId1.optString("y") == jsonId2.optString("y")
+            when (keyType) {
+                "EC"  -> holderJwk.optString("crv") == subjectJwk.optString("crv") &&
+                        holderJwk.optString("x") == subjectJwk.optString("x") &&
+                        holderJwk.optString("y") == subjectJwk.optString("y")
 
-                "OKP" -> jsonId1.optString("crv") == jsonId2.optString("crv") &&
-                        jsonId1.optString("x") == jsonId2.optString("x")
+                "OKP" -> holderJwk.optString("crv") == subjectJwk.optString("crv") &&
+                        holderJwk.optString("x") == subjectJwk.optString("x")
 
-                "RSA" -> jsonId1.optString("n") == jsonId2.optString("n") &&
-                        jsonId1.optString("e") == jsonId2.optString("e")
+                "RSA" -> holderJwk.optString("n") == subjectJwk.optString("n") &&
+                        holderJwk.optString("e") == subjectJwk.optString("e")
 
                 else -> false
             }
