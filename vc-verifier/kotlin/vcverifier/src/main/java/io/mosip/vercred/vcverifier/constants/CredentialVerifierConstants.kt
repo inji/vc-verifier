@@ -21,6 +21,8 @@ object CredentialVerifierConstants {
     const val ED25519_ALGORITHM = "Ed25519"
     const val RSA_ALGORITHM = "RSA"
     const val SECP256K1 = "secp256k1"
+    const val SECP256R1 = "secp256r1"
+    const val PRIME256V1 = "prime256v1"
     const val P256 = "P-256"
     const val JWS_PS256_SIGN_ALGO_CONST = "PS256"
     const val JWS_RS256_SIGN_ALGO_CONST = "RS256"

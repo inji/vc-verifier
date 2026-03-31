@@ -15,9 +15,14 @@ import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ED25519
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ED25519_PROOF_TYPE_2020
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_CODE_VERIFICATION_FAILED
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_MESSAGE_VERIFICATION_FAILED
+<<<<<<< INJIVER-1586-add-holder-binding-check-for-a-json-ld
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.HOLDER_MISMATCH_MSG
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.HOLDER_MISSING_MSG
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.HOLDER_VERIFICATION_FAIL_ERROR
+=======
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ES256K_PROOF_TYPE_2019
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ES256_PROOF_TYPE_2019
+>>>>>>> develop
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JSON_WEB_PROOF_TYPE_2020
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.SUBJECT_ID_MISSING_MSG
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.VERIFIABLE_CREDENTIAL_MISSING_MSG
@@ -42,7 +47,12 @@ import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.UnknownException
 import io.mosip.vercred.vcverifier.keyResolver.PublicKeyResolverFactory
 import io.mosip.vercred.vcverifier.signature.impl.ED25519SignatureVerifierImpl
+<<<<<<< INJIVER-1586-add-holder-binding-check-for-a-json-ld
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
+=======
+import io.mosip.vercred.vcverifier.signature.impl.ES256KSignatureVerifierImpl
+import io.mosip.vercred.vcverifier.signature.impl.ES256SignatureVerifierImpl
+>>>>>>> develop
 import io.mosip.vercred.vcverifier.utils.Util
 import io.mosip.vercred.vcverifier.utils.asIterable
 import org.json.JSONArray
@@ -255,22 +265,82 @@ class PresentationVerifier {
                 )
             }
 
-            ldProof.type == JSON_WEB_PROOF_TYPE_2020 && !ldProof.jws.isNullOrEmpty() -> {
+            (ldProof.type == ES256K_PROOF_TYPE_2019) && !ldProof.proofValue.isNullOrEmpty() -> {
+                ES256KSignatureVerifierImpl().verify(
+                    publicKey,
+                    canonicalHashBytes,
+                    Multibase.decode(ldProof.proofValue)
+                )
+            }
+
+            (ldProof.type == ES256_PROOF_TYPE_2019) && !ldProof.proofValue.isNullOrEmpty() -> {
+                ES256SignatureVerifierImpl().verify(
+                    publicKey,
+                    canonicalHashBytes,
+                    Multibase.decode(ldProof.proofValue)
+                )
+            }
+
+            (ldProof.type == ES256K_PROOF_TYPE_2019) && !ldProof.jws.isNullOrEmpty() -> {
                 val jws = JWSObject.parse(ldProof.jws)
-                if (jws.header.algorithm != JWSAlgorithm.EdDSA) {
+                val actualData = JWSUtil.getJwsSigningInput(jws.header, canonicalHashBytes)
+                if (jws.header.algorithm != JWSAlgorithm.ES256K) {
                     throw SignatureNotSupportedException("Unsupported JWS algorithm")
                 }
-
-                val actualData =
-                    JWSUtil.getJwsSigningInput(jws.header, canonicalHashBytes)
-
-                ED25519SignatureVerifierImpl().verify(
+                ES256KSignatureVerifierImpl().verify(
                     publicKey,
                     actualData,
                     jws.signature.decode()
                 )
             }
 
+            (ldProof.type == ES256_PROOF_TYPE_2019) && !ldProof.jws.isNullOrEmpty() -> {
+                val jws = JWSObject.parse(ldProof.jws)
+                val actualData = JWSUtil.getJwsSigningInput(jws.header, canonicalHashBytes)
+                if (jws.header.algorithm != JWSAlgorithm.ES256) {
+                    throw SignatureNotSupportedException("Unsupported JWS algorithm")
+                }
+                ES256SignatureVerifierImpl().verify(
+                    publicKey,
+                    actualData,
+                    jws.signature.decode()
+                )
+            }
+
+            ldProof.type == JSON_WEB_PROOF_TYPE_2020 && !ldProof.jws.isNullOrEmpty() -> {
+                val jws = JWSObject.parse(ldProof.jws)
+                if (jws.header.algorithm != JWSAlgorithm.EdDSA && jws.header.algorithm != JWSAlgorithm.ES256K && jws.header.algorithm != JWSAlgorithm.ES256) {
+                    throw SignatureNotSupportedException("Unsupported JWS algorithm")
+                }
+
+                val actualData =
+                    JWSUtil.getJwsSigningInput(jws.header, canonicalHashBytes)
+
+                when (jws.header.algorithm) {
+                    JWSAlgorithm.EdDSA -> {
+                        ED25519SignatureVerifierImpl().verify(
+                            publicKey,
+                            actualData,
+                            jws.signature.decode()
+                        )
+                    }
+                    JWSAlgorithm.ES256K -> {
+                        ES256KSignatureVerifierImpl().verify(
+                            publicKey,
+                            actualData,
+                            jws.signature.decode()
+                        )
+                    }
+                    JWSAlgorithm.ES256 -> {
+                        ES256SignatureVerifierImpl().verify(
+                            publicKey,
+                            actualData,
+                            jws.signature.decode()
+                        )
+                    }
+                    else -> false
+                }
+            }
             else -> false
         }
     }

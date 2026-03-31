@@ -4,14 +4,12 @@ import io.ipfs.multibase.Multibase
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JWK_KEY_TYPE_EC
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JWS_EDDSA_SIGN_ALGO_CONST
 import io.mosip.vercred.vcverifier.exception.PublicKeyTypeNotSupportedException
-import io.mosip.vercred.vcverifier.exception.UnknownException
 import org.bouncycastle.asn1.edec.EdECObjectIdentifiers
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.security.KeyFactory
 import java.security.PublicKey
-import java.security.spec.InvalidKeySpecException
 import java.security.spec.X509EncodedKeySpec
 import java.util.Arrays
 
