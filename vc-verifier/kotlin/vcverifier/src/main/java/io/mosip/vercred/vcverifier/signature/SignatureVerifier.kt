@@ -4,7 +4,6 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.security.PublicKey
 
 internal var bouncyCastleProvider: BouncyCastleProvider = BouncyCastleProvider()
-
 interface SignatureVerifier {
     fun verify(
         publicKey: PublicKey,
