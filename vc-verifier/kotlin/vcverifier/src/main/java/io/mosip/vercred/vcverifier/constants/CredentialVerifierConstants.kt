@@ -52,6 +52,13 @@ object CredentialVerifierConstants {
     const val ERROR_MESSAGE_VERIFICATION_FAILED = "Verification Failed"
     const val ERROR_CODE_VERIFICATION_FAILED = "ERR_SIGNATURE_VERIFICATION_FAILED"
 
+    const val HOLDER_VERIFICATION_FAIL_ERROR = "Holder binding Verification Failed"
+    const val HOLDER_MISSING_MSG = "The Verifiable Presentation is missing a mandatory Holder ID"
+    const val SUBJECT_ID_MISSING_MSG = "The Verifiable Credential is missing a mandatory Credential Subject ID"
+    const val VERIFIABLE_CREDENTIAL_MISSING_MSG = "The Verifiable Presentation is missing a mandatory Verifiable Credential"
+
+    const val HOLDER_MISMATCH_MSG = "Holder mismatch in VP: VP holder: %s, VC subject: %s"
+
     // This is used to turn public key bytes into a buffer in DER format
     const val ED_DER_PUBLIC_KEY_PREFIX = "302a300506032b6570032100"
     const val P256_DER_PUBLIC_KEY_PREFIX = "3059301306072a8648ce3d020106082a8648ce3d030107034200"
