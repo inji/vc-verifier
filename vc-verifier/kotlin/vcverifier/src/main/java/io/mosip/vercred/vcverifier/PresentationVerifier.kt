@@ -224,8 +224,9 @@ class PresentationVerifier {
             return try {
                 val base64UrlDecoder = Base64Decoder()
                 val jwkJson = String(base64UrlDecoder.decodeFromBase64Url(encodedJwk))
-                JWK.parse(jwkJson)
-                JSONObject(jwkJson)
+                val parsedJwk = JWK.parse(jwkJson)
+                val publicJwk = parsedJwk.toPublicJWK()
+                JSONObject(publicJwk.toJSONObject())
             } catch (e: HolderBindingException) {
                 throw e
             } catch (_: Exception) {
