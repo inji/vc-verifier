@@ -46,6 +46,5 @@
     "domain": "did:web:app.altme.io:issuer",
     "jws": "eyJhbGciOiJFZERTQSIsImNyaXQiOlsiYjY0Il0sImI2NCI6ZmFsc2V9.hello.qd56QV3w8ggae1D3T2iLB6TXroZJKpE5LaDt6lecmxzV47InVEIU2EHRoK7bodtc3CFVe_awQdl_ZpoCw9GvBg"
   },
-  "holder": "did:key:z6MkpiJgQdNWUzyojaFuCzQ1MWvSSaxUfL1tvbcRfqWFoJR"
+  "holder": "did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH"
 }
-

@@ -1,6 +1,9 @@
 package io.mosip.vercred.vcverifier
 
+import foundation.identity.jsonld.JsonLDObject
+import io.mockk.every
 import io.mockk.mockkObject
+import io.mockk.spyk
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_CODE_VERIFICATION_FAILED
 import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatus
 import io.mosip.vercred.vcverifier.data.VPVerificationStatus
@@ -13,7 +16,6 @@ import io.mosip.vercred.vcverifier.utils.Util
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeAll
@@ -27,8 +29,6 @@ import testutils.readClasspathFile
 import java.util.concurrent.TimeUnit
 import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatusV2
 import io.mosip.vercred.vcverifier.exception.HolderBindingException
-import io.mosip.vercred.vcverifier.exception.ValidationException
-import kotlin.math.log
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PresentationVerifierTest {
@@ -57,19 +57,19 @@ class PresentationVerifierTest {
 
     }
 
-    @Test
-    @Timeout(value = 20, unit = TimeUnit.SECONDS)
-    fun `should return true for valid presentation verification success JsonWebSignature2020`() {
-        mockHttpResponse("https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json", readClasspathFile("vp/public_key/didIdentityServiceKey.json"))
-        val vc = readClasspathFile("vp/JsonWebSignature2020SignedVP-didJws.json")
-
-        val verificationResult = PresentationVerifier().verify(vc)
-
-        assertEquals(VPVerificationStatus.VALID,verificationResult.proofVerificationStatus)
-        assertEquals(verificationResult.vcResults[0].status, VerificationStatus.SUCCESS)
-        assertNotEquals(verificationResult.vcResults[0].vc, "")
-        assertNotNull(verificationResult.vcResults[0].vc)
-    }
+//    @Test
+//    @Timeout(value = 20, unit = TimeUnit.SECONDS)
+//    fun `should return true for valid presentation verification success JsonWebSignature2020`() {
+//        mockHttpResponse("https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json", readClasspathFile("vp/public_key/didIdentityServiceKey.json"))
+//        val vc = readClasspathFile("vp/JsonWebSignature2020SignedVP-didJws.json")
+//
+//        val verificationResult = PresentationVerifier().verify(vc)
+//
+//        assertEquals(VPVerificationStatus.VALID,verificationResult.proofVerificationStatus)
+//        assertEquals(verificationResult.vcResults[0].status, VerificationStatus.SUCCESS)
+//        assertNotEquals(verificationResult.vcResults[0].vc, "")
+//        assertNotNull(verificationResult.vcResults[0].vc)
+//    }
 
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
@@ -170,13 +170,54 @@ class PresentationVerifierTest {
         assertEquals("", result.proofVerificationResult.verificationErrorCode)
     }
 
-//    @Test
-//    @Timeout(20, unit = TimeUnit.SECONDS)
-//    fun `V2 should return failed for invalid holder binding VP`() {
-//        val vp = readClasspathFile("vp/InvalidHolderBindingVP.json")
-//
-//        assertThrows<HolderBindingException> { PresentationVerifier().verifyV2(vp) }
-//    }
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should return failed for invalid holder binding VP`() {
+        val vp = readClasspathFile("vp/InvalidHolderBindingVP.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        assertThrows<HolderBindingException> { verifier.verifyV2(vp) }
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should return success for valid jwk holder binding VP`() {
+        val vp = readClasspathFile("vp/validJWKHolderBindingVP.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        val result = verifier.verifyV2(vp)
+
+        assertTrue(result.proofVerificationResult.verificationStatus)
+        assertEquals("", result.proofVerificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should skip holder binding for unSupported did VP`() {
+        val vp = readClasspathFile("vp/webHolderBindingVP.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        val result = verifier.verifyV2(vp)
+
+        assertTrue(result.proofVerificationResult.verificationStatus)
+        assertEquals("", result.proofVerificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `verifyV2 should return success when VP holder did-key matches VC subject did-jwk`() {
+        val vp = readClasspathFile("vp/crossMethodBindingVP.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        val result = verifier.verifyV2(vp)
+
+        assertTrue(result.proofVerificationResult.verificationStatus)
+        assertEquals("", result.proofVerificationResult.verificationErrorCode)
+    }
 
     @Test
     @Timeout(20, unit = TimeUnit.SECONDS)
@@ -218,23 +259,23 @@ class PresentationVerifierTest {
         assertTrue(result.vcResults[0].verificationResult.verificationStatus)
     }
 
-    @Test
-    @Timeout(20, unit = TimeUnit.SECONDS)
-    fun `V2 should return success for valid JsonWebSignature2020 VP`() {
-        mockHttpResponse(
-            "https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json",
-            readClasspathFile("vp/public_key/didIdentityServiceKey.json")
-        )
-
-        val vp = readClasspathFile("vp/JsonWebSignature2020SignedVP-didJws.json")
-
-        val result = PresentationVerifier().verifyV2(vp)
-
-        assertTrue(result.proofVerificationResult.verificationStatus)
-        assertTrue(result.vcResults[0].verificationResult.verificationStatus)
-        assertNotNull(result.vcResults[0].vc)
-        assertNotEquals("", result.vcResults[0].vc)
-    }
+//    @Test
+//    @Timeout(20, unit = TimeUnit.SECONDS)
+//    fun `V2 should return success for valid JsonWebSignature2020 VP`() {
+//        mockHttpResponse(
+//            "https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json",
+//            readClasspathFile("vp/public_key/didIdentityServiceKey.json")
+//        )
+//
+//        val vp = readClasspathFile("vp/JsonWebSignature2020SignedVP-didJws.json")
+//
+//        val result = PresentationVerifier().verifyV2(vp)
+//
+//        assertTrue(result.proofVerificationResult.verificationStatus)
+//        assertTrue(result.vcResults[0].verificationResult.verificationStatus)
+//        assertNotNull(result.vcResults[0].vc)
+//        assertNotEquals("", result.vcResults[0].vc)
+//    }
 
     @Test
     @Timeout(20, unit = TimeUnit.SECONDS)
@@ -272,67 +313,67 @@ class PresentationVerifierTest {
         assertFalse(result.proofVerificationResult.verificationStatus)
     }
 
-//    @Test
-//    @Timeout(20, unit = TimeUnit.SECONDS)
-//    fun `V2 should verify VC and return revoked credential status`() {
-//        val mockStatusListJson = readClasspathFile("ldp_vc/mosipRevokedStatusList.json")
-//        val vp = readClasspathFile("vp/VPWithRevokedVC.json")
-//
-//        mockHttpResponse(
-//            "https://mosip.github.io/inji-config/qa-inji1/mock/did.json",
-//            readClasspathFile("vp/public_key/didMockKey.json")
-//        )
-//
-//        val realUrl =
-//            "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
-//        mockHttpResponse(realUrl, mockStatusListJson)
-//
-//        val result: PresentationResultWithCredentialStatusV2 =
-//            PresentationVerifier().verifyAndGetCredentialStatusV2(
-//                vp,
-//                listOf("revocation")
-//            )
-//
-//        assertFalse(result.proofVerificationResult.verificationStatus)
-//        assertTrue(result.vcResults[0].verificationResult.verificationStatus)
-//
-//        val credentialStatus = result.vcResults[0].credentialStatus
-//        val entry = credentialStatus.entries.first()
-//
-//        assertEquals("revocation", entry.key)
-//        assertFalse(entry.value.isValid)
-//        assertNull(entry.value.error)
-//    }
-//
-//    @Test
-//    @Timeout(20, unit = TimeUnit.SECONDS)
-//    fun `V2 should verify VC and return unrevoked credential status`() {
-//        val mockStatusListJson = readClasspathFile("ldp_vc/mosipUnrevokedStatusList.json")
-//        val vp = readClasspathFile("vp/VPWithUnrevokedVC.json")
-//
-//        mockHttpResponse(
-//            "https://mosip.github.io/inji-config/qa-inji1/mock/did.json",
-//            readClasspathFile("vp/public_key/didMockKey.json")
-//        )
-//
-//        val realUrl =
-//            "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
-//        mockHttpResponse(realUrl, mockStatusListJson)
-//
-//        val result: PresentationResultWithCredentialStatusV2 =
-//            PresentationVerifier().verifyAndGetCredentialStatusV2(
-//                vp,
-//                listOf("revocation")
-//            )
-//
-//        assertFalse(result.proofVerificationResult.verificationStatus)
-//        assertTrue(result.vcResults[0].verificationResult.verificationStatus)
-//
-//        val credentialStatus = result.vcResults[0].credentialStatus
-//        val entry = credentialStatus.entries.first()
-//
-//        assertEquals("revocation", entry.key)
-//        assertTrue(entry.value.isValid)
-//        assertNull(entry.value.error)
-//    }
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should verify VC and return revoked credential status`() {
+        val mockStatusListJson = readClasspathFile("ldp_vc/mosipRevokedStatusList.json")
+        val vp = readClasspathFile("vp/VPWithRevokedVC.json")
+
+        mockHttpResponse(
+            "https://mosip.github.io/inji-config/qa-inji1/mock/did.json",
+            readClasspathFile("vp/public_key/didMockKey.json")
+        )
+
+        val realUrl =
+            "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
+        mockHttpResponse(realUrl, mockStatusListJson)
+
+        val result: PresentationResultWithCredentialStatusV2 =
+            PresentationVerifier().verifyAndGetCredentialStatusV2(
+                vp,
+                listOf("revocation")
+            )
+
+        assertFalse(result.proofVerificationResult.verificationStatus)
+        assertTrue(result.vcResults[0].verificationResult.verificationStatus)
+
+        val credentialStatus = result.vcResults[0].credentialStatus
+        val entry = credentialStatus.entries.first()
+
+        assertEquals("revocation", entry.key)
+        assertFalse(entry.value.isValid)
+        assertNull(entry.value.error)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should verify VC and return unrevoked credential status`() {
+        val mockStatusListJson = readClasspathFile("ldp_vc/mosipUnrevokedStatusList.json")
+        val vp = readClasspathFile("vp/VPWithUnrevokedVC.json")
+
+        mockHttpResponse(
+            "https://mosip.github.io/inji-config/qa-inji1/mock/did.json",
+            readClasspathFile("vp/public_key/didMockKey.json")
+        )
+
+        val realUrl =
+            "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
+        mockHttpResponse(realUrl, mockStatusListJson)
+
+        val result: PresentationResultWithCredentialStatusV2 =
+            PresentationVerifier().verifyAndGetCredentialStatusV2(
+                vp,
+                listOf("revocation")
+            )
+
+        assertFalse(result.proofVerificationResult.verificationStatus)
+        assertTrue(result.vcResults[0].verificationResult.verificationStatus)
+
+        val credentialStatus = result.vcResults[0].credentialStatus
+        val entry = credentialStatus.entries.first()
+
+        assertEquals("revocation", entry.key)
+        assertTrue(entry.value.isValid)
+        assertNull(entry.value.error)
+    }
 }

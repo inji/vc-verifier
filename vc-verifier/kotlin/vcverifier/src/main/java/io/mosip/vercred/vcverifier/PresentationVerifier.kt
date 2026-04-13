@@ -2,6 +2,11 @@ package io.mosip.vercred.vcverifier
 
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSObject
+import com.nimbusds.jose.jwk.Curve
+import com.nimbusds.jose.jwk.ECKey
+import com.nimbusds.jose.jwk.JWK
+import com.nimbusds.jose.jwk.OctetKeyPair
+import com.nimbusds.jose.util.Base64URL
 import foundation.identity.jsonld.JsonLDObject
 import info.weboftrust.ldsignatures.LdProof
 import info.weboftrust.ldsignatures.canonicalizer.URDNA2015Canonicalizer
@@ -20,8 +25,10 @@ import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.HOLDER_
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.HOLDER_VERIFICATION_FAIL_ERROR
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ES256K_PROOF_TYPE_2019
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ES256_PROOF_TYPE_2019
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.FAILED_TO_DECODE
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JSON_WEB_PROOF_TYPE_2020
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.SUBJECT_ID_MISSING_MSG
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.UNSUPPORTED_KEY_TYPE
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.VERIFIABLE_CREDENTIAL_MISSING_MSG
 import io.mosip.vercred.vcverifier.constants.Shared.KEY_VERIFIABLE_CREDENTIAL
 import io.mosip.vercred.vcverifier.data.PresentationVerificationResult
@@ -43,6 +50,7 @@ import io.mosip.vercred.vcverifier.exception.SignatureNotSupportedException
 import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.UnknownException
 import io.mosip.vercred.vcverifier.keyResolver.PublicKeyResolverFactory
+import io.mosip.vercred.vcverifier.keyResolver.decompressP256Key
 import io.mosip.vercred.vcverifier.signature.impl.ED25519SignatureVerifierImpl
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
 import io.mosip.vercred.vcverifier.signature.impl.ES256KSignatureVerifierImpl
@@ -53,6 +61,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.security.spec.InvalidKeySpecException
 import java.util.logging.Logger
+
+private const val MULTIBASE_KEY_SIZE = 34
+private const val ED_KEY_PREFIX = 0xed.toByte()
+private const val MULTICODEC_TRAILING_BYTE = 0x01.toByte()
+private const val P256_KEY_PREFIX_FIRST = 0x80.toByte()
+private const val P256_KEY_PREFIX_SECOND = 0x24.toByte()
 
 class PresentationVerifier {
     private val logger = Logger.getLogger(PresentationVerifier::class.java.name)
@@ -112,6 +126,7 @@ class PresentationVerifier {
             }
         }
     }
+
     private fun getPresentationVerificationResult(presentation: String): VerificationResult {
         logger.info("Received Presentation For Verification - Start")
         val vcJsonLdObject: JsonLDObject
@@ -157,75 +172,125 @@ class PresentationVerifier {
     }
 
     private fun validateHolderBindingForDidKeyAndJwk(vcJsonLdObject: JsonLDObject) {
-        val holderDid = vcJsonLdObject.jsonObject[HOLDER] as? String
+        val holderStr = vcJsonLdObject.jsonObject[HOLDER] as? String
             ?: throw HolderBindingException(HOLDER_MISSING_MSG, HOLDER_VERIFICATION_FAIL_ERROR)
-        val supportedDidPrefixes = setOf("did:key:", "did:jwk:")
-        val matchedDidPrefix = supportedDidPrefixes.find { holderDid.startsWith(it) }
-        if (matchedDidPrefix == null) {
-            logger.info("Skipping holder binding check for method: $holderDid")
+        val holderPublicKeyJson = extractPublicKeyJson(holderStr) ?: run {
+            logger.info("Skipping holder binding: Method not supported for $holderStr")
             return
         }
 
         val verifiableCredentials = vcJsonLdObject.jsonObject[KEY_VERIFIABLE_CREDENTIAL]
             ?.let { it as? List<*> ?: listOf(it) }
-            ?: throw HolderBindingException(VERIFIABLE_CREDENTIAL_MISSING_MSG, HOLDER_VERIFICATION_FAIL_ERROR)
+            ?: throw HolderBindingException(
+                VERIFIABLE_CREDENTIAL_MISSING_MSG,
+                HOLDER_VERIFICATION_FAIL_ERROR
+            )
 
         verifiableCredentials.filterIsInstance<Map<String, Any>>().forEach { credential ->
             val credentialSubject = credential[CREDENTIAL_SUBJECT]
-            val subjectDid = when (credentialSubject) {
-                is Map<*, *> -> credentialSubject[ID] as? String
-                is List<*> -> (credentialSubject.firstOrNull() as? Map<*, *>)?.get(ID) as? String
+            val subjects = when (credentialSubject) {
+                is Map<*, *> -> listOf(credentialSubject)
+                is List<*> -> credentialSubject.ifEmpty { null }
                 else -> null
             } ?: throw HolderBindingException(
                 SUBJECT_ID_MISSING_MSG,
                 HOLDER_VERIFICATION_FAIL_ERROR
             )
 
-            val isHolderBoundToSubject = when (matchedDidPrefix) {
-                "did:key:" -> holderDid.trim() == subjectDid.trim()
-                else -> areDidJwkEquivalent(holderDid.trim(), subjectDid.trim())
-            }
+            subjects.forEach { subject ->
+                val subjectStr = (subject as? Map<*, *>)?.get(ID) as? String
+                    ?: throw HolderBindingException(
+                        SUBJECT_ID_MISSING_MSG,
+                        HOLDER_VERIFICATION_FAIL_ERROR
+                    )
+                val subjectPublicKeyJson = extractPublicKeyJson(subjectStr) ?: run {
+                    logger.info("Skipping subject binding check: Method not supported for $subjectStr")
+                    return@forEach
+                }
 
-            if (!isHolderBoundToSubject) {
-                throw HolderBindingException(
-                    HOLDER_MISMATCH_MSG.format(holderDid, subjectDid),
-                    HOLDER_VERIFICATION_FAIL_ERROR
-                )
+                if (!comparePublicKeyJson(holderPublicKeyJson, subjectPublicKeyJson)) {
+                    throw HolderBindingException(
+                        HOLDER_MISMATCH_MSG.format(holderStr, subjectStr),
+                        HOLDER_VERIFICATION_FAIL_ERROR
+                    )
+                }
             }
         }
     }
 
-    private fun areDidJwkEquivalent(holderDid: String, subjectDid: String): Boolean {
-        val jwkRegex = Regex("""^did:jwk:([^?;#]+)""")
-        val encodedJwkHolder = jwkRegex.find(holderDid)?.groupValues?.get(1) ?: return false
-        val encodedJwkSubject = jwkRegex.find(subjectDid)?.groupValues?.get(1) ?: return false
-
-        return try {
-            val base64UrlDecoder = Base64Decoder()
-            val holderJwk = JSONObject(String(base64UrlDecoder.decodeFromBase64Url(encodedJwkHolder)))
-            val subjectJwk = JSONObject(String(base64UrlDecoder.decodeFromBase64Url(encodedJwkSubject)))
-
-            val keyType = holderJwk.optString("kty")
-            if (keyType != subjectJwk.optString("kty")) return false
-
-            when (keyType) {
-                "EC"  -> holderJwk.optString("crv") == subjectJwk.optString("crv") &&
-                        holderJwk.optString("x") == subjectJwk.optString("x") &&
-                        holderJwk.optString("y") == subjectJwk.optString("y")
-
-                "OKP" -> holderJwk.optString("crv") == subjectJwk.optString("crv") &&
-                        holderJwk.optString("x") == subjectJwk.optString("x")
-
-                "RSA" -> holderJwk.optString("n") == subjectJwk.optString("n") &&
-                        holderJwk.optString("e") == subjectJwk.optString("e")
-
-                else -> false
+    private fun extractPublicKeyJson(input: String): JSONObject? {
+        if (input.startsWith("did:jwk:")) {
+            val encodedJwk = input.removePrefix("did:jwk:").split('#', '?', ';')[0]
+            return try {
+                val base64UrlDecoder = Base64Decoder()
+                val jwkJson = String(base64UrlDecoder.decodeFromBase64Url(encodedJwk))
+                val parsedJwk = JWK.parse(jwkJson)
+                val publicJwk = parsedJwk.toPublicJWK()
+                JSONObject(publicJwk.toJSONObject())
+            } catch (e: HolderBindingException) {
+                throw e
+            } catch (_: Exception) {
+                throw HolderBindingException(FAILED_TO_DECODE, HOLDER_VERIFICATION_FAIL_ERROR)
             }
-        } catch (e: Exception) {
-            logger.warning("JWK decoding failed: ${e.message}")
-            false
+        }
+        if (input.startsWith("did:key:")) {
+            return try {
+                val methodSpecificId = input.removePrefix("did:key:").split('#', '?', ';')[0]
+                val decodedKey = Multibase.decode(methodSpecificId)
+                when {
+                    isEd25519KeyType(decodedKey) -> {
+                        val x = Base64URL.encode(decodedKey.copyOfRange(2, 34))
+                        JSONObject(OctetKeyPair.Builder(Curve.Ed25519, x).build().toJSONObject())
+                    }
+
+                    isP256KeyType(decodedKey) -> {
+                        val publicKeyBytes = decodedKey.copyOfRange(2, decodedKey.size)
+                        val decompressed = decompressP256Key(publicKeyBytes)
+                        val x = Base64URL.encode(decompressed.copyOfRange(1, 33))
+                        val y = Base64URL.encode(decompressed.copyOfRange(33, 65))
+                        val ecKey = ECKey.Builder(Curve.P_256, x, y).build()
+                        JSONObject(ecKey.toJSONObject())
+                    }
+
+                    else -> throw HolderBindingException(
+                        UNSUPPORTED_KEY_TYPE.format(decodedKey),
+                        HOLDER_VERIFICATION_FAIL_ERROR
+                    )
+                }
+            } catch (e: HolderBindingException) {
+                throw e
+            } catch (_: Exception) {
+                throw HolderBindingException(FAILED_TO_DECODE, HOLDER_VERIFICATION_FAIL_ERROR)
+            }
+        }
+        return null
+    }
+
+    private fun comparePublicKeyJson(publicKeyJson1: JSONObject, publicKeyJson2: JSONObject): Boolean {
+        logger.info("publicKeyJson1: $publicKeyJson1, publicKeyJson2: $publicKeyJson2")
+        val keyType = publicKeyJson1.optString("kty")
+        if (keyType != publicKeyJson2.optString("kty")) return false
+
+        return when (keyType) {
+            "EC" -> publicKeyJson1.optString("crv") == publicKeyJson2.optString("crv") &&
+                    publicKeyJson1.optString("x") == publicKeyJson2.optString("x") &&
+                    publicKeyJson1.optString("y") == publicKeyJson2.optString("y")
+
+            "OKP" -> publicKeyJson1.optString("crv") == publicKeyJson2.optString("crv") &&
+                    publicKeyJson1.optString("x") == publicKeyJson2.optString("x")
+
+            "RSA" -> publicKeyJson1.optString("n") == publicKeyJson2.optString("n") &&
+                    publicKeyJson1.optString("e") == publicKeyJson2.optString("e")
+
+            else -> false
         }
     }
+
+    private fun isEd25519KeyType(decodedKey: ByteArray) =
+        (decodedKey[0] == ED_KEY_PREFIX && decodedKey[1] == MULTICODEC_TRAILING_BYTE) && decodedKey.size == MULTIBASE_KEY_SIZE
+
+    private fun isP256KeyType(decodedKey: ByteArray) =
+        decodedKey[0] == P256_KEY_PREFIX_FIRST && decodedKey[1] == P256_KEY_PREFIX_SECOND
 
     private fun verifyPresentationProof(vcJsonLdObject: JsonLDObject): Boolean {
 
