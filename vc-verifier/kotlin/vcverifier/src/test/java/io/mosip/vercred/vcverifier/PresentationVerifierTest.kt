@@ -1,6 +1,9 @@
 package io.mosip.vercred.vcverifier
 
+import foundation.identity.jsonld.JsonLDObject
+import io.mockk.every
 import io.mockk.mockkObject
+import io.mockk.spyk
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_CODE_VERIFICATION_FAILED
 import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatus
 import io.mosip.vercred.vcverifier.data.VPVerificationStatus
@@ -13,7 +16,6 @@ import io.mosip.vercred.vcverifier.utils.Util
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeAll
@@ -27,8 +29,6 @@ import testutils.readClasspathFile
 import java.util.concurrent.TimeUnit
 import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatusV2
 import io.mosip.vercred.vcverifier.exception.HolderBindingException
-import io.mosip.vercred.vcverifier.exception.ValidationException
-import kotlin.math.log
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PresentationVerifierTest {
@@ -170,13 +170,54 @@ class PresentationVerifierTest {
         assertEquals("", result.proofVerificationResult.verificationErrorCode)
     }
 
-//    @Test
-//    @Timeout(20, unit = TimeUnit.SECONDS)
-//    fun `V2 should return failed for invalid holder binding VP`() {
-//        val vp = readClasspathFile("vp/InvalidHolderBindingVP.json")
-//
-//        assertThrows<HolderBindingException> { PresentationVerifier().verifyV2(vp) }
-//    }
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should return failed for invalid holder binding VP`() {
+        val vp = readClasspathFile("vp/InvalidHolderBindingVP.json")
+        val verifier = spyk(PresentationVerifier())
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        assertThrows<HolderBindingException> { verifier.verifyV2(vp) }
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should return success for valid jwk holder binding VP`() {
+        val vp = readClasspathFile("vp/validJWKHolderBindingVP.json")
+        val verifier = spyk(PresentationVerifier())
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        val result = verifier.verifyV2(vp)
+
+        assertTrue(result.proofVerificationResult.verificationStatus)
+        assertEquals("", result.proofVerificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should skip holder binding for unSupported did VP`() {
+        val vp = readClasspathFile("vp/webHolderBindingVP.json")
+        val verifier = spyk(PresentationVerifier())
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        val result = verifier.verifyV2(vp)
+
+        assertTrue(result.proofVerificationResult.verificationStatus)
+        assertEquals("", result.proofVerificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `verifyV2 should return success when VP holder did-key matches VC subject did-jwk`() {
+        val vp = readClasspathFile("vp/crossMethodBindingVP.json")
+        val verifier = spyk(PresentationVerifier())
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        val result = verifier.verifyV2(vp)
+
+        assertTrue(result.proofVerificationResult.verificationStatus)
+        assertEquals("", result.proofVerificationResult.verificationErrorCode)
+    }
 
     @Test
     @Timeout(20, unit = TimeUnit.SECONDS)
