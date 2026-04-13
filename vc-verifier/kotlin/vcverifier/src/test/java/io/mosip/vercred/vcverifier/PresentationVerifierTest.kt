@@ -272,67 +272,67 @@ class PresentationVerifierTest {
         assertFalse(result.proofVerificationResult.verificationStatus)
     }
 
-//    @Test
-//    @Timeout(20, unit = TimeUnit.SECONDS)
-//    fun `V2 should verify VC and return revoked credential status`() {
-//        val mockStatusListJson = readClasspathFile("ldp_vc/mosipRevokedStatusList.json")
-//        val vp = readClasspathFile("vp/VPWithRevokedVC.json")
-//
-//        mockHttpResponse(
-//            "https://mosip.github.io/inji-config/qa-inji1/mock/did.json",
-//            readClasspathFile("vp/public_key/didMockKey.json")
-//        )
-//
-//        val realUrl =
-//            "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
-//        mockHttpResponse(realUrl, mockStatusListJson)
-//
-//        val result: PresentationResultWithCredentialStatusV2 =
-//            PresentationVerifier().verifyAndGetCredentialStatusV2(
-//                vp,
-//                listOf("revocation")
-//            )
-//
-//        assertFalse(result.proofVerificationResult.verificationStatus)
-//        assertTrue(result.vcResults[0].verificationResult.verificationStatus)
-//
-//        val credentialStatus = result.vcResults[0].credentialStatus
-//        val entry = credentialStatus.entries.first()
-//
-//        assertEquals("revocation", entry.key)
-//        assertFalse(entry.value.isValid)
-//        assertNull(entry.value.error)
-//    }
-//
-//    @Test
-//    @Timeout(20, unit = TimeUnit.SECONDS)
-//    fun `V2 should verify VC and return unrevoked credential status`() {
-//        val mockStatusListJson = readClasspathFile("ldp_vc/mosipUnrevokedStatusList.json")
-//        val vp = readClasspathFile("vp/VPWithUnrevokedVC.json")
-//
-//        mockHttpResponse(
-//            "https://mosip.github.io/inji-config/qa-inji1/mock/did.json",
-//            readClasspathFile("vp/public_key/didMockKey.json")
-//        )
-//
-//        val realUrl =
-//            "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
-//        mockHttpResponse(realUrl, mockStatusListJson)
-//
-//        val result: PresentationResultWithCredentialStatusV2 =
-//            PresentationVerifier().verifyAndGetCredentialStatusV2(
-//                vp,
-//                listOf("revocation")
-//            )
-//
-//        assertFalse(result.proofVerificationResult.verificationStatus)
-//        assertTrue(result.vcResults[0].verificationResult.verificationStatus)
-//
-//        val credentialStatus = result.vcResults[0].credentialStatus
-//        val entry = credentialStatus.entries.first()
-//
-//        assertEquals("revocation", entry.key)
-//        assertTrue(entry.value.isValid)
-//        assertNull(entry.value.error)
-//    }
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should verify VC and return revoked credential status`() {
+        val mockStatusListJson = readClasspathFile("ldp_vc/mosipRevokedStatusList.json")
+        val vp = readClasspathFile("vp/VPWithRevokedVC.json")
+
+        mockHttpResponse(
+            "https://mosip.github.io/inji-config/qa-inji1/mock/did.json",
+            readClasspathFile("vp/public_key/didMockKey.json")
+        )
+
+        val realUrl =
+            "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
+        mockHttpResponse(realUrl, mockStatusListJson)
+
+        val result: PresentationResultWithCredentialStatusV2 =
+            PresentationVerifier().verifyAndGetCredentialStatusV2(
+                vp,
+                listOf("revocation")
+            )
+
+        assertFalse(result.proofVerificationResult.verificationStatus)
+        assertTrue(result.vcResults[0].verificationResult.verificationStatus)
+
+        val credentialStatus = result.vcResults[0].credentialStatus
+        val entry = credentialStatus.entries.first()
+
+        assertEquals("revocation", entry.key)
+        assertFalse(entry.value.isValid)
+        assertNull(entry.value.error)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should verify VC and return unrevoked credential status`() {
+        val mockStatusListJson = readClasspathFile("ldp_vc/mosipUnrevokedStatusList.json")
+        val vp = readClasspathFile("vp/VPWithUnrevokedVC.json")
+
+        mockHttpResponse(
+            "https://mosip.github.io/inji-config/qa-inji1/mock/did.json",
+            readClasspathFile("vp/public_key/didMockKey.json")
+        )
+
+        val realUrl =
+            "https://injicertify-mock.qa-inji1.mosip.net/v1/certify/credentials/status-list/56622ad1-c304-4d7a-baf0-08836d63c2bf"
+        mockHttpResponse(realUrl, mockStatusListJson)
+
+        val result: PresentationResultWithCredentialStatusV2 =
+            PresentationVerifier().verifyAndGetCredentialStatusV2(
+                vp,
+                listOf("revocation")
+            )
+
+        assertFalse(result.proofVerificationResult.verificationStatus)
+        assertTrue(result.vcResults[0].verificationResult.verificationStatus)
+
+        val credentialStatus = result.vcResults[0].credentialStatus
+        val entry = credentialStatus.entries.first()
+
+        assertEquals("revocation", entry.key)
+        assertTrue(entry.value.isValid)
+        assertNull(entry.value.error)
+    }
 }
