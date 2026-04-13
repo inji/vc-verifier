@@ -24,8 +24,10 @@ import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.HOLDER_
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.HOLDER_VERIFICATION_FAIL_ERROR
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ES256K_PROOF_TYPE_2019
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ES256_PROOF_TYPE_2019
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.FAILED_TO_DECODE
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JSON_WEB_PROOF_TYPE_2020
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.SUBJECT_ID_MISSING_MSG
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.UNSUPPORTED_KEY_TYPE
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.VERIFIABLE_CREDENTIAL_MISSING_MSG
 import io.mosip.vercred.vcverifier.constants.Shared.KEY_VERIFIABLE_CREDENTIAL
 import io.mosip.vercred.vcverifier.data.PresentationVerificationResult
@@ -214,7 +216,7 @@ class PresentationVerifier {
                 val base64UrlDecoder = Base64Decoder()
                 JSONObject(String(base64UrlDecoder.decodeFromBase64Url(encodedJwk)))
             } catch (_: Exception) {
-                null
+                throw HolderBindingException(FAILED_TO_DECODE, HOLDER_VERIFICATION_FAIL_ERROR)
             }
         }
         if (did.startsWith("did:key:")) {
@@ -236,10 +238,10 @@ class PresentationVerifier {
                         JSONObject(ecKey.toJSONObject())
                     }
 
-                    else -> null
+                    else -> throw HolderBindingException(UNSUPPORTED_KEY_TYPE.format(decodedKey), HOLDER_VERIFICATION_FAIL_ERROR)
                 }
             } catch (_: Exception) {
-                null
+                throw HolderBindingException(FAILED_TO_DECODE, HOLDER_VERIFICATION_FAIL_ERROR)
             }
         }
         return null

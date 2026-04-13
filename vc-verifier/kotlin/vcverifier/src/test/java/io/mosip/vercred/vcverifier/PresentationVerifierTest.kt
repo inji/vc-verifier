@@ -174,7 +174,7 @@ class PresentationVerifierTest {
     @Timeout(20, unit = TimeUnit.SECONDS)
     fun `V2 should return failed for invalid holder binding VP`() {
         val vp = readClasspathFile("vp/InvalidHolderBindingVP.json")
-        val verifier = spyk(PresentationVerifier())
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
         every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
 
         assertThrows<HolderBindingException> { verifier.verifyV2(vp) }
@@ -184,7 +184,7 @@ class PresentationVerifierTest {
     @Timeout(20, unit = TimeUnit.SECONDS)
     fun `V2 should return success for valid jwk holder binding VP`() {
         val vp = readClasspathFile("vp/validJWKHolderBindingVP.json")
-        val verifier = spyk(PresentationVerifier())
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
         every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
 
         val result = verifier.verifyV2(vp)
@@ -197,7 +197,7 @@ class PresentationVerifierTest {
     @Timeout(20, unit = TimeUnit.SECONDS)
     fun `V2 should skip holder binding for unSupported did VP`() {
         val vp = readClasspathFile("vp/webHolderBindingVP.json")
-        val verifier = spyk(PresentationVerifier())
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
         every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
 
         val result = verifier.verifyV2(vp)
@@ -210,7 +210,7 @@ class PresentationVerifierTest {
     @Timeout(20, unit = TimeUnit.SECONDS)
     fun `verifyV2 should return success when VP holder did-key matches VC subject did-jwk`() {
         val vp = readClasspathFile("vp/crossMethodBindingVP.json")
-        val verifier = spyk(PresentationVerifier())
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
         every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
 
         val result = verifier.verifyV2(vp)
