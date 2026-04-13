@@ -188,24 +188,32 @@ class PresentationVerifier {
 
         verifiableCredentials.filterIsInstance<Map<String, Any>>().forEach { credential ->
             val credentialSubject = credential[CREDENTIAL_SUBJECT]
-            val subjectStr = when (credentialSubject) {
-                is Map<*, *> -> credentialSubject[ID] as? String
-                is List<*> -> (credentialSubject.firstOrNull() as? Map<*, *>)?.get(ID) as? String
+            val subjects = when (credentialSubject) {
+                is Map<*, *> -> listOf(credentialSubject)
+                is List<*> -> credentialSubject.ifEmpty { null }
                 else -> null
             } ?: throw HolderBindingException(
                 SUBJECT_ID_MISSING_MSG,
                 HOLDER_VERIFICATION_FAIL_ERROR
             )
-            val subjectPublicKeyJson = extractPublicKeyJson(subjectStr) ?: run {
-                logger.info("Skipping subject binding check: Method not supported for $subjectStr")
-                return@forEach
-            }
 
-            if (!comparePublicKeyJson(holderPublicKeyJson, subjectPublicKeyJson)) {
-                throw HolderBindingException(
-                    HOLDER_MISMATCH_MSG.format(holderStr, subjectStr),
-                    HOLDER_VERIFICATION_FAIL_ERROR
-                )
+            subjects.forEach { subject ->
+                val subjectStr = (subject as? Map<*, *>)?.get(ID) as? String
+                    ?: throw HolderBindingException(
+                        SUBJECT_ID_MISSING_MSG,
+                        HOLDER_VERIFICATION_FAIL_ERROR
+                    )
+                val subjectPublicKeyJson = extractPublicKeyJson(subjectStr) ?: run {
+                    logger.info("Skipping subject binding check: Method not supported for $subjectStr")
+                    return@forEach
+                }
+
+                if (!comparePublicKeyJson(holderPublicKeyJson, subjectPublicKeyJson)) {
+                    throw HolderBindingException(
+                        HOLDER_MISMATCH_MSG.format(holderStr, subjectStr),
+                        HOLDER_VERIFICATION_FAIL_ERROR
+                    )
+                }
             }
         }
     }
