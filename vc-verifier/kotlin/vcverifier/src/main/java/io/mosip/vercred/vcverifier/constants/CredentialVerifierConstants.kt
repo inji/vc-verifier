@@ -58,7 +58,7 @@ object CredentialVerifierConstants {
     const val VERIFIABLE_CREDENTIAL_MISSING_MSG = "The Verifiable Presentation is missing a mandatory Verifiable Credential"
     const val HOLDER_MISMATCH_MSG = "Holder mismatch in VP: VP holder: %s, VC subject: %s"
     const val UNSUPPORTED_KEY_TYPE = "KeyType - %s is not supported. Supported: ed25519, ecr1"
-    const val FAILED_TO_DECODE = "Fail to decode did to JWK"
+    const val FAILED_TO_DECODE = "Fail to decode input to extract public key"
 
     // This is used to turn public key bytes into a buffer in DER format
     const val ED_DER_PUBLIC_KEY_PREFIX = "302a300506032b6570032100"

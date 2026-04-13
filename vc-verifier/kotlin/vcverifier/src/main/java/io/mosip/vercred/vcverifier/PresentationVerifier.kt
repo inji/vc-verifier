@@ -172,10 +172,10 @@ class PresentationVerifier {
     }
 
     private fun validateHolderBindingForDidKeyAndJwk(vcJsonLdObject: JsonLDObject) {
-        val holderDid = vcJsonLdObject.jsonObject[HOLDER] as? String
+        val holderStr = vcJsonLdObject.jsonObject[HOLDER] as? String
             ?: throw HolderBindingException(HOLDER_MISSING_MSG, HOLDER_VERIFICATION_FAIL_ERROR)
-        val holderJwk = getJwkFromDid(holderDid) ?: run {
-            logger.info("Skipping holder binding: Method not supported for $holderDid")
+        val holderPublicKeyJson = extractPublicKeyJson(holderStr) ?: run {
+            logger.info("Skipping holder binding: Method not supported for $holderStr")
             return
         }
 
@@ -188,7 +188,7 @@ class PresentationVerifier {
 
         verifiableCredentials.filterIsInstance<Map<String, Any>>().forEach { credential ->
             val credentialSubject = credential[CREDENTIAL_SUBJECT]
-            val subjectDid = when (credentialSubject) {
+            val subjectStr = when (credentialSubject) {
                 is Map<*, *> -> credentialSubject[ID] as? String
                 is List<*> -> (credentialSubject.firstOrNull() as? Map<*, *>)?.get(ID) as? String
                 else -> null
@@ -196,23 +196,23 @@ class PresentationVerifier {
                 SUBJECT_ID_MISSING_MSG,
                 HOLDER_VERIFICATION_FAIL_ERROR
             )
-            val subjectJwk = getJwkFromDid(subjectDid) ?: run {
-                logger.info("Skipping subject binding check: Method not supported for $subjectDid")
+            val subjectPublicKeyJson = extractPublicKeyJson(subjectStr) ?: run {
+                logger.info("Skipping subject binding check: Method not supported for $subjectStr")
                 return@forEach
             }
 
-            if (!compareJwks(holderJwk, subjectJwk)) {
+            if (!comparePublicKeyJson(holderPublicKeyJson, subjectPublicKeyJson)) {
                 throw HolderBindingException(
-                    HOLDER_MISMATCH_MSG.format(holderDid, subjectDid),
+                    HOLDER_MISMATCH_MSG.format(holderStr, subjectStr),
                     HOLDER_VERIFICATION_FAIL_ERROR
                 )
             }
         }
     }
 
-    private fun getJwkFromDid(did: String): JSONObject? {
-        if (did.startsWith("did:jwk:")) {
-            val encodedJwk = did.removePrefix("did:jwk:").split('#', '?', ';')[0]
+    private fun extractPublicKeyJson(input: String): JSONObject? {
+        if (input.startsWith("did:jwk:")) {
+            val encodedJwk = input.removePrefix("did:jwk:").split('#', '?', ';')[0]
             return try {
                 val base64UrlDecoder = Base64Decoder()
                 val jwkJson = String(base64UrlDecoder.decodeFromBase64Url(encodedJwk))
@@ -224,9 +224,9 @@ class PresentationVerifier {
                 throw HolderBindingException(FAILED_TO_DECODE, HOLDER_VERIFICATION_FAIL_ERROR)
             }
         }
-        if (did.startsWith("did:key:")) {
+        if (input.startsWith("did:key:")) {
             return try {
-                val methodSpecificId = did.removePrefix("did:key:").split('#', '?', ';')[0]
+                val methodSpecificId = input.removePrefix("did:key:").split('#', '?', ';')[0]
                 val decodedKey = Multibase.decode(methodSpecificId)
                 when {
                     isEd25519KeyType(decodedKey) -> {
@@ -257,21 +257,21 @@ class PresentationVerifier {
         return null
     }
 
-    private fun compareJwks(jwk1: JSONObject, jwk2: JSONObject): Boolean {
-        logger.info("jwk1: $jwk1, jwk2: $jwk2")
-        val keyType = jwk1.optString("kty")
-        if (keyType != jwk2.optString("kty")) return false
+    private fun comparePublicKeyJson(publicKeyJson1: JSONObject, publicKeyJson2: JSONObject): Boolean {
+        logger.info("publicKeyJson1: $publicKeyJson1, publicKeyJson2: $publicKeyJson2")
+        val keyType = publicKeyJson1.optString("kty")
+        if (keyType != publicKeyJson2.optString("kty")) return false
 
         return when (keyType) {
-            "EC" -> jwk1.optString("crv") == jwk2.optString("crv") &&
-                    jwk1.optString("x") == jwk2.optString("x") &&
-                    jwk1.optString("y") == jwk2.optString("y")
+            "EC" -> publicKeyJson1.optString("crv") == publicKeyJson2.optString("crv") &&
+                    publicKeyJson1.optString("x") == publicKeyJson2.optString("x") &&
+                    publicKeyJson1.optString("y") == publicKeyJson2.optString("y")
 
-            "OKP" -> jwk1.optString("crv") == jwk2.optString("crv") &&
-                    jwk1.optString("x") == jwk2.optString("x")
+            "OKP" -> publicKeyJson1.optString("crv") == publicKeyJson2.optString("crv") &&
+                    publicKeyJson1.optString("x") == publicKeyJson2.optString("x")
 
-            "RSA" -> jwk1.optString("n") == jwk2.optString("n") &&
-                    jwk1.optString("e") == jwk2.optString("e")
+            "RSA" -> publicKeyJson1.optString("n") == publicKeyJson2.optString("n") &&
+                    publicKeyJson1.optString("e") == publicKeyJson2.optString("e")
 
             else -> false
         }
