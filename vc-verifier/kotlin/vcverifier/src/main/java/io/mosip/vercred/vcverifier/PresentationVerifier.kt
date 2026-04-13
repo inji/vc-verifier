@@ -4,6 +4,7 @@ import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSObject
 import com.nimbusds.jose.jwk.Curve
 import com.nimbusds.jose.jwk.ECKey
+import com.nimbusds.jose.jwk.JWK
 import com.nimbusds.jose.jwk.OctetKeyPair
 import com.nimbusds.jose.util.Base64URL
 import foundation.identity.jsonld.JsonLDObject
@@ -49,6 +50,7 @@ import io.mosip.vercred.vcverifier.exception.SignatureNotSupportedException
 import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.UnknownException
 import io.mosip.vercred.vcverifier.keyResolver.PublicKeyResolverFactory
+import io.mosip.vercred.vcverifier.keyResolver.decompressP256Key
 import io.mosip.vercred.vcverifier.signature.impl.ED25519SignatureVerifierImpl
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
 import io.mosip.vercred.vcverifier.signature.impl.ES256KSignatureVerifierImpl
@@ -57,7 +59,6 @@ import io.mosip.vercred.vcverifier.utils.Util
 import io.mosip.vercred.vcverifier.utils.asIterable
 import org.json.JSONArray
 import org.json.JSONObject
-import java.security.interfaces.ECPublicKey
 import java.security.spec.InvalidKeySpecException
 import java.util.logging.Logger
 
@@ -214,7 +215,11 @@ class PresentationVerifier {
             val encodedJwk = did.removePrefix("did:jwk:").split('#', '?', ';')[0]
             return try {
                 val base64UrlDecoder = Base64Decoder()
-                JSONObject(String(base64UrlDecoder.decodeFromBase64Url(encodedJwk)))
+                val jwkJson = String(base64UrlDecoder.decodeFromBase64Url(encodedJwk))
+                JWK.parse(jwkJson)
+                JSONObject(jwkJson)
+            } catch (e: HolderBindingException) {
+                throw e
             } catch (_: Exception) {
                 throw HolderBindingException(FAILED_TO_DECODE, HOLDER_VERIFICATION_FAIL_ERROR)
             }
@@ -231,15 +236,21 @@ class PresentationVerifier {
 
                     isP256KeyType(decodedKey) -> {
                         val publicKeyBytes = decodedKey.copyOfRange(2, decodedKey.size)
-                        val ecKey = ECKey.Builder(
-                            Curve.P_256,
-                            Base64URL.encode(publicKeyBytes) as ECPublicKey?
-                        ).build()
+                        val decompressed = decompressP256Key(publicKeyBytes)
+                        // decompressed is 0x04 || x || y (65 bytes)
+                        val x = Base64URL.encode(decompressed.copyOfRange(1, 33))
+                        val y = Base64URL.encode(decompressed.copyOfRange(33, 65))
+                        val ecKey = ECKey.Builder(Curve.P_256, x, y).build()
                         JSONObject(ecKey.toJSONObject())
                     }
 
-                    else -> throw HolderBindingException(UNSUPPORTED_KEY_TYPE.format(decodedKey), HOLDER_VERIFICATION_FAIL_ERROR)
+                    else -> throw HolderBindingException(
+                        UNSUPPORTED_KEY_TYPE.format(decodedKey),
+                        HOLDER_VERIFICATION_FAIL_ERROR
+                    )
                 }
+            } catch (e: HolderBindingException) {
+                throw e
             } catch (_: Exception) {
                 throw HolderBindingException(FAILED_TO_DECODE, HOLDER_VERIFICATION_FAIL_ERROR)
             }

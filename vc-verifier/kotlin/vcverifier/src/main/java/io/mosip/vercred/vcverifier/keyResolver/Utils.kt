@@ -219,7 +219,7 @@ fun getPublicKeyObjectFromPublicKeyMultibase(publicKeyMultibase: String, keyType
     }
 }
 
-private fun decompressP256Key(compressed: ByteArray): ByteArray {
+internal fun decompressP256Key(compressed: ByteArray): ByteArray {
     val params = ECNamedCurveTable.getParameterSpec("secp256r1")
     val curve = params.curve
 
