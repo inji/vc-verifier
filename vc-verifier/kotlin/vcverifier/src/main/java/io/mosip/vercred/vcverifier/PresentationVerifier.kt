@@ -237,7 +237,6 @@ class PresentationVerifier {
                     isP256KeyType(decodedKey) -> {
                         val publicKeyBytes = decodedKey.copyOfRange(2, decodedKey.size)
                         val decompressed = decompressP256Key(publicKeyBytes)
-                        // decompressed is 0x04 || x || y (65 bytes)
                         val x = Base64URL.encode(decompressed.copyOfRange(1, 33))
                         val y = Base64URL.encode(decompressed.copyOfRange(33, 65))
                         val ecKey = ECKey.Builder(Curve.P_256, x, y).build()
