@@ -89,7 +89,7 @@ that focuses on the verification of Verifiable Presentations (VPs). This class p
 specifically designed to handle the unique aspects of VPs, including their structure, proof mechanisms, and the embedded 
 Verifiable Credentials they may contain.
 - **From Version `release-1.8.x` onwards**:
-Added **Holder Binding Check** in `PresentationVerifier.kt` for `did:key` and `did:jwk` formats.
+Added **Holder Binding Check** in `PresentationVerifier.kt` for `did:key` and `did:jwk` DID methods.
 Also added **ECC R1 and K1 support** in both `CredentialVerifier.kt` & `PresentationVerifier.kt`.
 
 #### Integrating jar to Maven Project
