@@ -374,4 +374,114 @@ class PresentationVerifierTest {
         assertTrue(entry.value.isValid)
         assertNull(entry.value.error)
     }
+
+    @Test
+    fun `V2 should throw HolderBindingException when verifiableCredential is missing`() {
+        val vp = readClasspathFile("vp/vpWithMissingVerifiableCredential.json")
+
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        val exception = assertThrows<HolderBindingException> {
+            verifier.verifyV2(vp)
+        }
+        assertTrue(exception.message!!.contains("The Verifiable Presentation is missing a mandatory Verifiable Credential"))
+    }
+
+    @Test
+    fun `V2 should throw HolderBindingException when holder is missing`() {
+        val vp = readClasspathFile("vp/VPWithMissingHolder.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        val exception = assertThrows<HolderBindingException> {
+            verifier.verifyV2(vp)
+        }
+        assertEquals("The Verifiable Presentation is missing a mandatory Holder ID", exception.message)
+    }
+
+    @Test
+    fun `V2 should throw HolderBindingException when credentialSubject is missing or empty`() {
+        val vp = readClasspathFile("vp/VPWithEmptySubject.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        assertThrows<HolderBindingException> {
+            verifier.verifyV2(vp)
+        }
+    }
+
+    @Test
+    fun `V2 should throw HolderBindingException when subject ID is missing`() {
+        val vp = readClasspathFile("vp/VPWithSubjectMissingId.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        assertThrows<HolderBindingException> {
+            verifier.verifyV2(vp)
+        }
+    }
+
+    @Test
+    fun `V2 should throw HolderBindingException when did-jwk is malformed`() {
+        val vp = readClasspathFile("vp/VPWithMalformedJwk.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        val exception = assertThrows<HolderBindingException> {
+            verifier.verifyV2(vp)
+        }
+        assertEquals("Fail to decode input to extract public key", exception.message)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should handle P256 key type in did-key extraction`() {
+        val vp = readClasspathFile("vp/P256HolderBindingVP.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        val result = verifier.verifyV2(vp)
+        assertNotNull(result)
+    }
+
+    @Test
+    fun `V2 should throw HolderBindingException for unsupported multi-codec key type`() {
+        val vp = readClasspathFile("vp/UnsupportedKeyTypeVP.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        assertThrows<HolderBindingException> {
+            verifier.verifyV2(vp)
+        }
+    }
+
+    @Test
+    fun `comparePublicKeyJson should return false for unknown key types`() {
+        val verifier = PresentationVerifier()
+        val method = verifier.javaClass.getDeclaredMethod("comparePublicKeyJson", org.json.JSONObject::class.java, org.json.JSONObject::class.java)
+        method.isAccessible = true
+
+        val key1 = org.json.JSONObject().put("kty", "UNKNOWN")
+        val key2 = org.json.JSONObject().put("kty", "UNKNOWN")
+
+        val result = method.invoke(verifier, key1, key2) as Boolean
+        assertFalse(result)
+    }
+
+    @Test
+    fun `comparePublicKeyJson should validate RSA key components`() {
+        val verifier = PresentationVerifier()
+        val method = verifier.javaClass.getDeclaredMethod("comparePublicKeyJson", org.json.JSONObject::class.java, org.json.JSONObject::class.java)
+        method.isAccessible = true
+
+        val key1 = org.json.JSONObject().put("kty", "RSA").put("n", "n-val").put("e", "e-val")
+        val key2 = org.json.JSONObject().put("kty", "RSA").put("n", "n-val").put("e", "e-val")
+        val key3 = org.json.JSONObject().put("kty", "RSA").put("n", "n-val").put("e", "different-e-val")
+
+        val resultTrue = method.invoke(verifier, key1, key2) as Boolean
+        val resultFalse = method.invoke(verifier, key1, key3) as Boolean
+        assertTrue(resultTrue)
+        assertFalse(resultFalse)
+    }
 }
