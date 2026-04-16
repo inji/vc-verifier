@@ -385,7 +385,7 @@ class PresentationVerifierTest {
         val exception = assertThrows<HolderBindingException> {
             verifier.verifyV2(vp)
         }
-        assertTrue(exception.message!!.contains("The Verifiable Presentation is missing a mandatory Verifiable Credential"))
+        assertEquals("The Verifiable Presentation is missing a mandatory Verifiable Credential", exception.message)
     }
 
     @Test
