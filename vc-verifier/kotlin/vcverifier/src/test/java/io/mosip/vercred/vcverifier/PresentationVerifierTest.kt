@@ -29,6 +29,7 @@ import testutils.readClasspathFile
 import java.util.concurrent.TimeUnit
 import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatusV2
 import io.mosip.vercred.vcverifier.exception.HolderBindingException
+import org.junit.jupiter.api.Assertions.assertNotEquals
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PresentationVerifierTest {
@@ -57,19 +58,17 @@ class PresentationVerifierTest {
 
     }
 
-//    @Test
-//    @Timeout(value = 20, unit = TimeUnit.SECONDS)
-//    fun `should return true for valid presentation verification success JsonWebSignature2020`() {
-//        mockHttpResponse("https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json", readClasspathFile("vp/public_key/didIdentityServiceKey.json"))
-//        val vc = readClasspathFile("vp/JsonWebSignature2020SignedVP-didJws.json")
-//
-//        val verificationResult = PresentationVerifier().verify(vc)
-//
-//        assertEquals(VPVerificationStatus.VALID,verificationResult.proofVerificationStatus)
-//        assertEquals(verificationResult.vcResults[0].status, VerificationStatus.SUCCESS)
-//        assertNotEquals(verificationResult.vcResults[0].vc, "")
-//        assertNotNull(verificationResult.vcResults[0].vc)
-//    }
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS)
+    fun `should return true for valid presentation verification success JsonWebSignature2020`() {
+        mockHttpResponse("https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json", readClasspathFile("vp/public_key/didIdentityServiceKey.json"))
+
+        val vc = readClasspathFile("vp/JsonWebSignature2020SignedVP-didJws.json")
+        val verificationResult = PresentationVerifier().verify(vc)
+        assertEquals(VPVerificationStatus.VALID, verificationResult.proofVerificationStatus)
+        assertNotEquals("", verificationResult.vcResults[0].vc)
+        assertNotNull(verificationResult.vcResults[0].vc)
+    }
 
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
@@ -259,23 +258,22 @@ class PresentationVerifierTest {
         assertTrue(result.vcResults[0].verificationResult.verificationStatus)
     }
 
-//    @Test
-//    @Timeout(20, unit = TimeUnit.SECONDS)
-//    fun `V2 should return success for valid JsonWebSignature2020 VP`() {
-//        mockHttpResponse(
-//            "https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json",
-//            readClasspathFile("vp/public_key/didIdentityServiceKey.json")
-//        )
-//
-//        val vp = readClasspathFile("vp/JsonWebSignature2020SignedVP-didJws.json")
-//
-//        val result = PresentationVerifier().verifyV2(vp)
-//
-//        assertTrue(result.proofVerificationResult.verificationStatus)
-//        assertTrue(result.vcResults[0].verificationResult.verificationStatus)
-//        assertNotNull(result.vcResults[0].vc)
-//        assertNotEquals("", result.vcResults[0].vc)
-//    }
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should return success for valid JsonWebSignature2020 VP`() {
+        mockHttpResponse(
+            "https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json",
+            readClasspathFile("vp/public_key/didIdentityServiceKey.json")
+        )
+
+        val vp = readClasspathFile("vp/JsonWebSignature2020SignedVP-didJws.json")
+
+        val result = PresentationVerifier().verifyV2(vp)
+
+        assertTrue(result.proofVerificationResult.verificationStatus)
+        assertNotNull(result.vcResults[0].vc)
+        assertNotEquals("", result.vcResults[0].vc)
+    }
 
     @Test
     @Timeout(20, unit = TimeUnit.SECONDS)
