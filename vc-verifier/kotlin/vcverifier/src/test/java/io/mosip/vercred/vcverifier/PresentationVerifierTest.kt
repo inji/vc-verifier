@@ -29,6 +29,7 @@ import testutils.readClasspathFile
 import java.util.concurrent.TimeUnit
 import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatusV2
 import io.mosip.vercred.vcverifier.exception.HolderBindingException
+import org.junit.jupiter.api.Assertions.assertNotEquals
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PresentationVerifierTest {
@@ -57,19 +58,17 @@ class PresentationVerifierTest {
 
     }
 
-//    @Test
-//    @Timeout(value = 20, unit = TimeUnit.SECONDS)
-//    fun `should return true for valid presentation verification success JsonWebSignature2020`() {
-//        mockHttpResponse("https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json", readClasspathFile("vp/public_key/didIdentityServiceKey.json"))
-//        val vc = readClasspathFile("vp/JsonWebSignature2020SignedVP-didJws.json")
-//
-//        val verificationResult = PresentationVerifier().verify(vc)
-//
-//        assertEquals(VPVerificationStatus.VALID,verificationResult.proofVerificationStatus)
-//        assertEquals(verificationResult.vcResults[0].status, VerificationStatus.SUCCESS)
-//        assertNotEquals(verificationResult.vcResults[0].vc, "")
-//        assertNotNull(verificationResult.vcResults[0].vc)
-//    }
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS)
+    fun `should return true for valid presentation verification success JsonWebSignature2020`() {
+        mockHttpResponse("https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json", readClasspathFile("vp/public_key/didIdentityServiceKey.json"))
+
+        val vc = readClasspathFile("vp/JsonWebSignature2020SignedVP-didJws.json")
+        val verificationResult = PresentationVerifier().verify(vc)
+        assertEquals(VPVerificationStatus.VALID, verificationResult.proofVerificationStatus)
+        assertNotEquals("", verificationResult.vcResults[0].vc)
+        assertNotNull(verificationResult.vcResults[0].vc)
+    }
 
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
@@ -259,23 +258,22 @@ class PresentationVerifierTest {
         assertTrue(result.vcResults[0].verificationResult.verificationStatus)
     }
 
-//    @Test
-//    @Timeout(20, unit = TimeUnit.SECONDS)
-//    fun `V2 should return success for valid JsonWebSignature2020 VP`() {
-//        mockHttpResponse(
-//            "https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json",
-//            readClasspathFile("vp/public_key/didIdentityServiceKey.json")
-//        )
-//
-//        val vp = readClasspathFile("vp/JsonWebSignature2020SignedVP-didJws.json")
-//
-//        val result = PresentationVerifier().verifyV2(vp)
-//
-//        assertTrue(result.proofVerificationResult.verificationStatus)
-//        assertTrue(result.vcResults[0].verificationResult.verificationStatus)
-//        assertNotNull(result.vcResults[0].vc)
-//        assertNotEquals("", result.vcResults[0].vc)
-//    }
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should return success for valid JsonWebSignature2020 VP`() {
+        mockHttpResponse(
+            "https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json",
+            readClasspathFile("vp/public_key/didIdentityServiceKey.json")
+        )
+
+        val vp = readClasspathFile("vp/JsonWebSignature2020SignedVP-didJws.json")
+
+        val result = PresentationVerifier().verifyV2(vp)
+
+        assertTrue(result.proofVerificationResult.verificationStatus)
+        assertNotNull(result.vcResults[0].vc)
+        assertNotEquals("", result.vcResults[0].vc)
+    }
 
     @Test
     @Timeout(20, unit = TimeUnit.SECONDS)
@@ -375,5 +373,117 @@ class PresentationVerifierTest {
         assertEquals("revocation", entry.key)
         assertTrue(entry.value.isValid)
         assertNull(entry.value.error)
+    }
+
+    @Test
+    fun `V2 should throw HolderBindingException when verifiableCredential is missing`() {
+        val vp = readClasspathFile("vp/vpWithMissingVerifiableCredential.json")
+
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        val exception = assertThrows<HolderBindingException> {
+            verifier.verifyV2(vp)
+        }
+        assertEquals("The Verifiable Presentation is missing a mandatory Verifiable Credential", exception.message)
+    }
+
+    @Test
+    fun `V2 should throw HolderBindingException when holder is missing`() {
+        val vp = readClasspathFile("vp/VPWithMissingHolder.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        val exception = assertThrows<HolderBindingException> {
+            verifier.verifyV2(vp)
+        }
+        assertEquals("The Verifiable Presentation is missing a mandatory Holder ID", exception.message)
+    }
+
+    @Test
+    fun `V2 should throw HolderBindingException when credentialSubject is missing or empty`() {
+        val vp = readClasspathFile("vp/VPWithEmptySubject.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        assertThrows<HolderBindingException> {
+            verifier.verifyV2(vp)
+        }
+    }
+
+    @Test
+    fun `V2 should throw HolderBindingException when subject ID is missing`() {
+        val vp = readClasspathFile("vp/VPWithSubjectMissingId.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        assertThrows<HolderBindingException> {
+            verifier.verifyV2(vp)
+        }
+    }
+
+    @Test
+    fun `V2 should throw HolderBindingException when did-jwk is malformed`() {
+        val vp = readClasspathFile("vp/VPWithMalformedJwk.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        val exception = assertThrows<HolderBindingException> {
+            verifier.verifyV2(vp)
+        }
+        assertEquals("Fail to decode input to extract public key", exception.message)
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should handle P256 key type in did-key extraction`() {
+        val vp = readClasspathFile("vp/P256HolderBindingVP.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        val result = verifier.verifyV2(vp)
+        assertNotNull(result)
+        assertTrue(result.proofVerificationResult.verificationStatus)
+        assertEquals("", result.proofVerificationResult.verificationErrorCode)
+    }
+
+    @Test
+    fun `V2 should throw HolderBindingException for unsupported multi-codec key type`() {
+        val vp = readClasspathFile("vp/UnsupportedKeyTypeVP.json")
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+
+        assertThrows<HolderBindingException> {
+            verifier.verifyV2(vp)
+        }
+    }
+
+    @Test
+    fun `comparePublicKeyJson should return false for unknown key types`() {
+        val verifier = PresentationVerifier()
+        val method = verifier.javaClass.getDeclaredMethod("comparePublicKeyJson", org.json.JSONObject::class.java, org.json.JSONObject::class.java)
+        method.isAccessible = true
+
+        val key1 = org.json.JSONObject().put("kty", "UNKNOWN")
+        val key2 = org.json.JSONObject().put("kty", "UNKNOWN")
+
+        val result = method.invoke(verifier, key1, key2) as Boolean
+        assertFalse(result)
+    }
+
+    @Test
+    fun `comparePublicKeyJson should validate RSA key components`() {
+        val verifier = PresentationVerifier()
+        val method = verifier.javaClass.getDeclaredMethod("comparePublicKeyJson", org.json.JSONObject::class.java, org.json.JSONObject::class.java)
+        method.isAccessible = true
+
+        val key1 = org.json.JSONObject().put("kty", "RSA").put("n", "n-val").put("e", "e-val")
+        val key2 = org.json.JSONObject().put("kty", "RSA").put("n", "n-val").put("e", "e-val")
+        val key3 = org.json.JSONObject().put("kty", "RSA").put("n", "n-val").put("e", "different-e-val")
+
+        val resultTrue = method.invoke(verifier, key1, key2) as Boolean
+        val resultFalse = method.invoke(verifier, key1, key3) as Boolean
+        assertTrue(resultTrue)
+        assertFalse(resultFalse)
     }
 }
