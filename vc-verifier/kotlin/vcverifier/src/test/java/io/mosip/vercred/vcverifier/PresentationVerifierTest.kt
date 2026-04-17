@@ -443,6 +443,8 @@ class PresentationVerifierTest {
 
         val result = verifier.verifyV2(vp)
         assertNotNull(result)
+        assertTrue(result.proofVerificationResult.verificationStatus)
+        assertEquals("", result.proofVerificationResult.verificationErrorCode)
     }
 
     @Test
