@@ -100,7 +100,7 @@ class PresentationVerifier {
     }
 
     private fun getPresentationVerificationStatus(presentation: String): VPVerificationStatus {
-        logger.info("Received Presentation For Verification - Start")
+        logger.info("Received Presentation For Verification - getPresentationVerificationStatus - Start")
         val vcJsonLdObject: JsonLDObject
 
         try {
@@ -137,7 +137,7 @@ class PresentationVerifier {
     }
 
     private fun getPresentationVerificationResult(presentation: String): VerificationResult {
-        logger.info("Received Presentation For Verification - Start")
+        logger.info("Received Presentation For Verification - getPresentationVerificationResult Start")
         val vcJsonLdObject: JsonLDObject
 
         try {
@@ -266,6 +266,7 @@ class PresentationVerifier {
                             return@subjectLoop
                         }
 
+
                     if (
                         !comparePublicKeyJson(
                             holderPublicKeyJson,
@@ -310,10 +311,14 @@ class PresentationVerifier {
 
         val verificationMethodKeyJson =
             extractPublicKeyJson(verificationMethod) ?: run {
-                logger.info(
-                    "Skipping proof-of-possession check: unsupported verificationMethod $verificationMethod"
+                logger.severe(
+                    "Invalid proof-of-possession verificationMethod $verificationMethod"
                 )
-                return
+
+                throw HolderBindingException(
+                    INVALID_HOLDER_PROOF_MSG,
+                    HOLDER_VERIFICATION_FAIL_ERROR
+                )
             }
 
         if (!comparePublicKeyJson(holderPublicKeyJson, verificationMethodKeyJson)) {

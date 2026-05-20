@@ -881,7 +881,7 @@ class PresentationVerifierTest {
     }
 
     @Test
-    fun `validateHolderProofOfPossession should skip unsupported DID method`() {
+    fun `validateHolderProofOfPossession should fail for unsupported DID method`() {
 
         val verifier = PresentationVerifier()
 
@@ -912,9 +912,16 @@ class PresentationVerifierTest {
 
         method.isAccessible = true
 
-        assertDoesNotThrow {
+        val exception = assertThrows<java.lang.reflect.InvocationTargetException> {
             method.invoke(verifier, jsonLdObject, holderKey)
         }
+
+        val cause = exception.cause as HolderBindingException
+
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            cause.errorCode
+        )
     }
 
     @Test

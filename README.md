@@ -100,16 +100,25 @@ Verifiable Credentials they may contain.
 
 From Version `release-1.8.1` onwards, `PresentationVerifier.kt` includes improved holder binding validation handling for `did:key` and `did:jwk` DID methods in existing V1 and V2 verification APIs.
 
-The holder binding validation ensures:
+#### Holder binding validation ensures:
 
 1. `credentialSubject.id` is bound to `vp.holder`
 2. `vp.proof.verificationMethod` is controlled by `vp.holder` (Proof-of-Possession check)
 
-These validations are supported only for:
+#### Holder binding validation is supported only when:
+
+```text
+vp.holder
+```
+
+uses:
 - `did:key`
 - `did:jwk`
 
-Unsupported DID methods are skipped gracefully during holder binding validation.
+For supported holder DID methods:
+
+- unsupported DID methods in `credentialSubject.id` are skipped gracefully during subject-holder binding validation
+- unsupported or invalid DID methods in `vp.proof.verificationMethod` result in holder proof-of-possession validation failure
 
 ### Updated Validation Behavior
 
