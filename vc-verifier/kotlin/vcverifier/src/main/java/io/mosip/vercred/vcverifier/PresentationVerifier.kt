@@ -30,6 +30,8 @@ import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.JSON_WE
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.SUBJECT_ID_MISSING_MSG
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.UNSUPPORTED_KEY_TYPE
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.VERIFIABLE_CREDENTIAL_MISSING_MSG
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.HOLDER_PROOF_MISSING_MSG
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.INVALID_HOLDER_PROOF_MSG
 import io.mosip.vercred.vcverifier.constants.Shared.KEY_VERIFIABLE_CREDENTIAL
 import io.mosip.vercred.vcverifier.data.PresentationVerificationResult
 import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatus
@@ -77,7 +79,9 @@ class PresentationVerifier {
 
         val presentationVerificationStatus: VPVerificationStatus = getPresentationVerificationStatus(presentation)
 
-        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+        val verifiableCredentials =
+            JSONObject(presentation).optJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+                ?: JSONArray()
         val vcVerificationResults: List<VCResult> = getVCVerificationResults(verifiableCredentials)
 
         return PresentationVerificationResult(presentationVerificationStatus, vcVerificationResults)
@@ -87,7 +91,9 @@ class PresentationVerifier {
 
         val presentationVerificationResult: VerificationResult = getPresentationVerificationResult(presentation)
 
-        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+        val verifiableCredentials =
+            JSONObject(presentation).optJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+                ?: JSONArray()
         val vcVerificationResults: List<VCResultV2> = getVCVerificationResultsV2(verifiableCredentials)
 
         return PresentationVerificationResultV2(presentationVerificationResult, vcVerificationResults)
@@ -105,13 +111,16 @@ class PresentationVerifier {
 
         return try {
             if (verifyPresentationProof(vcJsonLdObject)) {
-                validateHolderBindingForDidKeyAndJwk(vcJsonLdObject)
-                VPVerificationStatus.VALID
+                //perform holder binding check
+                return if (validateHolderBindingForDidKeyAndJwk(vcJsonLdObject).verificationStatus)
+                    VPVerificationStatus.VALID
+                else
+                    VPVerificationStatus.INVALID
             }
             else
                 VPVerificationStatus.INVALID
         } catch (e: Exception) {
-            logger.severe("Error while verifying presentation : ${e.message}")
+            logger.severe("Error while verifying presentation proof : ${e.message}")
             when (e) {
                 is PublicKeyNotFoundException,
                 is IllegalStateException,
@@ -140,12 +149,8 @@ class PresentationVerifier {
             val isVerified = verifyPresentationProof(vcJsonLdObject)
 
             if (isVerified) {
-                validateHolderBindingForDidKeyAndJwk(vcJsonLdObject)
-                VerificationResult(
-                    true,
-                    "",
-                    ""
-                )
+                //perform holder binding check
+                return validateHolderBindingForDidKeyAndJwk(vcJsonLdObject)
             } else {
                 VerificationResult(
                     false,
@@ -161,8 +166,7 @@ class PresentationVerifier {
                 is UnsupportedDidUrl,
                 is InvalidKeySpecException,
                 is SignatureNotSupportedException,
-                is SignatureVerificationException,
-                is HolderBindingException -> throw e
+                is SignatureVerificationException -> throw e
 
                 else -> {
                     throw UnknownException("Error while doing verification of verifiable presentation")
@@ -171,103 +175,234 @@ class PresentationVerifier {
         }
     }
 
-    private fun validateHolderBindingForDidKeyAndJwk(vcJsonLdObject: JsonLDObject) {
-        val holderStr = vcJsonLdObject.jsonObject[HOLDER] as? String
-            ?: throw HolderBindingException(HOLDER_MISSING_MSG, HOLDER_VERIFICATION_FAIL_ERROR)
-        val holderPublicKeyJson = extractPublicKeyJson(holderStr) ?: run {
-            logger.info("Skipping holder binding: Method not supported for $holderStr")
-            return
-        }
+    private fun validateHolderBindingForDidKeyAndJwk(
+        vcJsonLdObject: JsonLDObject
+    ): VerificationResult {
 
-        val verifiableCredentials = vcJsonLdObject.jsonObject[KEY_VERIFIABLE_CREDENTIAL]
-            ?.let { it as? List<*> ?: listOf(it) }
-            ?: throw HolderBindingException(
-                VERIFIABLE_CREDENTIAL_MISSING_MSG,
-                HOLDER_VERIFICATION_FAIL_ERROR
-            )
+        val presentationVerified = VerificationResult(
+            true,
+            "",
+            ""
+        )
 
-        verifiableCredentials.filterIsInstance<Map<String, Any>>().forEach { credential ->
-            val credentialSubject = credential[CREDENTIAL_SUBJECT]
-            val subjects = when (credentialSubject) {
-                is Map<*, *> -> listOf(credentialSubject)
-                is List<*> -> credentialSubject.ifEmpty { null }
-                else -> null
-            } ?: throw HolderBindingException(
-                SUBJECT_ID_MISSING_MSG,
-                HOLDER_VERIFICATION_FAIL_ERROR
-            )
+        return try {
+            logger.info("Starting holder binding check")
+            val holderStr = vcJsonLdObject.jsonObject[HOLDER] as? String
+                ?: return VerificationResult(
+                    false,
+                    HOLDER_MISSING_MSG,
+                    HOLDER_VERIFICATION_FAIL_ERROR
+                )
 
-            subjects.forEach { subject ->
-                val subjectStr = (subject as? Map<*, *>)?.get(ID) as? String
+            val verifiableCredentials =
+                vcJsonLdObject.jsonObject[KEY_VERIFIABLE_CREDENTIAL]
+                    ?.let {
+                        val vcs = it as? List<*> ?: listOf(it)
+
+                        if (vcs.isEmpty()) {
+                            throw HolderBindingException(
+                                VERIFIABLE_CREDENTIAL_MISSING_MSG,
+                                HOLDER_VERIFICATION_FAIL_ERROR
+                            )
+                        }
+
+                        vcs
+                    }
                     ?: throw HolderBindingException(
-                        SUBJECT_ID_MISSING_MSG,
+                        VERIFIABLE_CREDENTIAL_MISSING_MSG,
                         HOLDER_VERIFICATION_FAIL_ERROR
                     )
-                val subjectPublicKeyJson = extractPublicKeyJson(subjectStr) ?: run {
-                    logger.info("Skipping subject binding check: Method not supported for $subjectStr")
-                    return@forEach
-                }
 
-                if (!comparePublicKeyJson(holderPublicKeyJson, subjectPublicKeyJson)) {
-                    throw HolderBindingException(
-                        HOLDER_MISMATCH_MSG.format(holderStr, subjectStr),
+            val holderPublicKeyJson = extractPublicKeyJson(holderStr)
+
+            if (holderPublicKeyJson == null) {
+                logger.info(
+                    "Skipping holder binding check: Method not supported for $holderStr"
+                )
+                return presentationVerified
+            }
+
+            validateHolderProofOfPossession(
+                vcJsonLdObject,
+                holderPublicKeyJson
+            )
+
+            verifiableCredentials.forEach { credentialObj ->
+
+                val credential = credentialObj as? Map<*, *>
+                    ?: throw HolderBindingException(
+                        VERIFIABLE_CREDENTIAL_MISSING_MSG,
                         HOLDER_VERIFICATION_FAIL_ERROR
                     )
+
+                val credentialSubject = credential[CREDENTIAL_SUBJECT]
+
+                val subjects = when (credentialSubject) {
+                    is Map<*, *> -> listOf(credentialSubject)
+                    is List<*> -> credentialSubject.ifEmpty { null }
+                    else -> null
+                } ?: throw HolderBindingException(
+                    SUBJECT_ID_MISSING_MSG,
+                    HOLDER_VERIFICATION_FAIL_ERROR
+                )
+
+                subjects.forEach subjectLoop@ { subject ->
+
+                    val subjectStr =
+                        (subject as? Map<*, *>)?.get(ID) as? String
+                            ?: throw HolderBindingException(
+                                SUBJECT_ID_MISSING_MSG,
+                                HOLDER_VERIFICATION_FAIL_ERROR
+                            )
+
+                    val subjectPublicKeyJson =
+                        extractPublicKeyJson(subjectStr) ?: run {
+
+                            logger.info(
+                                "Skipping subject binding check: " +
+                                        "Method not supported for $subjectStr"
+                            )
+
+                            return@subjectLoop
+                        }
+
+                    if (
+                        !comparePublicKeyJson(
+                            holderPublicKeyJson,
+                            subjectPublicKeyJson
+                        )
+                    ) {
+                        throw HolderBindingException(
+                            HOLDER_MISMATCH_MSG.format(
+                                holderStr,
+                                subjectStr
+                            ),
+                            HOLDER_VERIFICATION_FAIL_ERROR
+                        )
+                    }
                 }
             }
+
+            presentationVerified
+
+        } catch (e: HolderBindingException) {
+            logger.severe("Error while doing holder binding check, returning verification failed : ${e.errorCode} :  ${e.errorMessage}")
+            VerificationResult(
+                false,
+                e.errorMessage,
+                e.errorCode
+            )
+        }
+    }
+
+    private fun validateHolderProofOfPossession(
+        vcJsonLdObject: JsonLDObject,
+        holderPublicKeyJson: JSONObject
+    ) {
+        logger.info("Starting holder proof-of-possession check")
+        val proof = LdProof.getFromJsonLDObject(vcJsonLdObject)
+
+        val verificationMethod = proof.verificationMethod?.toString()
+            ?: throw HolderBindingException(
+                HOLDER_PROOF_MISSING_MSG,
+                HOLDER_VERIFICATION_FAIL_ERROR
+            )
+
+        val verificationMethodKeyJson =
+            extractPublicKeyJson(verificationMethod) ?: run {
+                logger.info(
+                    "Skipping proof-of-possession check: unsupported verificationMethod $verificationMethod"
+                )
+                return
+            }
+
+        if (!comparePublicKeyJson(holderPublicKeyJson, verificationMethodKeyJson)) {
+            throw HolderBindingException(
+                INVALID_HOLDER_PROOF_MSG,
+                HOLDER_VERIFICATION_FAIL_ERROR
+            )
         }
     }
 
     private fun extractPublicKeyJson(input: String): JSONObject? {
-        if (input.startsWith("did:jwk:")) {
-            val encodedJwk = input.removePrefix("did:jwk:").split('#', '?', ';')[0]
-            return try {
-                val base64UrlDecoder = Base64Decoder()
-                val jwkJson = String(base64UrlDecoder.decodeFromBase64Url(encodedJwk))
-                val parsedJwk = JWK.parse(jwkJson)
-                val publicJwk = parsedJwk.toPublicJWK()
-                JSONObject(publicJwk.toJSONObject())
-            } catch (e: HolderBindingException) {
-                throw e
-            } catch (_: Exception) {
-                throw HolderBindingException(FAILED_TO_DECODE, HOLDER_VERIFICATION_FAIL_ERROR)
-            }
-        }
-        if (input.startsWith("did:key:")) {
-            return try {
-                val methodSpecificId = input.removePrefix("did:key:").split('#', '?', ';')[0]
-                val decodedKey = Multibase.decode(methodSpecificId)
-                when {
-                    isEd25519KeyType(decodedKey) -> {
-                        val x = Base64URL.encode(decodedKey.copyOfRange(2, 34))
-                        JSONObject(OctetKeyPair.Builder(Curve.Ed25519, x).build().toJSONObject())
-                    }
-
-                    isP256KeyType(decodedKey) -> {
-                        val publicKeyBytes = decodedKey.copyOfRange(2, decodedKey.size)
-                        val decompressed = decompressP256Key(publicKeyBytes)
-                        val x = Base64URL.encode(decompressed.copyOfRange(1, 33))
-                        val y = Base64URL.encode(decompressed.copyOfRange(33, 65))
-                        val ecKey = ECKey.Builder(Curve.P_256, x, y).build()
-                        JSONObject(ecKey.toJSONObject())
-                    }
-
-                    else -> throw HolderBindingException(
-                        UNSUPPORTED_KEY_TYPE.format(decodedKey),
+        return when {
+            input.startsWith("did:jwk:") -> {
+                try {
+                    val encodedJwk = input
+                        .removePrefix("did:jwk:")
+                        .split('#', '?', ';')[0]
+                    val jwkJson = String(
+                        Base64Decoder().decodeFromBase64Url(encodedJwk)
+                    )
+                    val parsedJwk = JWK.parse(jwkJson)
+                    val publicJwk = parsedJwk.toPublicJWK()
+                    JSONObject(publicJwk.toJSONObject())
+                } catch (e: HolderBindingException) {
+                    throw e
+                } catch (e: Exception) {
+                    throw HolderBindingException(
+                        FAILED_TO_DECODE,
                         HOLDER_VERIFICATION_FAIL_ERROR
                     )
                 }
-            } catch (e: HolderBindingException) {
-                throw e
-            } catch (_: Exception) {
-                throw HolderBindingException(FAILED_TO_DECODE, HOLDER_VERIFICATION_FAIL_ERROR)
             }
+
+            input.startsWith("did:key:") -> {
+                try {
+                    val methodSpecificId = input
+                        .removePrefix("did:key:")
+                        .split('#', '?', ';')[0]
+
+                    val decodedKey = Multibase.decode(methodSpecificId)
+                    when {
+                        isEd25519KeyType(decodedKey) -> {
+                            val x = Base64URL.encode(
+                                decodedKey.copyOfRange(2, 34)
+                            )
+                            JSONObject(
+                                OctetKeyPair.Builder(Curve.Ed25519, x)
+                                    .build()
+                                    .toJSONObject()
+                            )
+                        }
+                        isP256KeyType(decodedKey) -> {
+                            val publicKeyBytes =
+                                decodedKey.copyOfRange(2, decodedKey.size)
+                            val decompressed =
+                                decompressP256Key(publicKeyBytes)
+                            val x = Base64URL.encode(
+                                decompressed.copyOfRange(1, 33)
+                            )
+                            val y = Base64URL.encode(
+                                decompressed.copyOfRange(33, 65)
+                            )
+                            JSONObject(
+                                ECKey.Builder(Curve.P_256, x, y)
+                                    .build()
+                                    .toJSONObject()
+                            )
+                        }
+                        else -> {
+                            throw HolderBindingException(
+                                UNSUPPORTED_KEY_TYPE.format(decodedKey),
+                                HOLDER_VERIFICATION_FAIL_ERROR
+                            )
+                        }
+                    }
+                } catch (e: HolderBindingException) {
+                    throw e
+                } catch (e: Exception) {
+                    throw HolderBindingException(
+                        FAILED_TO_DECODE,
+                        HOLDER_VERIFICATION_FAIL_ERROR
+                    )
+                }
+            }
+            else -> null
         }
-        return null
     }
 
     private fun comparePublicKeyJson(publicKeyJson1: JSONObject, publicKeyJson2: JSONObject): Boolean {
-        logger.info("publicKeyJson1: $publicKeyJson1, publicKeyJson2: $publicKeyJson2")
         val keyType = publicKeyJson1.optString("kty")
         if (keyType != publicKeyJson2.optString("kty")) return false
 
@@ -471,7 +606,9 @@ class PresentationVerifier {
     ): PresentationResultWithCredentialStatus {
         val presentationVerificationStatus = getPresentationVerificationStatus(presentation)
 
-        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+        val verifiableCredentials =
+            JSONObject(presentation).optJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+                ?: JSONArray()
         val vcVerificationResults: List<VCResultWithCredentialStatus> = getVCVerificationResultsWithCredentialStatus(verifiableCredentials, statusPurposeList)
 
         return PresentationResultWithCredentialStatus(presentationVerificationStatus, vcVerificationResults)
@@ -483,9 +620,12 @@ class PresentationVerifier {
     ): PresentationResultWithCredentialStatusV2 {
         val presentationVerificationResult = getPresentationVerificationResult(presentation)
 
-        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+        val verifiableCredentials =
+            JSONObject(presentation).optJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+                ?: JSONArray()
         val vcVerificationResults: List<VCResultWithCredentialStatusV2> = getVCVerificationResultsWithCredentialStatusV2(verifiableCredentials, statusPurposeList)
 
         return PresentationResultWithCredentialStatusV2(presentationVerificationResult, vcVerificationResults)
     }
+
 }

@@ -67,4 +67,9 @@ object CredentialVerifierConstants {
 
     const val RSA_MULTICODEC_FIRST = 0x12.toByte()
     const val RSA_MULTICODEC_SECOND = 0x05.toByte()
+
+    const val HOLDER_PROOF_MISSING_MSG =
+        "VP proof verificationMethod is missing"
+    const val INVALID_HOLDER_PROOF_MSG =
+        "VP proof verificationMethod is not controlled by vp.holder"
 }

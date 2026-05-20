@@ -5,8 +5,8 @@
 
 ## 🚨 Breaking Changes
 
-### From Version `release-1.5.x` onward:
-
+### From Version `release-1.5.x` onwards:
+---
 #### ❗ Required Update in Imports
 
 Replace:
@@ -88,11 +88,77 @@ related to validating and verifying Verifiable Credentials (VCs). It also perfor
 that focuses on the verification of Verifiable Presentations (VPs). This class provides methods and functionalities 
 specifically designed to handle the unique aspects of VPs, including their structure, proof mechanisms, and the embedded 
 Verifiable Credentials they may contain.
-- **From Version `release-1.8.x` onwards**:
-Added **Holder Binding Check** in `PresentationVerifier.kt` for `did:key` and `did:jwk` DID methods.
-Also added **ECC R1 and K1 support** in both `CredentialVerifier.kt` & `PresentationVerifier.kt`.
+---
 
-#### Integrating jar to Maven Project
+### From Version `release-1.8.x` onwards:
+---
+
+1. Added **ECC R1 and K1 support** in both `CredentialVerifier.kt` & `PresentationVerifier.kt`.
+2. Added **Holder Binding Check Support**  in `PresentationVerifier.kt`.
+
+### Holder Binding Validation
+
+From Version `release-1.8.1` onwards, `PresentationVerifier.kt` includes improved holder binding validation handling for `did:key` and `did:jwk` DID methods in existing V1 and V2 verification APIs.
+
+The holder binding validation ensures:
+
+1. `credentialSubject.id` is bound to `vp.holder`
+2. `vp.proof.verificationMethod` is controlled by `vp.holder` (Proof-of-Possession check)
+
+These validations are supported only for:
+- `did:key`
+- `did:jwk`
+
+Unsupported DID methods are skipped gracefully during holder binding validation.
+
+### Updated Validation Behavior
+
+Holder binding validation is applied in:
+
+```kotlin
+verify()
+
+verifyV2()
+
+verifyAndGetCredentialStatus()
+
+verifyAndGetCredentialStatusV2()
+```
+
+From `release-1.8.1` onwards:
+
+- holder binding validation failures in form of `HolderBindingException` is no longer exposed through public functions
+- failures are returned as structured verification failures
+- verification messages are propagated through verification results
+
+Validation failures result in:
+
+```kotlin
+VPVerificationStatus.INVALID
+```
+
+or:
+
+```kotlin
+VerificationResult.verificationStatus = false
+```
+
+depending on the function being used.
+
+### Validation Coverage
+
+The following validations are covered:
+
+- missing holder
+- missing `credentialSubject.id`
+- malformed `did:jwk`
+- unsupported key type
+- holder-subject mismatch
+- invalid proof-of-possession (`verificationMethod` not controlled by `vp.holder`)
+
+---
+
+# Integrating jar to Maven Project
 
 
 ##### Add Vc-Verifier in `pom.xml`
