@@ -97,16 +97,16 @@ Verifiable Credentials they may contain.
 2. Added **Holder Binding Check Support**  in `PresentationVerifier.kt`.
 
 ### Holder Binding Validation
-
+---
 From Version `release-1.8.1` onwards, `PresentationVerifier.kt` includes improved holder binding validation handling for `did:key` and `did:jwk` DID methods in existing V1 and V2 verification APIs.
 
-#### Holder binding validation ensures:
-
+#### Holder binding validation ensures
+---
 1. `credentialSubject.id` is bound to `vp.holder`
 2. `vp.proof.verificationMethod` is controlled by `vp.holder` (Proof-of-Possession check)
 
-#### Holder binding validation is supported only when:
-
+#### Holder binding validation is supported only when
+---
 ```text
 vp.holder
 ```
@@ -117,11 +117,25 @@ uses:
 
 For supported holder DID methods:
 
-- unsupported DID methods in `credentialSubject.id` are skipped gracefully during subject-holder binding validation
-- unsupported or invalid DID methods in `vp.proof.verificationMethod` result in holder proof-of-possession validation failure
+- Unsupported DID methods in `credentialSubject.id` are skipped gracefully during subject-holder binding validation
+- Unsupported or invalid DID methods in `vp.proof.verificationMethod` result in holder proof-of-possession validation failure
+
+#### Holder Binding Policy
+---
+The verifier validates:
+- VP proof ownership using the VP proof `verificationMethod`
+- Holder binding between the VP holder and `credentialSubject.id` when present
+
+| Scenario | Result |
+|---|---|
+| VP proof `verificationMethod` does not match VP holder | VP verification fails |
+| `credentialSubject.id` matches VP holder | Pass |
+| `credentialSubject.id` mismatches VP holder | VP verification fails |
+| `credentialSubject.id` missing | Holder binding check skipped |
+| Unsupported DID method | Holder binding check skipped |
 
 ### Updated Validation Behavior
-
+---
 Holder binding validation is applied in:
 
 ```kotlin
@@ -136,9 +150,9 @@ verifyAndGetCredentialStatusV2()
 
 From `release-1.8.1` onwards:
 
-- holder binding validation failures in form of `HolderBindingException` is no longer exposed through public functions
-- failures are returned as structured verification failures
-- verification messages are propagated through verification results
+- `HolderBindingException` is no longer exposed through public verification APIs
+- Holder binding failures are returned as structured verification failures
+- Verification messages are propagated through verification results
 
 Validation failures result in:
 
@@ -152,19 +166,18 @@ or:
 VerificationResult.verificationStatus = false
 ```
 
-depending on the function being used.
+depending on the API being used.
 
 ### Validation Coverage
-
+---
 The following validations are covered:
 
-- missing holder
-- missing `credentialSubject.id`
-- malformed `did:jwk`
-- unsupported key type
-- holder-subject mismatch
-- invalid proof-of-possession (`verificationMethod` not controlled by `vp.holder`)
-
+- Missing holder
+- Missing `credentialSubject.id`
+- Malformed `did:jwk`
+- Unsupported key type
+- Holder-subject mismatch
+- Invalid proof-of-possession (`verificationMethod` not controlled by `vp.holder`)
 ---
 
 # Integrating jar to Maven Project

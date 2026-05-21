@@ -250,10 +250,11 @@ class PresentationVerifier {
 
                     val subjectStr =
                         (subject as? Map<*, *>)?.get(ID) as? String
-                            ?: throw HolderBindingException(
-                                SUBJECT_ID_MISSING_MSG,
-                                HOLDER_VERIFICATION_FAIL_ERROR
-                            )
+
+                    if (subjectStr == null) {
+                        logger.info("Skipping subject binding check: subject.id missing")
+                        return@subjectLoop
+                    }
 
                     val subjectPublicKeyJson =
                         extractPublicKeyJson(subjectStr) ?: run {
