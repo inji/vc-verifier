@@ -330,6 +330,8 @@ class PresentationVerifier {
         }
     }
 
+    //TODO when DidKeyPublicKeyResolver/DidJwkPublicKeyResolver is extended to support RSA, generic EC, OKP
+    // along with current Ed25519, P-256 below code should be replaced with DidKeyPublicKeyResolver / DidJwkPublicKeyResolver
     private fun extractPublicKeyJson(input: String): JSONObject? {
         return when {
             input.startsWith("did:jwk:") -> {
