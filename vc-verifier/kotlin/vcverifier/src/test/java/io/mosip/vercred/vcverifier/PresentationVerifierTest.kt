@@ -28,11 +28,23 @@ import testutils.mockHttpResponse
 import testutils.readClasspathFile
 import java.util.concurrent.TimeUnit
 import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatusV2
-import io.mosip.vercred.vcverifier.exception.HolderBindingException
 import org.junit.jupiter.api.Assertions.assertNotEquals
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.HOLDER_VERIFICATION_FAIL_ERROR
+import io.mosip.vercred.vcverifier.exception.HolderBindingException
+import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PresentationVerifierTest {
+
+    private fun mockedVerifier(): PresentationVerifier {
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+
+        every {
+            verifier["verifyPresentationProof"](any<JsonLDObject>())
+        } returns true
+
+        return verifier
+    }
 
     @BeforeAll
     fun setup() {
@@ -169,23 +181,13 @@ class PresentationVerifierTest {
         assertEquals("", result.proofVerificationResult.verificationErrorCode)
     }
 
-    @Test
-    @Timeout(20, unit = TimeUnit.SECONDS)
-    fun `V2 should return failed for invalid holder binding VP`() {
-        val vp = readClasspathFile("vp/InvalidHolderBindingVP.json")
-        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
-        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
 
-        assertThrows<HolderBindingException> { verifier.verifyV2(vp) }
-    }
 
     @Test
     @Timeout(20, unit = TimeUnit.SECONDS)
     fun `V2 should return success for valid jwk holder binding VP`() {
         val vp = readClasspathFile("vp/validJWKHolderBindingVP.json")
-        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
-        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
-
+        val verifier = mockedVerifier()
         val result = verifier.verifyV2(vp)
 
         assertTrue(result.proofVerificationResult.verificationStatus)
@@ -196,9 +198,7 @@ class PresentationVerifierTest {
     @Timeout(20, unit = TimeUnit.SECONDS)
     fun `V2 should skip holder binding for unSupported did VP`() {
         val vp = readClasspathFile("vp/webHolderBindingVP.json")
-        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
-        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
-
+        val verifier = mockedVerifier()
         val result = verifier.verifyV2(vp)
 
         assertTrue(result.proofVerificationResult.verificationStatus)
@@ -209,21 +209,11 @@ class PresentationVerifierTest {
     @Timeout(20, unit = TimeUnit.SECONDS)
     fun `verifyV2 should return success when VP holder did-key matches VC subject did-jwk`() {
         val vp = readClasspathFile("vp/crossMethodBindingVP.json")
-        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
-        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
-
+        val verifier = mockedVerifier()
         val result = verifier.verifyV2(vp)
 
         assertTrue(result.proofVerificationResult.verificationStatus)
         assertEquals("", result.proofVerificationResult.verificationErrorCode)
-    }
-
-    @Test
-    @Timeout(20, unit = TimeUnit.SECONDS)
-    fun `V2 should return failed for invalid jwk holder binding VP`() {
-        val vp = readClasspathFile("vp/InvalidJWKHolderBindingVP.json")
-
-        assertThrows<HolderBindingException> { PresentationVerifier().verifyV2(vp) }
     }
 
     @Test
@@ -293,7 +283,7 @@ class PresentationVerifierTest {
 
         assertThrows<UnsupportedDidUrl> { PresentationVerifier().verifyV2(vp) }
     }
-    
+
     @Test
     fun `V2 should throw error when VP is not JSON-LD`() {
         assertThrows<PresentationNotSupportedException> {
@@ -375,87 +365,240 @@ class PresentationVerifierTest {
         assertNull(entry.value.error)
     }
 
-    @Test
-    fun `V2 should throw HolderBindingException when verifiableCredential is missing`() {
-        val vp = readClasspathFile("vp/vpWithMissingVerifiableCredential.json")
-
-        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
-        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
-
-        val exception = assertThrows<HolderBindingException> {
-            verifier.verifyV2(vp)
-        }
-        assertEquals("The Verifiable Presentation is missing a mandatory Verifiable Credential", exception.message)
-    }
-
-    @Test
-    fun `V2 should throw HolderBindingException when holder is missing`() {
-        val vp = readClasspathFile("vp/VPWithMissingHolder.json")
-        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
-        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
-
-        val exception = assertThrows<HolderBindingException> {
-            verifier.verifyV2(vp)
-        }
-        assertEquals("The Verifiable Presentation is missing a mandatory Holder ID", exception.message)
-    }
-
-    @Test
-    fun `V2 should throw HolderBindingException when credentialSubject is missing or empty`() {
-        val vp = readClasspathFile("vp/VPWithEmptySubject.json")
-        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
-        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
-
-        assertThrows<HolderBindingException> {
-            verifier.verifyV2(vp)
-        }
-    }
-
-    @Test
-    fun `V2 should throw HolderBindingException when subject ID is missing`() {
-        val vp = readClasspathFile("vp/VPWithSubjectMissingId.json")
-        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
-        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
-
-        assertThrows<HolderBindingException> {
-            verifier.verifyV2(vp)
-        }
-    }
-
-    @Test
-    fun `V2 should throw HolderBindingException when did-jwk is malformed`() {
-        val vp = readClasspathFile("vp/VPWithMalformedJwk.json")
-        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
-        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
-
-        val exception = assertThrows<HolderBindingException> {
-            verifier.verifyV2(vp)
-        }
-        assertEquals("Fail to decode input to extract public key", exception.message)
-    }
 
     @Test
     @Timeout(20, unit = TimeUnit.SECONDS)
     fun `V2 should handle P256 key type in did-key extraction`() {
         val vp = readClasspathFile("vp/P256HolderBindingVP.json")
-        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
-        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
-
+        val verifier = mockedVerifier()
         val result = verifier.verifyV2(vp)
         assertNotNull(result)
         assertTrue(result.proofVerificationResult.verificationStatus)
         assertEquals("", result.proofVerificationResult.verificationErrorCode)
     }
 
-    @Test
-    fun `V2 should throw HolderBindingException for unsupported multi-codec key type`() {
-        val vp = readClasspathFile("vp/UnsupportedKeyTypeVP.json")
-        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
-        every { verifier["verifyPresentationProof"](any<JsonLDObject>()) } returns true
+    //Below are testcase for Holder Binding Check
 
-        assertThrows<HolderBindingException> {
+    @Test
+    fun `V1 should return success for valid jwk holder binding VP`() {
+
+        val vp = readClasspathFile("vp/validJWKHolderBindingVP.json")
+
+        val verifier = mockedVerifier()
+
+        val result = verifier.verify(vp)
+
+        assertEquals(
+            VPVerificationStatus.VALID,
+            result.proofVerificationStatus
+        )
+    }
+
+    @Test
+    fun `V1 should verify credential status with valid holder proof`() {
+
+        val vp = readClasspathFile("vp/validJWKHolderBindingVP.json")
+
+        val verifier = mockedVerifier()
+
+        val result =
+            verifier.verifyAndGetCredentialStatus(
+                vp,
+                listOf("revocation")
+            )
+
+        assertEquals(
+            VPVerificationStatus.VALID,
+            result.proofVerificationStatus
+        )
+
+        assertEquals(1, result.vcResults.size)
+    }
+
+    @Test
+    fun `V1 should return failure when holder is missing`() {
+
+        val vp = readClasspathFile("vp/VPWithMissingHolder.json")
+
+        val verifier = mockedVerifier()
+
+        val result = verifier.verify(vp)
+
+        assertEquals(
+            VPVerificationStatus.INVALID,
+            result.proofVerificationStatus
+        )
+    }
+
+    @Test
+    fun `V1 should return failure for invalid holder binding VP`() {
+
+        val vp = readClasspathFile("vp/InvalidHolderBindingVP.json")
+
+        val verifier = mockedVerifier()
+
+        val result = verifier.verify(vp)
+
+        assertEquals(
+            VPVerificationStatus.INVALID,
+            result.proofVerificationStatus
+        )
+    }
+
+    @Test
+    fun `V1 should fail for malformed did-jwk`() {
+
+        val vp = readClasspathFile("vp/VPWithMalformedJwk.json")
+
+        val verifier = mockedVerifier()
+
+        val result = verifier.verify(vp)
+
+        assertEquals(
+            VPVerificationStatus.INVALID,
+            result.proofVerificationStatus
+        )
+    }
+
+    @Test
+    fun `V1 should fail for invalid holder proof`() {
+
+        val vp = readClasspathFile("vp/InvalidHolderBindingVP.json")
+
+        val verifier = mockedVerifier()
+
+        val result =
+            verifier.verifyAndGetCredentialStatus(
+                vp,
+                emptyList()
+            )
+
+        assertEquals(
+            VPVerificationStatus.INVALID,
+            result.proofVerificationStatus
+        )
+    }
+
+    @Test
+    fun `V2 should throw exception when verifiableCredential is missing`() {
+        val vp = readClasspathFile("vp/vpWithMissingVerifiableCredential.json")
+
+        val verifier = mockedVerifier()
+
+        assertThrows<org.json.JSONException> {
             verifier.verifyV2(vp)
         }
+    }
+
+    @Test
+    fun `V2 should return failure when holder is missing`() {
+        val vp = readClasspathFile("vp/VPWithMissingHolder.json")
+
+        val verifier = mockedVerifier()
+        val result = verifier.verifyV2(vp)
+
+        assertFalse(result.proofVerificationResult.verificationStatus)
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            result.proofVerificationResult.verificationErrorCode
+        )
+    }
+
+    @Test
+    fun `V2 should return failure when credentialSubject is missing or empty`() {
+        val vp = readClasspathFile("vp/VPWithEmptySubject.json")
+
+        val verifier = mockedVerifier()
+        val result = verifier.verifyV2(vp)
+
+        assertFalse(result.proofVerificationResult.verificationStatus)
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            result.proofVerificationResult.verificationErrorCode
+        )
+    }
+
+    @Test
+    fun `V2 should return failure when subject ID is missing`() {
+        val vp = readClasspathFile("vp/VPWithSubjectMissingId.json")
+
+        val verifier = mockedVerifier()
+        val result = verifier.verifyV2(vp)
+
+        assertFalse(result.proofVerificationResult.verificationStatus)
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            result.proofVerificationResult.verificationErrorCode
+        )
+    }
+
+    @Test
+    fun `V2 should return failure when did-jwk is malformed`() {
+        val vp = readClasspathFile("vp/VPWithMalformedJwk.json")
+
+        val verifier = mockedVerifier()
+        val result = verifier.verifyV2(vp)
+
+        assertFalse(result.proofVerificationResult.verificationStatus)
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            result.proofVerificationResult.verificationErrorCode
+        )
+        assertEquals(
+            "Fail to decode input to extract public key",
+            result.proofVerificationResult.verificationMessage
+        )
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should return failed for invalid jwk holder binding VP`() {
+
+        val vp = readClasspathFile("vp/InvalidJWKHolderBindingVP.json")
+
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+
+        every {
+            verifier["verifyPresentationProof"](any<JsonLDObject>())
+        } returns true
+
+        val result = verifier.verifyV2(vp)
+
+        assertFalse(result.proofVerificationResult.verificationStatus)
+
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            result.proofVerificationResult.verificationErrorCode
+        )
+    }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should return failed for invalid holder binding VP`() {
+        val vp = readClasspathFile("vp/InvalidHolderBindingVP.json")
+
+        val verifier = mockedVerifier()
+        val result = verifier.verifyV2(vp)
+
+        assertFalse(result.proofVerificationResult.verificationStatus)
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            result.proofVerificationResult.verificationErrorCode
+        )
+    }
+
+    @Test
+    fun `V2 should return failure for unsupported multi-codec key type`() {
+        val vp = readClasspathFile("vp/UnsupportedKeyTypeVP.json")
+
+        val verifier = mockedVerifier()
+        val result = verifier.verifyV2(vp)
+
+        assertFalse(result.proofVerificationResult.verificationStatus)
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            result.proofVerificationResult.verificationErrorCode
+        )
     }
 
     @Test
@@ -486,4 +629,325 @@ class PresentationVerifierTest {
         assertTrue(resultTrue)
         assertFalse(resultFalse)
     }
+
+    @Test
+    @Timeout(20, unit = TimeUnit.SECONDS)
+    fun `V2 should verify credential status with holder binding enabled`() {
+
+        val vp = readClasspathFile("vp/validJWKHolderBindingVP.json")
+
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+
+        every {
+            verifier["verifyPresentationProof"](any<JsonLDObject>())
+        } returns true
+
+        val result =
+            verifier.verifyAndGetCredentialStatusV2(
+                vp,
+                listOf("revocation")
+            )
+
+        assertTrue(result.proofVerificationResult.verificationStatus)
+
+        assertEquals(
+            "",
+            result.proofVerificationResult.verificationErrorCode
+        )
+
+        assertEquals(1, result.vcResults.size)
+    }
+
+    @Test
+    fun `V2 credential status should fail for invalid holder proof`() {
+
+        val vp = readClasspathFile("vp/InvalidHolderBindingVP.json")
+
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+
+        every {
+            verifier["verifyPresentationProof"](any<JsonLDObject>())
+        } returns true
+
+        val result =
+            verifier.verifyAndGetCredentialStatusV2(
+                vp,
+                emptyList()
+            )
+        assertFalse(result.proofVerificationResult.verificationStatus)
+
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            result.proofVerificationResult.verificationErrorCode
+        )
+    }
+
+    @Test
+    fun `validateHolderProofOfPossession should fail when proof is missing`() {
+
+        val verifier = PresentationVerifier()
+
+        val vpJson = org.json.JSONObject(
+            readClasspathFile("vp/validJWKHolderBindingVP.json")
+        )
+
+        vpJson.remove("proof")
+
+        val jsonLdObject =
+            JsonLDObject.fromJson(vpJson.toString())
+
+        val holderKey = org.json.JSONObject()
+            .put("kty", "OKP")
+            .put("crv", "Ed25519")
+            .put("x", "dummy")
+
+        val method =
+            verifier.javaClass.getDeclaredMethod(
+                "validateHolderProofOfPossession",
+                JsonLDObject::class.java,
+                org.json.JSONObject::class.java
+            )
+
+        method.isAccessible = true
+
+        val exception = assertThrows<java.lang.reflect.InvocationTargetException> {
+            method.invoke(verifier, jsonLdObject, holderKey)
+        }
+
+        val cause = exception.cause as HolderBindingException
+
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            cause.errorCode
+        )
+    }
+
+    @Test
+    fun `validateHolderProofOfPossession should succeed for matching holder proof`() {
+
+        val verifier = PresentationVerifier()
+
+        val vp =
+            readClasspathFile("vp/Ed25519Signature2018SignedVP-didKey.json")
+
+        val jsonLdObject = JsonLDObject.fromJson(vp)
+
+        val extractMethod =
+            verifier.javaClass.getDeclaredMethod(
+                "extractPublicKeyJson",
+                String::class.java
+            )
+
+        extractMethod.isAccessible = true
+
+        val holder =
+            jsonLdObject.jsonObject["holder"] as String
+
+        val holderKey =
+            extractMethod.invoke(verifier, holder) as org.json.JSONObject
+
+        val method =
+            verifier.javaClass.getDeclaredMethod(
+                "validateHolderProofOfPossession",
+                JsonLDObject::class.java,
+                org.json.JSONObject::class.java
+            )
+
+        method.isAccessible = true
+
+        method.invoke(verifier, jsonLdObject, holderKey)
+    }
+
+    @Test
+    fun `validateHolderProofOfPossession should fail for mismatched verificationMethod`() {
+
+        val verifier = PresentationVerifier()
+
+        val vp =
+            readClasspathFile("vp/InvalidHolderBindingVP.json")
+
+        val jsonLdObject = JsonLDObject.fromJson(vp)
+
+        val extractMethod =
+            verifier.javaClass.getDeclaredMethod(
+                "extractPublicKeyJson",
+                String::class.java
+            )
+
+        extractMethod.isAccessible = true
+
+        val holder =
+            jsonLdObject.jsonObject["holder"] as String
+
+        val holderKey =
+            extractMethod.invoke(verifier, holder) as org.json.JSONObject
+
+        val method =
+            verifier.javaClass.getDeclaredMethod(
+                "validateHolderProofOfPossession",
+                JsonLDObject::class.java,
+                org.json.JSONObject::class.java
+            )
+
+        method.isAccessible = true
+
+        val exception = assertThrows<java.lang.reflect.InvocationTargetException> {
+            method.invoke(verifier, jsonLdObject, holderKey)
+        }
+
+        val cause = exception.cause as HolderBindingException
+
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            cause.errorCode
+        )
+    }
+
+    @Test
+    fun `validateHolderProofOfPossession should fail when verificationMethod missing`() {
+
+        val verifier = PresentationVerifier()
+
+        val vpJson = org.json.JSONObject(
+            readClasspathFile("vp/validJWKHolderBindingVP.json")
+        )
+
+        vpJson.getJSONObject("proof").remove("verificationMethod")
+
+        val jsonLdObject =
+            JsonLDObject.fromJson(vpJson.toString())
+
+        val holderKey = org.json.JSONObject()
+            .put("kty", "OKP")
+            .put("crv", "Ed25519")
+            .put("x", "dummy")
+
+        val method =
+            verifier.javaClass.getDeclaredMethod(
+                "validateHolderProofOfPossession",
+                JsonLDObject::class.java,
+                org.json.JSONObject::class.java
+            )
+
+        method.isAccessible = true
+
+        val exception = assertThrows<java.lang.reflect.InvocationTargetException> {
+            method.invoke(verifier, jsonLdObject, holderKey)
+        }
+
+        val cause = exception.cause as HolderBindingException
+
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            cause.errorCode
+        )
+    }
+
+    @Test
+    fun `validateHolderProofOfPossession should fail for malformed verificationMethod`() {
+
+        val verifier = PresentationVerifier()
+
+        val vpJson = org.json.JSONObject(
+            readClasspathFile("vp/validJWKHolderBindingVP.json")
+        )
+
+        vpJson.getJSONObject("proof")
+            .put("verificationMethod", "did:jwk:invalid")
+
+        val jsonLdObject =
+            JsonLDObject.fromJson(vpJson.toString())
+
+        val holderKey = org.json.JSONObject()
+            .put("kty", "OKP")
+            .put("crv", "Ed25519")
+            .put("x", "dummy")
+
+        val method =
+            verifier.javaClass.getDeclaredMethod(
+                "validateHolderProofOfPossession",
+                JsonLDObject::class.java,
+                org.json.JSONObject::class.java
+            )
+
+        method.isAccessible = true
+
+        val exception = assertThrows<java.lang.reflect.InvocationTargetException> {
+            method.invoke(verifier, jsonLdObject, holderKey)
+        }
+
+        val cause = exception.cause as HolderBindingException
+
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            cause.errorCode
+        )
+    }
+
+    @Test
+    fun `validateHolderProofOfPossession should fail for unsupported DID method`() {
+
+        val verifier = PresentationVerifier()
+
+        val vpJson = org.json.JSONObject(
+            readClasspathFile("vp/Ed25519Signature2018SignedVP-didKey.json")
+        )
+
+        vpJson.getJSONObject("proof")
+            .put(
+                "verificationMethod",
+                "did:web:example.com#key-1"
+            )
+
+        val jsonLdObject =
+            JsonLDObject.fromJson(vpJson.toString())
+
+        val holderKey = org.json.JSONObject()
+            .put("kty", "OKP")
+            .put("crv", "Ed25519")
+            .put("x", "dummy")
+
+        val method =
+            verifier.javaClass.getDeclaredMethod(
+                "validateHolderProofOfPossession",
+                JsonLDObject::class.java,
+                org.json.JSONObject::class.java
+            )
+
+        method.isAccessible = true
+
+        val exception = assertThrows<java.lang.reflect.InvocationTargetException> {
+            method.invoke(verifier, jsonLdObject, holderKey)
+        }
+
+        val cause = exception.cause as HolderBindingException
+
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            cause.errorCode
+        )
+    }
+
+    @Test
+    fun `V2 should return failure when verifiableCredential array is empty`() {
+
+        val vp = readClasspathFile("vp/EmptyVerifiableCredentialVP.json")
+
+        val verifier = spyk(PresentationVerifier(), recordPrivateCalls = true)
+
+        every {
+            verifier["verifyPresentationProof"](any<JsonLDObject>())
+        } returns true
+
+        val result = verifier.verifyV2(vp)
+
+        assertFalse(result.proofVerificationResult.verificationStatus)
+
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            result.proofVerificationResult.verificationErrorCode
+        )
+    }
+
+
 }

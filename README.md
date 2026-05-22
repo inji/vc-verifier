@@ -5,8 +5,8 @@
 
 ## 🚨 Breaking Changes
 
-### From Version `release-1.5.x` onward:
-
+### From Version `release-1.5.x` onwards:
+---
 #### ❗ Required Update in Imports
 
 Replace:
@@ -88,8 +88,99 @@ related to validating and verifying Verifiable Credentials (VCs). It also perfor
 that focuses on the verification of Verifiable Presentations (VPs). This class provides methods and functionalities 
 specifically designed to handle the unique aspects of VPs, including their structure, proof mechanisms, and the embedded 
 Verifiable Credentials they may contain.
+---
 
-#### Integrating jar to Maven Project
+### From Version `release-1.8.x` onwards:
+---
+
+1. Added **ECC R1 and K1 support** in both `CredentialVerifier.kt` & `PresentationVerifier.kt`.
+2. Added **Holder Binding Check Support**  in `PresentationVerifier.kt`.
+
+### Holder Binding Validation
+---
+From Version `release-1.8.1` onwards, `PresentationVerifier.kt` includes improved holder binding validation handling for `did:key` and `did:jwk` DID methods in existing V1 and V2 verification APIs.
+
+#### Holder binding validation ensures
+---
+1. `credentialSubject.id` is bound to `vp.holder`
+2. `vp.proof.verificationMethod` is controlled by `vp.holder` (Proof-of-Possession check)
+
+#### Holder binding validation is supported only when
+---
+```text
+vp.holder
+```
+
+uses:
+- `did:key`
+- `did:jwk`
+
+For supported holder DID methods:
+
+- Unsupported DID methods in `credentialSubject.id` are skipped gracefully during subject-holder binding validation
+- Unsupported or invalid DID methods in `vp.proof.verificationMethod` result in holder proof-of-possession validation failure
+
+#### Holder Binding Policy
+---
+The verifier validates:
+- VP proof ownership using the VP proof `verificationMethod`
+- Holder binding between the VP holder and `credentialSubject.id` when present
+
+| Scenario | Result |
+|---|---|
+| VP proof `verificationMethod` does not match VP holder | VP verification fails |
+| `credentialSubject.id` matches VP holder | Pass |
+| `credentialSubject.id` mismatches VP holder | VP verification fails |
+| `credentialSubject.id` missing | Holder binding check skipped |
+| Unsupported DID method | Holder binding check skipped |
+
+### Updated Validation Behavior
+---
+Holder binding validation is applied in:
+
+```kotlin
+verify()
+
+verifyV2()
+
+verifyAndGetCredentialStatus()
+
+verifyAndGetCredentialStatusV2()
+```
+
+From `release-1.8.1` onwards:
+
+- `HolderBindingException` is no longer exposed through public verification APIs
+- Holder binding failures are returned as structured verification failures
+- Verification messages are propagated through verification results
+
+Validation failures result in:
+
+```kotlin
+VPVerificationStatus.INVALID
+```
+
+or:
+
+```kotlin
+VerificationResult.verificationStatus = false
+```
+
+depending on the API being used.
+
+### Validation Coverage
+---
+The following validations are covered:
+
+- Missing holder
+- Missing `credentialSubject.id`
+- Malformed `did:jwk`
+- Unsupported key type
+- Holder-subject mismatch
+- Invalid proof-of-possession (`verificationMethod` not controlled by `vp.holder`)
+---
+
+# Integrating jar to Maven Project
 
 
 ##### Add Vc-Verifier in `pom.xml`
