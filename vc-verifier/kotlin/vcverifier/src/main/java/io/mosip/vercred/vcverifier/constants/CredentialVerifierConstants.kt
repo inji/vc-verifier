@@ -52,7 +52,7 @@ object CredentialVerifierConstants {
     const val ERROR_MESSAGE_VERIFICATION_FAILED = "Verification Failed"
     const val ERROR_CODE_VERIFICATION_FAILED = "ERR_SIGNATURE_VERIFICATION_FAILED"
 
-    const val HOLDER_VERIFICATION_FAIL_ERROR = "Holder binding Verification Failed"
+    const val HOLDER_VERIFICATION_FAIL_ERROR = "ERR_HOLDER_BINDING_CHECK_FAILED"
     const val HOLDER_MISSING_MSG = "The Verifiable Presentation is missing a mandatory Holder ID"
     const val SUBJECT_ID_MISSING_MSG = "The Verifiable Credential is missing a mandatory Credential Subject ID"
     const val VERIFIABLE_CREDENTIAL_MISSING_MSG = "The Verifiable Presentation is missing a mandatory Verifiable Credential"
@@ -67,4 +67,9 @@ object CredentialVerifierConstants {
 
     const val RSA_MULTICODEC_FIRST = 0x12.toByte()
     const val RSA_MULTICODEC_SECOND = 0x05.toByte()
+
+    const val HOLDER_PROOF_MISSING_MSG =
+        "VP proof verificationMethod is missing"
+    const val INVALID_HOLDER_PROOF_MSG =
+        "VP proof verificationMethod is not controlled by vp.holder"
 }
