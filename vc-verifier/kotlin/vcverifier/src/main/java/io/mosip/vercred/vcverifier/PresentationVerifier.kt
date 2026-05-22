@@ -79,9 +79,8 @@ class PresentationVerifier {
 
         val presentationVerificationStatus: VPVerificationStatus = getPresentationVerificationStatus(presentation)
 
-        val verifiableCredentials =
-            JSONObject(presentation).optJSONArray(KEY_VERIFIABLE_CREDENTIAL)
-                ?: JSONArray()
+        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+
         val vcVerificationResults: List<VCResult> = getVCVerificationResults(verifiableCredentials)
 
         return PresentationVerificationResult(presentationVerificationStatus, vcVerificationResults)
@@ -91,9 +90,8 @@ class PresentationVerifier {
 
         val presentationVerificationResult: VerificationResult = getPresentationVerificationResult(presentation)
 
-        val verifiableCredentials =
-            JSONObject(presentation).optJSONArray(KEY_VERIFIABLE_CREDENTIAL)
-                ?: JSONArray()
+        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+
         val vcVerificationResults: List<VCResultV2> = getVCVerificationResultsV2(verifiableCredentials)
 
         return PresentationVerificationResultV2(presentationVerificationResult, vcVerificationResults)
@@ -303,6 +301,7 @@ class PresentationVerifier {
     ) {
         logger.info("Starting holder proof-of-possession check")
         val proof = LdProof.getFromJsonLDObject(vcJsonLdObject)
+            ?: throw HolderBindingException(HOLDER_PROOF_MISSING_MSG, HOLDER_VERIFICATION_FAIL_ERROR)
 
         val verificationMethod = proof.verificationMethod?.toString()
             ?: throw HolderBindingException(
@@ -422,6 +421,7 @@ class PresentationVerifier {
             "OKP" -> publicKeyJson1.optString("crv") == publicKeyJson2.optString("crv") &&
                     publicKeyJson1.optString("x") == publicKeyJson2.optString("x")
 
+            // Only reachable via did:jwk; did:key RSA is not supported
             "RSA" -> publicKeyJson1.optString("n") == publicKeyJson2.optString("n") &&
                     publicKeyJson1.optString("e") == publicKeyJson2.optString("e")
 
@@ -614,9 +614,8 @@ class PresentationVerifier {
     ): PresentationResultWithCredentialStatus {
         val presentationVerificationStatus = getPresentationVerificationStatus(presentation)
 
-        val verifiableCredentials =
-            JSONObject(presentation).optJSONArray(KEY_VERIFIABLE_CREDENTIAL)
-                ?: JSONArray()
+        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+
         val vcVerificationResults: List<VCResultWithCredentialStatus> = getVCVerificationResultsWithCredentialStatus(verifiableCredentials, statusPurposeList)
 
         return PresentationResultWithCredentialStatus(presentationVerificationStatus, vcVerificationResults)
@@ -628,9 +627,8 @@ class PresentationVerifier {
     ): PresentationResultWithCredentialStatusV2 {
         val presentationVerificationResult = getPresentationVerificationResult(presentation)
 
-        val verifiableCredentials =
-            JSONObject(presentation).optJSONArray(KEY_VERIFIABLE_CREDENTIAL)
-                ?: JSONArray()
+        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+
         val vcVerificationResults: List<VCResultWithCredentialStatusV2> = getVCVerificationResultsWithCredentialStatusV2(verifiableCredentials, statusPurposeList)
 
         return PresentationResultWithCredentialStatusV2(presentationVerificationResult, vcVerificationResults)
