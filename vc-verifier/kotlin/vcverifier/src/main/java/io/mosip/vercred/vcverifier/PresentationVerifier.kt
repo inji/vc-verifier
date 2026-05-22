@@ -79,9 +79,8 @@ class PresentationVerifier {
 
         val presentationVerificationStatus: VPVerificationStatus = getPresentationVerificationStatus(presentation)
 
-        val verifiableCredentials =
-            JSONObject(presentation).optJSONArray(KEY_VERIFIABLE_CREDENTIAL)
-                ?: JSONArray()
+        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+
         val vcVerificationResults: List<VCResult> = getVCVerificationResults(verifiableCredentials)
 
         return PresentationVerificationResult(presentationVerificationStatus, vcVerificationResults)
@@ -91,9 +90,8 @@ class PresentationVerifier {
 
         val presentationVerificationResult: VerificationResult = getPresentationVerificationResult(presentation)
 
-        val verifiableCredentials =
-            JSONObject(presentation).optJSONArray(KEY_VERIFIABLE_CREDENTIAL)
-                ?: JSONArray()
+        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+
         val vcVerificationResults: List<VCResultV2> = getVCVerificationResultsV2(verifiableCredentials)
 
         return PresentationVerificationResultV2(presentationVerificationResult, vcVerificationResults)
@@ -614,9 +612,8 @@ class PresentationVerifier {
     ): PresentationResultWithCredentialStatus {
         val presentationVerificationStatus = getPresentationVerificationStatus(presentation)
 
-        val verifiableCredentials =
-            JSONObject(presentation).optJSONArray(KEY_VERIFIABLE_CREDENTIAL)
-                ?: JSONArray()
+        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+
         val vcVerificationResults: List<VCResultWithCredentialStatus> = getVCVerificationResultsWithCredentialStatus(verifiableCredentials, statusPurposeList)
 
         return PresentationResultWithCredentialStatus(presentationVerificationStatus, vcVerificationResults)
@@ -628,9 +625,8 @@ class PresentationVerifier {
     ): PresentationResultWithCredentialStatusV2 {
         val presentationVerificationResult = getPresentationVerificationResult(presentation)
 
-        val verifiableCredentials =
-            JSONObject(presentation).optJSONArray(KEY_VERIFIABLE_CREDENTIAL)
-                ?: JSONArray()
+        val verifiableCredentials = JSONObject(presentation).getJSONArray(KEY_VERIFIABLE_CREDENTIAL)
+
         val vcVerificationResults: List<VCResultWithCredentialStatusV2> = getVCVerificationResultsWithCredentialStatusV2(verifiableCredentials, statusPurposeList)
 
         return PresentationResultWithCredentialStatusV2(presentationVerificationResult, vcVerificationResults)
