@@ -710,9 +710,16 @@ class PresentationVerifierTest {
 
         method.isAccessible = true
 
-        assertThrows<java.lang.reflect.InvocationTargetException> {
+        val exception = assertThrows<java.lang.reflect.InvocationTargetException> {
             method.invoke(verifier, jsonLdObject, holderKey)
         }
+
+        val cause = exception.cause as HolderBindingException
+
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            cause.errorCode
+        )
     }
 
     @Test

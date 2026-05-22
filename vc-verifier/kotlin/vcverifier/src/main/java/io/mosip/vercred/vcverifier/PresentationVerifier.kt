@@ -301,6 +301,7 @@ class PresentationVerifier {
     ) {
         logger.info("Starting holder proof-of-possession check")
         val proof = LdProof.getFromJsonLDObject(vcJsonLdObject)
+            ?: throw HolderBindingException(HOLDER_PROOF_MISSING_MSG, HOLDER_VERIFICATION_FAIL_ERROR)
 
         val verificationMethod = proof.verificationMethod?.toString()
             ?: throw HolderBindingException(
@@ -420,6 +421,7 @@ class PresentationVerifier {
             "OKP" -> publicKeyJson1.optString("crv") == publicKeyJson2.optString("crv") &&
                     publicKeyJson1.optString("x") == publicKeyJson2.optString("x")
 
+            // Only reachable via did:jwk; did:key RSA is not supported
             "RSA" -> publicKeyJson1.optString("n") == publicKeyJson2.optString("n") &&
                     publicKeyJson1.optString("e") == publicKeyJson2.optString("e")
 
