@@ -283,7 +283,7 @@ class PresentationVerifierTest {
 
         assertThrows<UnsupportedDidUrl> { PresentationVerifier().verifyV2(vp) }
     }
-    
+
     @Test
     fun `V2 should throw error when VP is not JSON-LD`() {
         assertThrows<PresentationNotSupportedException> {
@@ -480,17 +480,14 @@ class PresentationVerifierTest {
     }
 
     @Test
-    fun `V2 should return failure when verifiableCredential is missing`() {
+    fun `V2 should throw exception when verifiableCredential is missing`() {
         val vp = readClasspathFile("vp/vpWithMissingVerifiableCredential.json")
 
         val verifier = mockedVerifier()
-        val result = verifier.verifyV2(vp)
 
-        assertFalse(result.proofVerificationResult.verificationStatus)
-        assertEquals(
-            HOLDER_VERIFICATION_FAIL_ERROR,
-            result.proofVerificationResult.verificationErrorCode
-        )
+        assertThrows<org.json.JSONException> {
+            verifier.verifyV2(vp)
+        }
     }
 
     @Test
@@ -945,5 +942,5 @@ class PresentationVerifierTest {
         )
     }
 
-   
+
 }
