@@ -283,7 +283,7 @@ class PresentationVerifierTest {
 
         assertThrows<UnsupportedDidUrl> { PresentationVerifier().verifyV2(vp) }
     }
-    
+
     @Test
     fun `V2 should throw error when VP is not JSON-LD`() {
         assertThrows<PresentationNotSupportedException> {
@@ -710,9 +710,16 @@ class PresentationVerifierTest {
 
         method.isAccessible = true
 
-        assertThrows<java.lang.reflect.InvocationTargetException> {
+        val exception = assertThrows<java.lang.reflect.InvocationTargetException> {
             method.invoke(verifier, jsonLdObject, holderKey)
         }
+
+        val cause = exception.cause as HolderBindingException
+
+        assertEquals(
+            HOLDER_VERIFICATION_FAIL_ERROR,
+            cause.errorCode
+        )
     }
 
     @Test
@@ -942,5 +949,5 @@ class PresentationVerifierTest {
         )
     }
 
-   
+
 }
