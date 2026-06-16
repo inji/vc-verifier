@@ -38,6 +38,7 @@ class CredentialsVerifier {
         return true
     }
 
+    @JvmOverloads
     fun verify(credential: String, credentialFormat: CredentialFormat, validateKeyBindingJwt: Boolean = true): VerificationResult {
         val credentialVerifier = credentialVerifierFactory.get(credentialFormat)
         val validationStatus = credentialVerifier.validate(credential, validateKeyBindingJwt)
@@ -103,6 +104,7 @@ class CredentialsVerifier {
         return CredentialVerificationSummary(verificationResult, emptyMap())
     }
 
+    @JvmOverloads
     fun verifyAndGetCredentialStatusV2(credential: String, credentialFormat: CredentialFormat, statusPurposeList: List<String> = emptyList(), validateKeyBindingJwt: Boolean = true): CredentialVerificationSummary {
         val verificationResult = verify(credential, credentialFormat, validateKeyBindingJwt)
         if (verificationResult.verificationStatus) {
