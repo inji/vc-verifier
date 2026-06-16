@@ -59,6 +59,18 @@ class UtilsTest {
     }
 
     @Test
+    fun `test validate uri valid decentralized identifier did`() {
+        val result = utils.isValidUri("decentralized_identifier:did:example:123")
+        assertTrue(result)
+    }
+
+    @Test
+    fun `test validate uri invalid decentralized identifier`() {
+        assertFalse(utils.isValidUri("decentralized_identifier:"))
+        assertFalse(utils.isValidUri("decentralized_identifier:invalid_uri"))
+    }
+
+    @Test
     fun `test empty JSONArray`() {
         val jsonArray = JSONArray()
         val result = utils.jsonArrayToList(jsonArray)

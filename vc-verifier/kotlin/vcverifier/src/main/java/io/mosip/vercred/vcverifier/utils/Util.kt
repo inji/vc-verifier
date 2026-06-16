@@ -75,6 +75,10 @@ object Util {
     }
 
     fun isValidUri(value: String): Boolean {
+        if (value.startsWith("decentralized_identifier:")) {
+            val identifier = value.removePrefix("decentralized_identifier:")
+            return identifier.isNotBlank() && isValidUri(identifier)
+        }
 
          try {
             val uri = URI(value)

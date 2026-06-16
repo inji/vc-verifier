@@ -12,6 +12,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DISCLOSURE_STRUCTURE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_JWT_FORMAT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_KB_JWT_FORMAT
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING_KB_JWT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_VCT_URI
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING_VCT
@@ -25,6 +26,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_DISCLOSURE_STRUCTURE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_JWT_FORMAT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_KB_JWT_FORMAT
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MISSING_KB_JWT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_VCT_URI
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MISSING_VCT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_VC_EXPIRED
@@ -63,9 +65,9 @@ class SdJwtValidator {
         private val VALID_JWT_TYPES = setOf("vc+sd-jwt", "dc+sd-jwt")
     }
 
-    fun validate(sdJwt: String): ValidationStatus {
+    fun validate(sdJwt: String, validateKeyBindingJwt: Boolean = true): ValidationStatus {
         return try {
-            validateAndProcess(sdJwt)
+            validateAndProcess(sdJwt, validateKeyBindingJwt)
         } catch (e: ValidationException) {
             ValidationStatus(e.errorMessage, e.errorCode)
         } catch (e: Exception) {
@@ -76,7 +78,7 @@ class SdJwtValidator {
         }
     }
 
-    private fun validateAndProcess(credential: String): ValidationStatus {
+    private fun validateAndProcess(credential: String, validateKeyBindingJwt: Boolean): ValidationStatus {
         if (credential.isBlank()) {
             throw ValidationException(ERROR_MESSAGE_EMPTY_VC_JSON, ERROR_CODE_EMPTY_VC_JSON)
         }
@@ -86,11 +88,28 @@ class SdJwtValidator {
         val keyBindingJwt = sdJwt.bindingJwt
 
         validateSdJwtStructure(credentialJwt, disclosures)
-        keyBindingJwt?.let {
-            validateKeyBindingJwt(it, sdJwt)
+        if (validateKeyBindingJwt) {
+            requireHolderBindingSupport(credentialJwt)
+            val kbJwt = keyBindingJwt
+                ?: throw ValidationException(ERROR_MESSAGE_MISSING_KB_JWT, ERROR_CODE_MISSING_KB_JWT)
+            validateKeyBindingJwt(kbJwt, sdJwt)
         }
 
         return ValidationStatus("", "")
+    }
+
+    private fun requireHolderBindingSupport(credentialJwt: String) {
+        val payload = JSONObject(decodeBase64Json(credentialJwt.split(".")[1]))
+        val cnf = payload.optJSONObject("cnf")
+            ?: throw ValidationException("Missing 'cnf' in SD-JWT payload", "${ERROR_CODE_INVALID}CNF")
+
+        val hasSupportedKey = SUPPORTED_CNF_KEY_OBJECT_TYPES.any { cnf.has(it) }
+        if (!hasSupportedKey) {
+            throw ValidationException(
+                "Missing supported key type in 'cnf': Supported 'kid', 'jwk'",
+                "${ERROR_CODE_INVALID}CNF_TYPE"
+            )
+        }
     }
 
     private fun validateSdJwtStructure(credentialJwt: String, disclosures: List<Disclosure>) {
