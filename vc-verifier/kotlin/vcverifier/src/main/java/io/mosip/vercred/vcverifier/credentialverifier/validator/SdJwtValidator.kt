@@ -91,7 +91,7 @@ class SdJwtValidator {
         if (validateKeyBindingJwt) {
             val kbJwt = keyBindingJwt
                 ?: throw ValidationException(ERROR_MESSAGE_MISSING_KB_JWT, ERROR_CODE_MISSING_KB_JWT)
-            validateKeyBindingJwt(kbJwt, sdJwt)
+            this.validateKeyBindingJwt(kbJwt, sdJwt)
         }
 
         return ValidationStatus("", "")
