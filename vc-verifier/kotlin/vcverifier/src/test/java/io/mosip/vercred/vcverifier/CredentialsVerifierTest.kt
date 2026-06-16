@@ -269,7 +269,7 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 10, unit = TimeUnit.SECONDS)
     fun `should verify SD-JWT with KB JWT when holder binding is not required`() {
-        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtEdDSA.txt")
+        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtES256.txt")
 
         val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
 
@@ -281,7 +281,7 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 10, unit = TimeUnit.SECONDS)
     fun `should verify SD-JWT with KB JWT via verifyAndGetCredentialStatusV2 when holder binding is required`() {
-        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtEdDSA.txt")
+        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtES256.txt")
 
         val result = CredentialsVerifier().verifyAndGetCredentialStatusV2(
             vc,
