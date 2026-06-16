@@ -91,21 +91,13 @@ class CredentialsVerifier {
         }
     }
 
+    @JvmOverloads
     fun verifyAndGetCredentialStatus(
         credential: String,
         credentialFormat: CredentialFormat,
-        statusPurposeList: List<String> = emptyList()
+        statusPurposeList: List<String> = emptyList(),
+        validateKeyBindingJwt: Boolean = true
     ): CredentialVerificationSummary {
-        val verificationResult = verify(credential, credentialFormat)
-        if (verificationResult.verificationStatus) {
-            val statusResults = getCredentialStatus(credential, credentialFormat, statusPurposeList)
-            return CredentialVerificationSummary(verificationResult, statusResults)
-        }
-        return CredentialVerificationSummary(verificationResult, emptyMap())
-    }
-
-    @JvmOverloads
-    fun verifyAndGetCredentialStatusV2(credential: String, credentialFormat: CredentialFormat, statusPurposeList: List<String> = emptyList(), validateKeyBindingJwt: Boolean = true): CredentialVerificationSummary {
         val verificationResult = verify(credential, credentialFormat, validateKeyBindingJwt)
         if (verificationResult.verificationStatus) {
             val statusResults = getCredentialStatus(credential, credentialFormat, statusPurposeList)

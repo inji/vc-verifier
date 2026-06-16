@@ -87,9 +87,8 @@ class SdJwtValidator {
         val disclosures = sdJwt.disclosures
         val keyBindingJwt = sdJwt.bindingJwt
 
-        validateSdJwtStructure(credentialJwt, disclosures)
+        validateSdJwtStructure(credentialJwt, disclosures, validateKeyBindingJwt)
         if (validateKeyBindingJwt) {
-            requireHolderBindingSupport(credentialJwt)
             val kbJwt = keyBindingJwt
                 ?: throw ValidationException(ERROR_MESSAGE_MISSING_KB_JWT, ERROR_CODE_MISSING_KB_JWT)
             validateKeyBindingJwt(kbJwt, sdJwt)
@@ -98,21 +97,7 @@ class SdJwtValidator {
         return ValidationStatus("", "")
     }
 
-    private fun requireHolderBindingSupport(credentialJwt: String) {
-        val payload = JSONObject(decodeBase64Json(credentialJwt.split(".")[1]))
-        val cnf = payload.optJSONObject("cnf")
-            ?: throw ValidationException("Missing 'cnf' in SD-JWT payload", "${ERROR_CODE_INVALID}CNF")
-
-        val hasSupportedKey = SUPPORTED_CNF_KEY_OBJECT_TYPES.any { cnf.has(it) }
-        if (!hasSupportedKey) {
-            throw ValidationException(
-                "Missing supported key type in 'cnf': Supported 'kid', 'jwk'",
-                "${ERROR_CODE_INVALID}CNF_TYPE"
-            )
-        }
-    }
-
-    private fun validateSdJwtStructure(credentialJwt: String, disclosures: List<Disclosure>) {
+    private fun validateSdJwtStructure(credentialJwt: String, disclosures: List<Disclosure>, validateKeyBindingJwt: Boolean) {
         val jwtParts = credentialJwt.split(".")
         if (jwtParts.size != 3) {
             throw ValidationException(
@@ -125,7 +110,7 @@ class SdJwtValidator {
         val payloadMap = jacksonObjectMapper().readValue(payload, Map::class.java)
 
         validateHeader(JSONObject(header))
-        validatePayload(JSONObject(payload))
+        validatePayload(JSONObject(payload), validateKeyBindingJwt)
         validateDisclosures(disclosures, payloadMap)
     }
 
@@ -147,11 +132,11 @@ class SdJwtValidator {
         }
     }
 
-    private fun validatePayload(payload: JSONObject) {
+    private fun validatePayload(payload: JSONObject, validateKeyBindingJwt: Boolean = false) {
         validateRequiredClaims(payload)
         validateTimeClaims(payload)
         validateUriClaims(payload)
-        validateConfirmationClaim(payload)
+        validateConfirmationClaim(payload, validateKeyBindingJwt)
     }
 
     private fun validateDisclosures(disclosures: List<Disclosure>, payload: Map<*, *>) {
@@ -240,9 +225,22 @@ class SdJwtValidator {
         }
     }
 
-    private fun validateConfirmationClaim(payload: JSONObject) {
-        payload.optJSONObject("cnf")?.let { cnf ->
-            if (cnf.has("jwk") && cnf.has("kid")) {
+    private fun validateConfirmationClaim(payload: JSONObject, requireHolderBinding: Boolean = false) {
+        val cnf = payload.optJSONObject("cnf")
+        if (requireHolderBinding) {
+            if (cnf == null) {
+                throw ValidationException("Missing 'cnf' in SD-JWT payload", "${ERROR_CODE_INVALID}CNF")
+            }
+            val hasSupportedKey = SUPPORTED_CNF_KEY_OBJECT_TYPES.any { cnf.has(it) }
+            if (!hasSupportedKey) {
+                throw ValidationException(
+                    "Missing supported key type in 'cnf': Supported 'kid', 'jwk'",
+                    "${ERROR_CODE_INVALID}CNF_TYPE"
+                )
+            }
+        }
+        cnf?.let {
+            if (it.has("jwk") && it.has("kid")) {
                 throw ValidationException(
                     "Invalid 'cnf' object: must contain either 'jwk' or 'kid'",
                     "${ERROR_CODE_INVALID}CNF"
