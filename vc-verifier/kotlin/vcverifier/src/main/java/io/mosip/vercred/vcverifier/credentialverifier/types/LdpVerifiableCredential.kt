@@ -8,7 +8,7 @@ import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.ValidationStatus
 
 class LdpVerifiableCredential : VerifiableCredential {
-    override fun validate(credential: String): ValidationStatus {
+    override fun validate(credential: String, validateKeyBindingJwt: Boolean): ValidationStatus {
         return LdpValidator().validate(credential)
     }
 

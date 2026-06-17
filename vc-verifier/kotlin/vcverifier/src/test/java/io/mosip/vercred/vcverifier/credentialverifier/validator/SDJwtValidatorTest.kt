@@ -313,7 +313,7 @@ class SdJwtValidatorTest {
         val vc = modifySdJwtPayload(loadSampleSdJwt("sdJwtWithRootLevelSdNestedPayload.txt")) {
             it.put("cnf", cnf)
         }
-        val status = validatePlainSdJwt(vc)
+        val status = validator.validate(vc)
 
         assertEquals("Invalid 'cnf' object: must contain either 'jwk' or 'kid'", status.validationMessage)
         assertEquals("ERR_INVALID_CNF",status.validationErrorCode)
