@@ -103,6 +103,9 @@ object CredentialValidatorConstants {
     const val ERROR_CODE_INVALID_KB_JWT_FORMAT = "${ERROR_CODE_INVALID}KB_JWT_FORMAT"
     const val ERROR_MESSAGE_INVALID_KB_JWT_FORMAT = "${VALIDATION_ERROR}Invalid Key Binding JWT format"
 
+    const val ERROR_CODE_MISSING_KB_JWT = "${ERROR_CODE_MISSING}KB_JWT"
+    const val ERROR_MESSAGE_MISSING_KB_JWT = "Missing Key Binding JWT"
+
     
     val ALGORITHMS_SUPPORTED = listOf(
         "PS256",

@@ -8,6 +8,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialFormat.JWT_VC_JSON
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.CONTEXT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_GENERIC
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING_KB_JWT
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_CODE_VERIFICATION_FAILED
 import io.mosip.vercred.vcverifier.data.CredentialVerificationSummary
 import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
@@ -149,7 +150,7 @@ class CredentialsVerifierTest {
     fun `should return true for valid sd-jwt with sha 384 algo credential validation success `() {
         val vc = readClasspathFile("sd-jwt_vc/sdJwtSha384Alg.txt")
 
-        val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT)
+        val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
 
         assertEquals("", verificationResult.verificationMessage)
         assertTrue(verificationResult.verificationStatus)
@@ -161,7 +162,7 @@ class CredentialsVerifierTest {
     fun `should return true for valid sd-jwt with sha 512 algo credential validation success `() {
         val vc = readClasspathFile("sd-jwt_vc/sdJwtSha512Alg.txt")
 
-        val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT)
+        val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
 
         assertEquals("", verificationResult.verificationMessage)
         assertTrue(verificationResult.verificationStatus)
@@ -239,6 +240,58 @@ class CredentialsVerifierTest {
         assertFalse(revocationResult!!.isValid)
         assertNull(revocationResult.error)
 
+    }
+
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    fun `should verify plain SD-JWT when holder binding is not required`() {
+        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithRootLevelSdNestedPayload.txt")
+
+        val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
+
+        assertTrue(verificationResult.verificationStatus)
+        assertEquals("", verificationResult.verificationMessage)
+        assertEquals("", verificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    fun `should reject plain SD-JWT when holder binding is required`() {
+        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithRootLevelSdNestedPayload.txt")
+
+        val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = true)
+
+        assertFalse(verificationResult.verificationStatus)
+        assertEquals("Missing Key Binding JWT", verificationResult.verificationMessage)
+        assertEquals(ERROR_CODE_MISSING_KB_JWT, verificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    fun `should verify SD-JWT with KB JWT when holder binding is not required`() {
+        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtES256.txt")
+
+        val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
+
+        assertTrue(verificationResult.verificationStatus)
+        assertEquals("", verificationResult.verificationMessage)
+        assertEquals("", verificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    fun `should verify SD-JWT with KB JWT via verifyAndGetCredentialStatus when holder binding is required`() {
+        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtES256.txt")
+
+        val result = CredentialsVerifier().verifyAndGetCredentialStatus(
+            vc,
+            VC_SD_JWT,
+            validateKeyBindingJwt = true
+        )
+
+        assertTrue(result.verificationResult.verificationStatus)
+        assertEquals("", result.verificationResult.verificationMessage)
+        assertEquals("", result.verificationResult.verificationErrorCode)
     }
 
     @Test

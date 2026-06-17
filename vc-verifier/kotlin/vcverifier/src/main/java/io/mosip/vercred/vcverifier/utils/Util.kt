@@ -75,7 +75,6 @@ object Util {
     }
 
     fun isValidUri(value: String): Boolean {
-
          try {
             val uri = URI(value)
              if((uri.scheme == "http" || uri.scheme == "https") && uri.host == null) {

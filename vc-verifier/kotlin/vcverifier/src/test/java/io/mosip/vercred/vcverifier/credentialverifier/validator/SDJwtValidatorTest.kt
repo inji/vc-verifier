@@ -28,6 +28,9 @@ class SdJwtValidatorTest {
 
     private val validator = SdJwtValidator()
 
+    private fun validatePlainSdJwt(credential: String) =
+        validator.validate(credential, validateKeyBindingJwt = false)
+
     private fun loadSampleSdJwt(fileName: String): String {
         val file = ResourceUtils.getFile("classpath:sd-jwt_vc/$fileName")
         return String(Files.readAllBytes(file.toPath()))
@@ -102,15 +105,15 @@ class SdJwtValidatorTest {
     @Test
     fun `should validate a valid SD-JWT VC successfully`() {
         var vc = loadSampleSdJwt("sdJwtWithRootLevelSdNestedPayload.txt")
-        var status = validator.validate(vc)
+        var status = validator.validate(vc, validateKeyBindingJwt = false)
         assertEquals("", status.validationMessage)
         assertEquals("", status.validationErrorCode)
         vc = loadSampleSdJwt("sdJwtWithRootLevelSd2.txt")
-        status = validator.validate(vc)
+        status = validator.validate(vc, validateKeyBindingJwt = false)
         assertEquals("", status.validationMessage)
         assertEquals("", status.validationErrorCode)
         vc = loadSampleSdJwt("sdJwtWithRootLevelSd.txt")
-        status = validator.validate(vc)
+        status = validator.validate(vc, validateKeyBindingJwt = false)
         assertEquals("", status.validationMessage)
         assertEquals("", status.validationErrorCode)
 
@@ -128,14 +131,14 @@ class SdJwtValidatorTest {
         val vc = modifySdJwtHeader(loadSampleSdJwt("sdJwtWithRootLevelSdNestedPayload.txt")) {
             it.remove("alg")
         }
-        val status = validator.validate(vc)
+        val status = validator.validate(vc, validateKeyBindingJwt = false)
         assertEquals("Missing or invalid 'alg' in JWT header",status.validationMessage)
         assertEquals("ERR_INVALID_ALG",status.validationErrorCode)
     }
 
     @Test
     fun `should fail for invalid JWT format`() {
-        val status = validator.validate("invalid.ajbsdj.sdjbja.jwt.structure~")
+        val status = validatePlainSdJwt("invalid.ajbsdj.sdjbja.jwt.structure~")
         assertEquals("Validation Error: Invalid JWT format", status.validationMessage)
         assertEquals("ERR_INVALID_JWT_FORMAT",status.validationErrorCode)
     }
@@ -145,7 +148,7 @@ class SdJwtValidatorTest {
         val vc = modifySdJwtPayload(loadSampleSdJwt("sdJwtWithRootLevelSdNestedPayload.txt")) {
             it.remove("vct")
         }
-        val status = validator.validate(vc)
+        val status = validatePlainSdJwt(vc)
         assertEquals("Validation Error: Missing or empty 'vct' in JWT payload", status.validationMessage)
         assertEquals("ERR_MISSING_VCT",status.validationErrorCode)
     }
@@ -155,7 +158,7 @@ class SdJwtValidatorTest {
         val vc = modifySdJwtPayload(loadSampleSdJwt("sdJwtWithRootLevelSdNestedPayload.txt")) {
             it.put("vct", "http:///invalid-vct-url")
         }
-        val status = validator.validate(vc)
+        val status = validatePlainSdJwt(vc)
         assertEquals("Validation Error: 'vct' must be a valid URI when it contains ':'", status.validationMessage)
         assertEquals("ERR_INVALID_VCT_URI",status.validationErrorCode)
     }
@@ -170,7 +173,7 @@ class SdJwtValidatorTest {
         val newHeader = Base64.getUrlEncoder().withoutPadding().encodeToString(headerJson.toString().toByteArray())
         val newJwt = listOf(newHeader, jwtParts[1], jwtParts[2]).joinToString(".")
         val modified = listOf(newJwt).plus(parts.drop(1)).joinToString("~")
-        val status = validator.validate(modified)
+        val status = validatePlainSdJwt(modified)
         assertEquals("Unsupported or missing 'typ' in JWT header", status.validationMessage)
         assertEquals("ERR_INVALID_TYP",status.validationErrorCode)
     }
@@ -180,7 +183,7 @@ class SdJwtValidatorTest {
         val vc = modifySdJwtPayload(loadSampleSdJwt("sdJwtWithRootLevelSdNestedPayload.txt")) {
             it.put("iat", 9999999999)
         }
-        val status = validator.validate(vc)
+        val status = validatePlainSdJwt(vc)
         assertEquals("Validation Error: The current date time is before the issuanceDate", status.validationMessage)
         assertEquals("ERR_ISSUANCE_DATE_IS_FUTURE_DATE",status.validationErrorCode)
     }
@@ -190,7 +193,7 @@ class SdJwtValidatorTest {
         val vc = modifySdJwtPayload(loadSampleSdJwt("sdJwtWithRootLevelSdNestedPayload.txt")) {
             it.put("nbf", 9999999999)
         }
-        val status = validator.validate(vc)
+        val status = validatePlainSdJwt(vc)
         assertEquals("Validation Error: The current date time is before the not before(nbf) claim Date", status.validationMessage)
         assertEquals("ERR_PROCESSING_DATE_IS_FUTURE_DATE",status.validationErrorCode)
     }
@@ -200,7 +203,7 @@ class SdJwtValidatorTest {
         val vc = modifySdJwtPayload(loadSampleSdJwt("sdJwtWithRootLevelSdNestedPayload.txt")) {
             it.put("exp", 1234567890)
         }
-        val status = validator.validate(vc)
+        val status = validatePlainSdJwt(vc)
         assertEquals("VC is expired", status.validationMessage)
         assertEquals("ERR_VC_EXPIRED",status.validationErrorCode)
     }
@@ -213,7 +216,7 @@ class SdJwtValidatorTest {
         parts[parts.lastIndex - 1] = "!!!not_base64"
 
         val modifiedVc = parts.joinToString("~")
-        val status = validator.validate(modifiedVc)
+        val status = validatePlainSdJwt(modifiedVc)
         assertEquals("Exception during Validation: Failed to parse disclosures.", status.validationMessage)
         assertEquals("ERR_INVALID_UNKNOWN",status.validationErrorCode)
     }
@@ -237,7 +240,7 @@ class SdJwtValidatorTest {
         val newJwt = jwtParts[0] + "." + newPayload + "." + jwtParts[2]
         parts[0] = newJwt
         val modifiedVc = parts.joinToString("~")
-        val status = validator.validate(modifiedVc)
+        val status = validatePlainSdJwt(modifiedVc)
         assertEquals("Invalid digest length of digest: expected 32 bytes, got 16", status.validationMessage)
         assertEquals("ERR_INVALID_DIGEST",status.validationErrorCode)
 
@@ -248,7 +251,7 @@ class SdJwtValidatorTest {
         val vc = modifySdJwtPayload(loadSampleSdJwt("sdJwtWithRootLevelSdNestedPayload.txt")) {
             it.put("_sd_alg", "sha3-384")
         }
-        val status = validator.validate(vc)
+        val status = validatePlainSdJwt(vc)
 
         assertEquals("Unsupported _sd_alg: sha3-384. Allowed: [sha-256, sha-384, sha-512]", status.validationMessage)
         assertEquals("ERR_INVALID_SD_ALG",status.validationErrorCode)
@@ -259,7 +262,7 @@ class SdJwtValidatorTest {
         val vc = modifySdJwtPayload(loadSampleSdJwt("sdJwtWithRootLevelSdNestedPayload.txt")) {
             it.remove("iss")
         }
-        val status = validator.validate(vc)
+        val status = validatePlainSdJwt(vc)
 
         assertEquals("", status.validationMessage)
         assertEquals("",status.validationErrorCode)
@@ -271,7 +274,7 @@ class SdJwtValidatorTest {
         val vc = modifySdJwtPayload(loadSampleSdJwt("sdJwtWithRootLevelSdNestedPayload.txt")) {
             it.put("iss", iss)
         }
-        val status = validator.validate(vc)
+        val status = validatePlainSdJwt(vc)
 
         assertEquals("Invalid 'iss' claim: $iss", status.validationMessage)
         assertEquals("ERR_INVALID_ISS",status.validationErrorCode)
@@ -283,7 +286,7 @@ class SdJwtValidatorTest {
         val vc = modifySdJwtPayload(loadSampleSdJwt("sdJwtWithRootLevelSdNestedPayload.txt")) {
             it.put("aud", aud)
         }
-        val status = validator.validate(vc)
+        val status = validatePlainSdJwt(vc)
 
         assertEquals("Validation Error: Invalid URI: https:///iss", status.validationMessage)
         assertEquals("ERR_INVALID_AUD",status.validationErrorCode)
@@ -295,7 +298,7 @@ class SdJwtValidatorTest {
         val vc = modifySdJwtPayload(loadSampleSdJwt("sdJwtWithRootLevelSdNestedPayload.txt")) {
             it.put("nonce", nonce)
         }
-        val status = validator.validate(vc)
+        val status = validatePlainSdJwt(vc)
 
         assertEquals("Validation Error: Invalid URI: https:///nonce", status.validationMessage)
         assertEquals("ERR_INVALID_NONCE",status.validationErrorCode)
@@ -327,7 +330,7 @@ class SdJwtValidatorTest {
         parts[parts.lastIndex - 1] = badDisclosure
 
         val modifiedVc = parts.joinToString("~")
-        val status = validator.validate(modifiedVc)
+        val status = validatePlainSdJwt(modifiedVc)
 
         assertEquals("Validation Error: Disclosure has invalid or reserved claim name (starts with underscore) at index 12", status.validationMessage)
         assertEquals("ERR_INVALID_DISCLOSURE_CLAIM_NAME" ,status.validationErrorCode)
@@ -353,7 +356,7 @@ class SdJwtValidatorTest {
     @Test
     fun `should fail for tampered disclosure`() {
         val vc = getDisclosureTamperedSdJWT()
-        val status = validator.validate(vc)
+        val status = validatePlainSdJwt(vc)
         assertEquals("Digest value of all disclosures must be present in the '_sd' claim of payload", status.validationMessage)
         assertEquals("ERR_INVALID_DISCLOSURE",status.validationErrorCode)
     }
@@ -361,7 +364,7 @@ class SdJwtValidatorTest {
     @Test
     fun `should validate sd jwt with _sd in disclosures`() {
         val vc = loadSampleSdJwt("sdJwtWithClaimsInDisclosure.txt")
-        val status = validator.validate(vc)
+        val status = validatePlainSdJwt(vc)
         assertEquals("", status.validationMessage)
         assertEquals("",status.validationErrorCode)
     }
@@ -369,7 +372,7 @@ class SdJwtValidatorTest {
     @Test
     fun `should validate sd jwt with _sd in child object of payload`() {
         val vc = loadSampleSdJwt("sdJwtWithSDClaimsinChildObject.txt")
-        val status = validator.validate(vc)
+        val status = validatePlainSdJwt(vc)
         assertEquals("", status.validationMessage)
         assertEquals("",status.validationErrorCode)
     }
@@ -553,5 +556,39 @@ class SdJwtValidatorTest {
 
         assertEquals("Missing supported key type in 'cnf': Supported 'kid', 'jwk'", status.validationMessage)
         assertEquals("ERR_INVALID_CNF_TYPE",status.validationErrorCode)
+    }
+
+    @Test
+    fun `should validate plain SD-JWT when holder binding is not required`() {
+        val vc = loadSampleSdJwt("sdJwtWithRootLevelSdNestedPayload.txt")
+        val status = validatePlainSdJwt(vc)
+        assertEquals("", status.validationMessage)
+        assertEquals("", status.validationErrorCode)
+    }
+
+    @Test
+    fun `should reject plain SD-JWT when holder binding is required`() {
+        val vc = loadSampleSdJwt("sdJwtWithRootLevelSdNestedPayload.txt")
+        val status = validator.validate(vc, validateKeyBindingJwt = true)
+        assertEquals("Missing Key Binding JWT", status.validationMessage)
+        assertEquals("ERR_MISSING_KB_JWT", status.validationErrorCode)
+    }
+
+    @Test
+    fun `should reject SD-JWT without cnf when holder binding is required`() {
+        val vc = modifySdJwtPayload(loadSampleSdJwt("sdJwtWithKbJwtEdDSA.txt")) {
+            it.remove("cnf")
+        }
+        val status = validator.validate(vc, validateKeyBindingJwt = true)
+        assertEquals("Missing 'cnf' in SD-JWT payload", status.validationMessage)
+        assertEquals("ERR_INVALID_CNF", status.validationErrorCode)
+    }
+
+    @Test
+    fun `should validate SD-JWT with KB JWT when holder binding is not required`() {
+        val vc = loadSampleSdJwt("sdJwtWithKbJwtEdDSA.txt")
+        val status = validatePlainSdJwt(vc)
+        assertEquals("", status.validationMessage)
+        assertEquals("", status.validationErrorCode)
     }
 }

@@ -38,9 +38,10 @@ class CredentialsVerifier {
         return true
     }
 
-    fun verify(credential: String, credentialFormat: CredentialFormat): VerificationResult {
+    @JvmOverloads
+    fun verify(credential: String, credentialFormat: CredentialFormat, validateKeyBindingJwt: Boolean = true): VerificationResult {
         val credentialVerifier = credentialVerifierFactory.get(credentialFormat)
-        val validationStatus = credentialVerifier.validate(credential)
+        val validationStatus = credentialVerifier.validate(credential, validateKeyBindingJwt)
         if (validationStatus.validationMessage.isNotEmpty() && !validationStatus.validationErrorCode.contentEquals(
                 ERROR_CODE_VC_EXPIRED
             )
@@ -90,12 +91,14 @@ class CredentialsVerifier {
         }
     }
 
+    @JvmOverloads
     fun verifyAndGetCredentialStatus(
         credential: String,
         credentialFormat: CredentialFormat,
-        statusPurposeList: List<String> = emptyList()
+        statusPurposeList: List<String> = emptyList(),
+        validateKeyBindingJwt: Boolean = true
     ): CredentialVerificationSummary {
-        val verificationResult = verify(credential, credentialFormat)
+        val verificationResult = verify(credential, credentialFormat, validateKeyBindingJwt)
         if (verificationResult.verificationStatus) {
             val statusResults = getCredentialStatus(credential, credentialFormat, statusPurposeList)
             return CredentialVerificationSummary(verificationResult, statusResults)

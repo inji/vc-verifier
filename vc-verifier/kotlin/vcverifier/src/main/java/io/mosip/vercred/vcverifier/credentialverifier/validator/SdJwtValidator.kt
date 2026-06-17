@@ -12,6 +12,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DISCLOSURE_STRUCTURE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_JWT_FORMAT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_KB_JWT_FORMAT
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING_KB_JWT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_VCT_URI
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING_VCT
@@ -25,6 +26,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_DISCLOSURE_STRUCTURE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_JWT_FORMAT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_KB_JWT_FORMAT
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MISSING_KB_JWT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_VCT_URI
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MISSING_VCT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_VC_EXPIRED
@@ -63,9 +65,9 @@ class SdJwtValidator {
         private val VALID_JWT_TYPES = setOf("vc+sd-jwt", "dc+sd-jwt")
     }
 
-    fun validate(sdJwt: String): ValidationStatus {
+    fun validate(sdJwt: String, validateKeyBindingJwt: Boolean = true): ValidationStatus {
         return try {
-            validateAndProcess(sdJwt)
+            validateAndProcess(sdJwt, validateKeyBindingJwt)
         } catch (e: ValidationException) {
             ValidationStatus(e.errorMessage, e.errorCode)
         } catch (e: Exception) {
@@ -76,7 +78,7 @@ class SdJwtValidator {
         }
     }
 
-    private fun validateAndProcess(credential: String): ValidationStatus {
+    private fun validateAndProcess(credential: String, validateKeyBindingJwt: Boolean): ValidationStatus {
         if (credential.isBlank()) {
             throw ValidationException(ERROR_MESSAGE_EMPTY_VC_JSON, ERROR_CODE_EMPTY_VC_JSON)
         }
@@ -85,15 +87,17 @@ class SdJwtValidator {
         val disclosures = sdJwt.disclosures
         val keyBindingJwt = sdJwt.bindingJwt
 
-        validateSdJwtStructure(credentialJwt, disclosures)
-        keyBindingJwt?.let {
-            validateKeyBindingJwt(it, sdJwt)
+        validateSdJwtStructure(credentialJwt, disclosures, validateKeyBindingJwt)
+        if (validateKeyBindingJwt) {
+            val kbJwt = keyBindingJwt
+                ?: throw ValidationException(ERROR_MESSAGE_MISSING_KB_JWT, ERROR_CODE_MISSING_KB_JWT)
+            this.processValidationsKeyBindingJwt(kbJwt, sdJwt)
         }
 
         return ValidationStatus("", "")
     }
 
-    private fun validateSdJwtStructure(credentialJwt: String, disclosures: List<Disclosure>) {
+    private fun validateSdJwtStructure(credentialJwt: String, disclosures: List<Disclosure>, validateKeyBindingJwt: Boolean) {
         val jwtParts = credentialJwt.split(".")
         if (jwtParts.size != 3) {
             throw ValidationException(
@@ -106,7 +110,7 @@ class SdJwtValidator {
         val payloadMap = jacksonObjectMapper().readValue(payload, Map::class.java)
 
         validateHeader(JSONObject(header))
-        validatePayload(JSONObject(payload))
+        validatePayload(JSONObject(payload), validateKeyBindingJwt)
         validateDisclosures(disclosures, payloadMap)
     }
 
@@ -128,11 +132,13 @@ class SdJwtValidator {
         }
     }
 
-    private fun validatePayload(payload: JSONObject) {
+    private fun validatePayload(payload: JSONObject, validateKeyBindingJwt: Boolean = false) {
         validateRequiredClaims(payload)
         validateTimeClaims(payload)
         validateUriClaims(payload)
-        validateConfirmationClaim(payload)
+        if (validateKeyBindingJwt) {
+            validateConfirmationClaim(payload, requireHolderBinding = true)
+        }
     }
 
     private fun validateDisclosures(disclosures: List<Disclosure>, payload: Map<*, *>) {
@@ -211,7 +217,12 @@ class SdJwtValidator {
         listOf("aud", "nonce").forEach { field ->
             payload.optString(field, "").takeIf { it.isNotBlank() }
                 ?.let { value ->
-                    if (":" in value && !isValidUri(value)) {
+                    val valueToValidate = if (field == "aud") {
+                        value.removePrefix("decentralized_identifier:")
+                    } else {
+                        value
+                    }
+                    if (":" in value && !isValidUri(valueToValidate)) {
                         throw ValidationException(
                             ERROR_INVALID_URI + value,
                             "${ERROR_CODE_INVALID}${field.uppercase()}"
@@ -221,9 +232,22 @@ class SdJwtValidator {
         }
     }
 
-    private fun validateConfirmationClaim(payload: JSONObject) {
-        payload.optJSONObject("cnf")?.let { cnf ->
-            if (cnf.has("jwk") && cnf.has("kid")) {
+    private fun validateConfirmationClaim(payload: JSONObject, requireHolderBinding: Boolean = false) {
+        val cnf = payload.optJSONObject("cnf")
+        if (requireHolderBinding) {
+            if (cnf == null) {
+                throw ValidationException("Missing 'cnf' in SD-JWT payload", "${ERROR_CODE_INVALID}CNF")
+            }
+            val hasSupportedKey = SUPPORTED_CNF_KEY_OBJECT_TYPES.any { cnf.has(it) }
+            if (!hasSupportedKey) {
+                throw ValidationException(
+                    "Missing supported key type in 'cnf': Supported 'kid', 'jwk'",
+                    "${ERROR_CODE_INVALID}CNF_TYPE"
+                )
+            }
+        }
+        cnf?.let {
+            if (it.has("jwk") && it.has("kid")) {
                 throw ValidationException(
                     "Invalid 'cnf' object: must contain either 'jwk' or 'kid'",
                     "${ERROR_CODE_INVALID}CNF"
@@ -339,7 +363,7 @@ class SdJwtValidator {
 
     }
 
-    private fun validateKeyBindingJwt(kbJwt: String, sdJwt: SDJWT) {
+    private fun processValidationsKeyBindingJwt(kbJwt: String, sdJwt: SDJWT) {
         val parts = kbJwt.split(".")
         if (parts.size != 3) {
             throw ValidationException(
@@ -442,7 +466,7 @@ class SdJwtValidator {
             )
         }
 
-        if (":" in aud && !isValidUri(aud)) {
+        if (":" in aud && !isValidUri(aud.removePrefix("decentralized_identifier:"))) {
             throw ValidationException(
                 "'aud' in Key Binding JWT must be a valid URI when containing ':'",
                 "${ERROR_CODE_INVALID}AUD"
