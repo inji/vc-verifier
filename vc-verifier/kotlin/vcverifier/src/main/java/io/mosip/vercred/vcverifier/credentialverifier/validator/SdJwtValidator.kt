@@ -91,7 +91,7 @@ class SdJwtValidator {
         if (validateKeyBindingJwt) {
             val kbJwt = keyBindingJwt
                 ?: throw ValidationException(ERROR_MESSAGE_MISSING_KB_JWT, ERROR_CODE_MISSING_KB_JWT)
-            this.validateKeyBindingJwt(kbJwt, sdJwt)
+            this.processValidationsKeyBindingJwt(kbJwt, sdJwt)
         }
 
         return ValidationStatus("", "")
@@ -136,7 +136,9 @@ class SdJwtValidator {
         validateRequiredClaims(payload)
         validateTimeClaims(payload)
         validateUriClaims(payload)
-        validateConfirmationClaim(payload, validateKeyBindingJwt)
+        if (validateKeyBindingJwt) {
+            validateConfirmationClaim(payload, requireHolderBinding = true)
+        }
     }
 
     private fun validateDisclosures(disclosures: List<Disclosure>, payload: Map<*, *>) {
@@ -215,7 +217,12 @@ class SdJwtValidator {
         listOf("aud", "nonce").forEach { field ->
             payload.optString(field, "").takeIf { it.isNotBlank() }
                 ?.let { value ->
-                    if (":" in value && !isValidUri(value)) {
+                    val valueToValidate = if (field == "aud") {
+                        value.removePrefix("decentralized_identifier:")
+                    } else {
+                        value
+                    }
+                    if (":" in value && !isValidUri(valueToValidate)) {
                         throw ValidationException(
                             ERROR_INVALID_URI + value,
                             "${ERROR_CODE_INVALID}${field.uppercase()}"
@@ -356,7 +363,7 @@ class SdJwtValidator {
 
     }
 
-    private fun validateKeyBindingJwt(kbJwt: String, sdJwt: SDJWT) {
+    private fun processValidationsKeyBindingJwt(kbJwt: String, sdJwt: SDJWT) {
         val parts = kbJwt.split(".")
         if (parts.size != 3) {
             throw ValidationException(
@@ -459,7 +466,7 @@ class SdJwtValidator {
             )
         }
 
-        if (":" in aud && !isValidUri(aud)) {
+        if (":" in aud && !isValidUri(aud.removePrefix("decentralized_identifier:"))) {
             throw ValidationException(
                 "'aud' in Key Binding JWT must be a valid URI when containing ':'",
                 "${ERROR_CODE_INVALID}AUD"
