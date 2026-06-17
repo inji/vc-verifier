@@ -7,7 +7,7 @@ import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.ValidationStatus
 
 class CwtVerifiableCredential: VerifiableCredential {
-    override fun validate(credential: String, validateKeyBindingJwt: Boolean): ValidationStatus {
+    override fun validate(credential: String): ValidationStatus {
         return CwtValidator().validate(credential)
     }
 

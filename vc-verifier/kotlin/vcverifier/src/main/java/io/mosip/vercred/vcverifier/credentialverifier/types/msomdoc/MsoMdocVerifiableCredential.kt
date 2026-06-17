@@ -22,7 +22,7 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
     private val logger = Logger.getLogger(MsoMdocVerifiableCredential::class.java.name)
 
 
-    override fun validate(credential: String, validateKeyBindingJwt: Boolean): ValidationStatus {
+    override fun validate(credential: String): ValidationStatus {
         try {
             MsoMdocValidator().validate(credential)
             return ValidationStatus("", "")
