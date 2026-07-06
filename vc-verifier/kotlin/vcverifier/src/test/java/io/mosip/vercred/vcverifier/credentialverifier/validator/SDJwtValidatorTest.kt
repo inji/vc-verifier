@@ -608,7 +608,7 @@ class SdJwtValidatorTest {
         val originalKbJwt = parts.getOrNull(2) ?: error("KB-JWT not found")
 
         val modifiedKbJwt = modifyKbJwtPayload(originalKbJwt) { payload ->
-            payload.put("iat", System.currentTimeMillis() / 1000 + 9999)
+            payload.put("iat", System.currentTimeMillis() / 1000 + 120) // 2 minutes in future, beyond 60s clock skew tolerance
         }
 
         val tamperedVc = listOf(parts[0], parts[1], modifiedKbJwt).plus(parts.drop(3)).joinToString("~")
@@ -625,7 +625,7 @@ class SdJwtValidatorTest {
         val originalKbJwt = parts.getOrNull(2) ?: error("KB-JWT not found")
 
         val modifiedKbJwt = modifyKbJwtPayload(originalKbJwt) { payload ->
-            payload.put("iat", System.currentTimeMillis() / 1000 - 9999)
+            payload.put("iat", System.currentTimeMillis() / 1000 - 700) // ~12 minutes in past, beyond 600s max age window
         }
 
         val tamperedVc = listOf(parts[0], parts[1], modifiedKbJwt).plus(parts.drop(3)).joinToString("~")

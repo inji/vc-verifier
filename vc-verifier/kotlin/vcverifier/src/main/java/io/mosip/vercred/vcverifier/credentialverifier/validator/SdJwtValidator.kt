@@ -494,7 +494,7 @@ class SdJwtValidator {
 
         val nowSeconds = System.currentTimeMillis() / 1000
         val clockSkewSeconds = 60L
-        val maxAgeSeconds = 300L
+        val maxAgeSeconds = 600L
         if (iat > nowSeconds + clockSkewSeconds) {
             throw ValidationException(
                 "Key Binding JWT 'iat' is in the future (iat=$iat, now=$nowSeconds)",
