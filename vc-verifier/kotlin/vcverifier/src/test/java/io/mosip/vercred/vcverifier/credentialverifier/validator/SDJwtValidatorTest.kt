@@ -379,7 +379,11 @@ class SdJwtValidatorTest {
 
     @Test
     fun `should validate sd jwt with kb-jwt attached`() {
-        val vc = loadSampleSdJwt("sdJwtWithKbJwtEdDSA.txt")
+        val original = loadSampleSdJwt("sdJwtWithKbJwtEdDSA.txt")
+        val parts = original.split("~")
+        val kbJwt = parts.getOrNull(2) ?: error("KB-JWT not found")
+        val freshKbJwt = modifyKbJwtPayload(kbJwt) { it.put("iat", System.currentTimeMillis() / 1000) }
+        val vc = listOf(parts[0], parts[1], freshKbJwt).plus(parts.drop(3)).joinToString("~")
         val status = validator.validate(vc)
         assertEquals("", status.validationMessage)
         assertEquals("",status.validationErrorCode)
@@ -387,7 +391,11 @@ class SdJwtValidatorTest {
 
     @Test
     fun `should validate sd jwt with kb-jwt attached with cnf in jwk format`() {
-        val vc = loadSampleSdJwt("sdJwtWithKbJwtEs256kAndCnfBeingJwk.txt")
+        val original = loadSampleSdJwt("sdJwtWithKbJwtEs256kAndCnfBeingJwk.txt")
+        val parts = original.split("~")
+        val kbJwt = parts.last()
+        val freshKbJwt = modifyKbJwtPayload(kbJwt) { it.put("iat", System.currentTimeMillis() / 1000) }
+        val vc = parts.dropLast(1).plus(freshKbJwt).joinToString("~")
         val status = validator.validate(vc)
         assertEquals("", status.validationMessage)
         assertEquals("",status.validationErrorCode)
@@ -473,6 +481,7 @@ class SdJwtValidatorTest {
         val originalKbJwt = parts[2]
 
         val modifiedKbJwt = modifyKbJwtPayload(originalKbJwt) { payload ->
+            payload.put("iat", System.currentTimeMillis() / 1000)
             // invalid hash
             payload.put("sd_hash", "invalidHashValue")
         }
@@ -590,5 +599,39 @@ class SdJwtValidatorTest {
         val status = validatePlainSdJwt(vc)
         assertEquals("", status.validationMessage)
         assertEquals("", status.validationErrorCode)
+    }
+
+    @Test
+    fun `should fail when KB-JWT iat is in the future`() {
+        val originalSdJwt = loadSampleSdJwt("sdJwtWithKbJwtEdDSA.txt")
+        val parts = originalSdJwt.split("~")
+        val originalKbJwt = parts.getOrNull(2) ?: error("KB-JWT not found")
+
+        val modifiedKbJwt = modifyKbJwtPayload(originalKbJwt) { payload ->
+            payload.put("iat", System.currentTimeMillis() / 1000 + 9999)
+        }
+
+        val tamperedVc = listOf(parts[0], parts[1], modifiedKbJwt).plus(parts.drop(3)).joinToString("~")
+        val status = validator.validate(tamperedVc)
+
+        assertEquals("ERR_INVALID_KB_JWT_IAT", status.validationErrorCode)
+        assert(status.validationMessage.contains("in the future")) { "Expected 'in the future' in message: ${status.validationMessage}" }
+    }
+
+    @Test
+    fun `should fail when KB-JWT iat is too far in the past`() {
+        val originalSdJwt = loadSampleSdJwt("sdJwtWithKbJwtEdDSA.txt")
+        val parts = originalSdJwt.split("~")
+        val originalKbJwt = parts.getOrNull(2) ?: error("KB-JWT not found")
+
+        val modifiedKbJwt = modifyKbJwtPayload(originalKbJwt) { payload ->
+            payload.put("iat", System.currentTimeMillis() / 1000 - 9999)
+        }
+
+        val tamperedVc = listOf(parts[0], parts[1], modifiedKbJwt).plus(parts.drop(3)).joinToString("~")
+        val status = validator.validate(tamperedVc)
+
+        assertEquals("ERR_INVALID_KB_JWT_IAT", status.validationErrorCode)
+        assert(status.validationMessage.contains("too far in the past")) { "Expected 'too far in the past' in message: ${status.validationMessage}" }
     }
 }

@@ -492,6 +492,22 @@ class SdJwtValidator {
             )
         }
 
+        val nowSeconds = System.currentTimeMillis() / 1000
+        val clockSkewSeconds = 60L
+        val maxAgeSeconds = 300L
+        if (iat > nowSeconds + clockSkewSeconds) {
+            throw ValidationException(
+                "Key Binding JWT 'iat' is in the future (iat=$iat, now=$nowSeconds)",
+                "${ERROR_CODE_INVALID}KB_JWT_IAT"
+            )
+        }
+        if (iat < nowSeconds - maxAgeSeconds) {
+            throw ValidationException(
+                "Key Binding JWT 'iat' is too far in the past (iat=$iat, now=$nowSeconds, maxAge=${maxAgeSeconds}s)",
+                "${ERROR_CODE_INVALID}KB_JWT_IAT"
+            )
+        }
+
         val sdHash = payload.optString("sd_hash")
         if (sdHash.isBlank()) {
             throw ValidationException(
