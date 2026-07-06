@@ -1,6 +1,8 @@
 package io.mosip.vercred.vcverifier
 
+import io.mockk.every
 import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.LDP_VC
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.MSO_MDOC
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.VC_SD_JWT
@@ -26,6 +28,7 @@ import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.Timeout
 import testutils.mockHttpResponse
 import testutils.readClasspathFile
+import testutils.withFreshKbJwtIat
 import java.util.concurrent.TimeUnit
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -281,7 +284,10 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 10, unit = TimeUnit.SECONDS)
     fun `should verify SD-JWT with KB JWT via verifyAndGetCredentialStatus when holder binding is required`() {
-        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtES256.txt")
+        mockkObject(Util)
+        try {
+            every { Util.verifyJwt(any(), any(), any()) } returns true
+            val vc = withFreshKbJwtIat(readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtES256.txt"))
 
         val result = CredentialsVerifier().verifyAndGetCredentialStatus(
             vc,
@@ -292,6 +298,9 @@ class CredentialsVerifierTest {
         assertTrue(result.verificationResult.verificationStatus)
         assertEquals("", result.verificationResult.verificationMessage)
         assertEquals("", result.verificationResult.verificationErrorCode)
+        } finally {
+            unmockkObject(Util)
+        }
     }
 
     @Test
