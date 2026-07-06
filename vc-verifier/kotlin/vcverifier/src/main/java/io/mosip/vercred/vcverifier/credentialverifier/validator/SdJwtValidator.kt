@@ -213,12 +213,15 @@ class SdJwtValidator {
         }
     }
 
+    private fun normalizeAudForUriValidation(aud: String): String =
+        aud.removePrefix("decentralized_identifier:").removePrefix("redirect_uri:")
+
     private fun validateUriClaims(payload: JSONObject) {
         listOf("aud", "nonce").forEach { field ->
             payload.optString(field, "").takeIf { it.isNotBlank() }
                 ?.let { value ->
                     val valueToValidate = if (field == "aud") {
-                        value.removePrefix("decentralized_identifier:")
+                        normalizeAudForUriValidation(value)
                     } else {
                         value
                     }
@@ -466,7 +469,7 @@ class SdJwtValidator {
             )
         }
 
-        if (":" in aud && !isValidUri(aud.removePrefix("decentralized_identifier:"))) {
+        if (":" in aud && !isValidUri(normalizeAudForUriValidation(aud))) {
             throw ValidationException(
                 "'aud' in Key Binding JWT must be a valid URI when containing ':'",
                 "${ERROR_CODE_INVALID}AUD"
