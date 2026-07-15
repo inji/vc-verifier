@@ -45,7 +45,7 @@ import io.mosip.vercred.vcverifier.keyResolver.types.http.HttpsPublicKeyResolver
 
 | VC format     | Issuer Signature Mechanism                                             | Verification Algorithms                      | Signature Suites / Proof Types                                                            |
 |---------------|------------------------------------------------------------------------|----------------------------------------------|-------------------------------------------------------------------------------------------|
-| `ldp_vc`      | Linked Data Proof                                                      | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | RsaSignature2018, Ed25519Signature2018, Ed25519Signature2020, EcdsaSecp256k1Signature2019 |
+| `ldp_vc`      | Linked Data Proof                                                      | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | RsaSignature2018, Ed25519Signature2018, Ed25519Signature2020, EcdsaSecp256r1Signature2019, EcdsaSecp256k1Signature2019 |
 | `mso_mdoc`    | COSE (CBOR Object Signing and Encryption)                              | ES256                                        | Uses COSE_Sign1                                                                           |
 | `vc+sd-jwt`   | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | -                                                                                         |
 | `dc+sd-jwt`   | X.509 Certificate (Currently, JWT VC Issuer Metadata is not supported) | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | -                                                                                         |
