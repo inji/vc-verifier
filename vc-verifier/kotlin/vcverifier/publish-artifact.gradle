@@ -32,8 +32,8 @@ publishing {
                     asNode().appendNode('description', "Kotlin library to generate QR code from VC and decode the data")
 
                     asNode().appendNode('licenses').appendNode('license').with {
-                        appendNode('name', 'MPL-2.0')
-                        appendNode('url', 'https://www.mozilla.org/en-US/MPL/2.0/')
+                        appendNode('name', 'Apache 2.0')
+                        appendNode('url', 'https://www.apache.org/licenses/LICENSE-2.0')
                     }
 
                     asNode().appendNode('scm').with {
