@@ -42,7 +42,7 @@ jobs:
       ANDROID_SERVICE_LOCATION: 'vcverifier'
       GROUP_PATH: ${{ inputs.group_path }}   #dynamic
       JAVA_VERSION: 21
-      LICENSE_NAME: 'MPL-2.0'
+      LICENSE_NAME: 'Apache 2.0'
       RELEASE_TYPE: ${{ inputs.release_type }}
     secrets:
       OSSRH_USER: ${{ secrets.OSSRH_USER }}
@@ -60,7 +60,7 @@ jobs:
       ANDROID_SERVICE_LOCATION: 'vcverifier'
       GROUP_PATH: ${{ inputs.group_path }}   #dynamic
       JAVA_VERSION: 21
-      LICENSE_NAME: 'MPL-2.0'
+      LICENSE_NAME: 'Apache 2.0'
       RELEASE_TYPE: ${{ inputs.release_type }}
       PUBLICATION_TYPE: ${{ inputs.publication_type }}
     secrets:
