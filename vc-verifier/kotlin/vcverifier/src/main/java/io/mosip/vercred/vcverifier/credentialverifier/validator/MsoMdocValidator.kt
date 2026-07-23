@@ -5,9 +5,11 @@ import co.nstant.`in`.cbor.model.MajorType
 import co.nstant.`in`.cbor.model.Map
 import co.nstant.`in`.cbor.model.UnicodeString
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DATE_MSO
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_VALIDITY_INFO_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_VALID_FROM_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_VALID_UNTIL_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_DATE_MSO
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_SIGNED_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_VALID_FROM_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_VALID_UNTIL_MSO
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerifiableCredential
@@ -34,14 +36,22 @@ class MsoMdocValidator {
             val validityInfo: Map = issuerSigned.issuerAuth.extractMso()["validityInfo"] as Map
             val validFrom: DataItem? = validityInfo["validFrom"]
             val validUntil: DataItem? = validityInfo["validUntil"]
-            if (validUntil == null || validFrom == null) {
-                logger.severe("validUntil / validFrom is not available in the credential's MSO")
+            val signed: DataItem? = validityInfo["signed"]
+            if (validUntil == null || validFrom == null || signed == null) {
+                logger.severe("Invalid ValidityInfo in the credential's MSO")
                 throw ValidationException(ERROR_MESSAGE_INVALID_DATE_MSO, ERROR_CODE_INVALID_DATE_MSO)
             }
             val isValidFromIsFutureDate =
                 DateUtils.isFutureDateWithTolerance(validFrom.toString())
             val isValidUntilIsPastDate =
                 !DateUtils.isFutureDateWithTolerance(validUntil.toString())
+            val isInvalidSignedData = DateUtils.isFutureDateWithTolerance(signed.toString())
+
+            if(isInvalidSignedData) {
+                logger.severe("Error while doing validity verification - MSO was signed with invalid date")
+                throw ValidationException(ERROR_MESSAGE_INVALID_SIGNED_MSO,ERROR_CODE_INVALID_VALIDITY_INFO_MSO)
+            }
+
             val isValidUntilGreaterThanValidFrom: Boolean =
                 parseDate(validUntil.toString())?.after(
                     parseDate(

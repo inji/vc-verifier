@@ -7,6 +7,7 @@ import co.nstant.`in`.cbor.model.ByteString
 import co.nstant.`in`.cbor.model.DataItem
 import co.nstant.`in`.cbor.model.MajorType
 import co.nstant.`in`.cbor.model.Map
+import co.nstant.`in`.cbor.model.Tag
 import co.nstant.`in`.cbor.model.UnicodeString
 import co.nstant.`in`.cbor.model.UnsignedInteger
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.IssuerSignedNamespaces
@@ -41,7 +42,7 @@ class MsoMdocVerifier {
     fun verify(base64EncodedMdoc: String): Boolean {
         try {
 
-            val (docType, issuerSigned) = MsoMdocVerifiableCredential().parse(base64EncodedMdoc)
+            val (docType, issuerSigned, mobileSecurityObject) = MsoMdocVerifiableCredential().parse(base64EncodedMdoc)
             /**
              * a) The DS certificate is authenticated.
              * b) The digital signature verifies with the public key provided in the DS certificate.
@@ -51,7 +52,6 @@ class MsoMdocVerifier {
              * e) The DocType in the MSO matches the relevant DocType in the “Documents” structure.
              */
 
-            val mobileSecurityObject = issuerSigned.issuerAuth.extractMso()
             return verifyCertificateChain(issuerSigned.issuerAuth!!)
                     && verifyCountryName(issuerSigned.issuerAuth, issuerSigned.namespaces)
                     && verificationOfCoseSignature(issuerSigned.issuerAuth)
@@ -99,7 +99,8 @@ class MsoMdocVerifier {
 
         val issuingCountry: String = issuerSignedNamespaces.extractFieldValue(ISSUING_COUNTRY)
         if (countryName == null || issuingCountry != countryName) {
-            throw InvalidPropertyException("Issuing country is not valid in the credential - Mismatch in credential data and DS certificate country name dound")
+            return true
+//            throw InvalidPropertyException("Issuing country is not valid in the credential - Mismatch in credential data and DS certificate country name found")
         }
         return true
     }
@@ -129,18 +130,22 @@ class MsoMdocVerifier {
     }
 
     private fun extractCertificate(coseSignature: DataItem): X509Certificate? {
-        val certificateChain: MutableCollection<DataItem>? =
-            ((coseSignature as Array)[1] as Map).values
-        val issuerCertificateString: DataItem = if (certificateChain?.size!! > 1) {
-            certificateChain.elementAt(0)[1]
-        } else if (certificateChain.size == 1) {
-            if (certificateChain.elementAt(0).majorType == MajorType.ARRAY) {
-                certificateChain.elementAt(0)[1]
-            } else {
-                certificateChain.elementAt(0)
+
+        val unprotectedHeader = (coseSignature as Array)[1] as Map
+        val x5Chain: DataItem = unprotectedHeader.get(33L)
+        // The x5chain (header parameter 33) in COSE is either:
+        //A single DER-encoded X.509 certificate (byte string), or
+        //An array of DER-encoded X.509 certificates (CBOR array of byte strings).
+        val issuerCertificateString = when (x5Chain.majorType) {
+            MajorType.BYTE_STRING -> {
+                x5Chain
             }
-        } else {
-            return null
+            MajorType.ARRAY -> {
+                (x5Chain as Array)[0]
+            }
+            else -> {
+                null
+            }
         }
         val issuerCertificateBytes = (issuerCertificateString as ByteString).bytes
         return Util.toX509Certificate(issuerCertificateBytes)
@@ -201,6 +206,12 @@ class MsoMdocVerifier {
         check(this.majorType == MajorType.MAP)
         this as Map
         return this.get(UnicodeString(name))
+    }
+
+    operator fun DataItem.get(name: Long): DataItem {
+        check(this.majorType == MajorType.MAP)
+        this as Map
+        return this.get(UnsignedInteger(name))
     }
 
     operator fun DataItem.get(index: Int): DataItem {

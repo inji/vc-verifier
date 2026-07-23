@@ -73,6 +73,10 @@ object CredentialValidatorConstants {
     const val ERROR_MESSAGE_NAME = "${VALIDATION_ERROR}name should be string or array of Language Object"
     const val ERROR_MESSAGE_DESCRIPTION = "${VALIDATION_ERROR}description should be string or array of Language Object"
 
+    const val ERROR_MESSAGE_INVALID_SIGNED_MSO = "invalid validityInfo->signed in the MSO of the credential"
+    const val ERROR_CODE_INVALID_MSO = "${ERROR_CODE_INVALID}_MSO"
+    const val ERROR_CODE_INVALID_VALIDITY_INFO_MSO = "${ERROR_CODE_INVALID}VALIDITY_INFO_MSO"
+
     const val ERROR_MESSAGE_INVALID_VALID_FROM_MSO = "invalid validFrom in the MSO of the credential"
     const val ERROR_CODE_INVALID_VALID_FROM_MSO = "${ERROR_CODE_INVALID}VALID_FROM_MSO"
 

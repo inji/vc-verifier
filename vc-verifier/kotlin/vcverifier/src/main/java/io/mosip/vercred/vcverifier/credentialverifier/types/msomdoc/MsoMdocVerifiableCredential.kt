@@ -59,27 +59,44 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
             throw RuntimeException("Error on decoding CBOR encoded data " + exception.message)
 
         }
-        val issuerSigned: DataItem
-        val documents: Map
-        if ((cbors[0] as Map).keys.toString().contains("documents")) {
-            documents = (cbors[0]["documents"] as Array).dataItems[0] as Map
-            issuerSigned = ((cbors[0] as Map)["documents"][0] as Map)["issuerSigned"]
-        } else {
-            documents = cbors[0] as Map
-            issuerSigned = (documents)["issuerSigned"]
-        }
+        val decodedCredential = cbors[0] as Map
+        val issuerSigned: DataItem = getIssuerSigned(decodedCredential)
 
-        val issuerAuth: Array = (issuerSigned["issuerAuth"]) as Array
+        val issuerAuth: Array = getIssuerAuth(issuerSigned)
         val issuerSignedNamespaces: Map = (issuerSigned["nameSpaces"]) as Map
-        val docType: DataItem? = if (documents.keys.toString().contains("docType")) {
-            documents["docType"]
-        } else {
-            null
-        }
+        val mso = issuerAuth.extractMso()
+        val docType = mso["docType"]
+
+
         return MsoMdocCredentialData(
             docType,
-            issuerSigned = MsoMdocCredentialData.IssuerSigned(issuerAuth, issuerSignedNamespaces)
+            issuerSigned = MsoMdocCredentialData.IssuerSigned(issuerAuth, issuerSignedNamespaces),
+            mso
         )
+    }
+
+    private fun getIssuerAuth(issuerSigned: DataItem): Array {
+        val issuerAuth: DataItem = (issuerSigned["issuerAuth"])
+        if(issuerAuth.majorType == MajorType.ARRAY) {
+            return issuerAuth as Array
+        }
+
+
+        throw RuntimeException("Invalid IssuerAuth structure in mDoc")
+    }
+
+    private fun getIssuerSigned(
+        decodedCredential: Map
+    ): DataItem {
+        val issuerSigned: DataItem =
+            (if ((decodedCredential).keys.toString().contains("documents")) {
+                (decodedCredential["documents"][0] as Map)["issuerSigned"]
+            } else if (decodedCredential.keys.toString().contains("issuerSigned")) {
+                (decodedCredential)["issuerSigned"]
+            } else {
+                decodedCredential
+            })
+        return issuerSigned
     }
 }
 

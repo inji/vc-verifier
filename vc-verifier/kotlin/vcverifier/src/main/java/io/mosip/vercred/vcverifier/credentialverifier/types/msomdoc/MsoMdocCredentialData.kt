@@ -9,6 +9,8 @@ import co.nstant.`in`.cbor.CborEncoder
 import co.nstant.`in`.cbor.model.*
 import co.nstant.`in`.cbor.model.Array
 import co.nstant.`in`.cbor.model.Map
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO
+import io.mosip.vercred.vcverifier.exception.ValidationException
 import java.util.logging.Logger
 
 
@@ -54,6 +56,9 @@ fun IssuerAuth.extractMso(): Map {
     if ((decodedPayload?.majorType ?: MajorType.INVALID) == MajorType.MAP) {
         mso = decodedPayload as Map
     } else if ((decodedPayload?.majorType ?: MajorType.ARRAY) == MajorType.BYTE_STRING) {
+        if (decodedPayload?.tag != Tag(24)) {
+            throw ValidationException("mso is not tagged", ERROR_CODE_INVALID_MSO)
+        }
         val decodedPayloadLevel2: DataItem? =
             CborDecoder.decode((decodedPayload as ByteString).bytes)[0]
         mso = decodedPayloadLevel2 as Map
@@ -63,7 +68,7 @@ fun IssuerAuth.extractMso(): Map {
     return mso
 }
 
-data class MsoMdocCredentialData(val docType: DataItem?, val issuerSigned: IssuerSigned) {
+data class MsoMdocCredentialData(val docType: DataItem?, val issuerSigned: IssuerSigned, val mso: Map) {
     data class IssuerSigned(val issuerAuth: IssuerAuth, val namespaces: IssuerSignedNamespaces)
 }
 
