@@ -1,6 +1,9 @@
 package io.mosip.vercred.vcverifier.credentialverifier.verifier
 
 import android.os.Build
+import co.nstant.`in`.cbor.model.Array
+import co.nstant.`in`.cbor.model.Map
+import co.nstant.`in`.cbor.model.UnicodeString
 import io.mockk.clearAllMocks
 import io.mockk.every
 import io.mockk.mockkObject
@@ -109,6 +112,48 @@ class MsoMdocVerifierTest {
         }
 
         assertEquals("Property mismatch with docType in the credential",verificationException.message)
+    }
+
+    @Test
+    fun `should resolve docType from a documents-wrapped legacy structure`() {
+        // "documents"-wrapped legacy credentials keep docType nested inside documents[0], not at the root
+        val mso = Map().apply { put(UnicodeString("docType"), UnicodeString("org.iso.18013.5.1.mDL")) }
+        val document = Map().apply { put(UnicodeString("docType"), UnicodeString("org.iso.18013.5.1.mDL")) }
+        val decodedCredential = Map().apply {
+            put(UnicodeString("documents"), Array().apply { add(document) })
+        }
+
+        val verifier = MsoMdocVerifier()
+        val method = verifier.javaClass.getDeclaredMethod(
+            "verifyDocType", Map::class.java, Map::class.java, Boolean::class.java
+        )
+        method.isAccessible = true
+
+        val result = method.invoke(verifier, decodedCredential, mso, false) as Boolean
+
+        assertTrue(result)
+    }
+
+    @Test
+    fun `should throw when docType in documents-wrapped legacy structure mismatches the MSO docType`() {
+        val mso = Map().apply { put(UnicodeString("docType"), UnicodeString("org.iso.18013.5.1.mDL")) }
+        val document = Map().apply { put(UnicodeString("docType"), UnicodeString("org.iso.18013.5.5.mDL")) }
+        val decodedCredential = Map().apply {
+            put(UnicodeString("documents"), Array().apply { add(document) })
+        }
+
+        val verifier = MsoMdocVerifier()
+        val method = verifier.javaClass.getDeclaredMethod(
+            "verifyDocType", Map::class.java, Map::class.java, Boolean::class.java
+        )
+        method.isAccessible = true
+
+        val invocationException = assertThrows(java.lang.reflect.InvocationTargetException::class.java) {
+            method.invoke(verifier, decodedCredential, mso, false)
+        }
+
+        assertTrue(invocationException.targetException is InvalidPropertyException)
+        assertEquals("Property mismatch with docType in the credential", invocationException.targetException.message)
     }
 
     @Test

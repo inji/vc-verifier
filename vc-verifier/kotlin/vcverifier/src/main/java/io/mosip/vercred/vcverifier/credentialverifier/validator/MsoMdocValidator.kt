@@ -61,6 +61,14 @@ class MsoMdocValidator {
                 )
             }
         }
+
+        if (mso["validityInfo"] !is Map) {
+            logger.severe("validityInfo in the credential's MSO is not a map/object as expected")
+            throw ValidationException(
+                "validityInfo is not available in MSO which is expected",
+                ERROR_CODE_INVALID_MSO
+            )
+        }
     }
 
     private fun validateValidityInfo(mso: Map, isLatest: Boolean) {
@@ -89,11 +97,19 @@ class MsoMdocValidator {
             )
         }
 
-        if (expectedUpdate != null && expectedUpdate.tag?.value != DATE_TAG) {
-            logger.severe("Error while doing validity verification - expectedUpdate is not in date format")
-            throw ValidationException(
+        if (expectedUpdate != null) {
+            if (expectedUpdate.tag?.value != DATE_TAG) {
+                logger.severe("Error while doing validity verification - expectedUpdate is not in date format")
+                throw ValidationException(
+                    ERROR_MESSAGE_INVALID_EXPECTED_UPDATE_MSO,
+                    ERROR_CODE_INVALID_VALIDITY_INFO
+                )
+            }
+            requireValidDate(
+                expectedUpdate.toString(),
+                "expectedUpdate",
                 ERROR_MESSAGE_INVALID_EXPECTED_UPDATE_MSO,
-                ERROR_CODE_INVALID_VALIDITY_INFO
+                ERROR_CODE_INVALID_VALIDITY_INFO,
             )
         }
 

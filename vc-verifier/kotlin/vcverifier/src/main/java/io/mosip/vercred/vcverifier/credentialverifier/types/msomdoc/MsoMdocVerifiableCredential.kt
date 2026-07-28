@@ -20,6 +20,7 @@ import io.mosip.vercred.vcverifier.utils.Base64Decoder
 import java.io.ByteArrayInputStream
 import java.util.logging.Logger
 
+internal const val DOCUMENTS = "documents"
 internal const val ISSUING_COUNTRY = "issuing_country"
 internal const val X5C = 33L
 internal const val DOC_TYPE = "docType"
@@ -29,7 +30,6 @@ internal const val VALUE_DIGESTS = "valueDigests"
 internal const val NAME_SPACES = "nameSpaces"
 private const val ISSUER_SIGNED = "issuerSigned"
 
-private const val DOCUMENTS = "documents"
 
 private const val ISSUER_AUTH = "issuerAuth"
 

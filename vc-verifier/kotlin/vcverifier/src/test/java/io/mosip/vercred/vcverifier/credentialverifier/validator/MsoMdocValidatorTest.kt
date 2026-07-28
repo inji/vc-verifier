@@ -426,6 +426,24 @@ class MsoMdocValidatorTest {
 
             assertTrue(isVerified)
         }
+
+        @Test
+        fun `should throw exception when validityInfo-expectedUpdate value is not a valid date`() {
+            every { DateUtils.parseDate("2024-10-23T07:01:17Z") } returns Date(1729666877000L)
+            every { DateUtils.parseDate("2026-10-23T07:01:17Z") } returns Date(1792738877000L)
+            every { DateUtils.parseDate("not-a-real-date") } returns null
+
+            // expectedUpdate is tagged correctly as tdate (tag 0) but its value doesn't parse as a valid date
+            val mso = buildMso(expectedUpdate = taggedDate("not-a-real-date"))
+            val credential = buildMdocCredential(mso)
+
+            val verificationException = assertThrows(ValidationException::class.java) {
+                MsoMdocValidator().validate(credential)
+            }
+
+            assertEquals(ERROR_MESSAGE_INVALID_EXPECTED_UPDATE_MSO, verificationException.errorMessage)
+            assertEquals(ERROR_CODE_INVALID_VALIDITY_INFO, verificationException.errorCode)
+        }
     }
 
     @Nested
@@ -444,6 +462,25 @@ class MsoMdocValidatorTest {
 
             assertEquals(
                 "$mandatoryField is not available in MSO which is expected",
+                verificationException.errorMessage
+            )
+            assertEquals(ERROR_CODE_INVALID_MSO, verificationException.errorCode)
+        }
+
+        @Test
+        fun `should throw exception when validityInfo is not a map in the credential's MSO`() {
+            // validityInfo is present but is a plain string instead of the expected map/object
+            val mso = buildMso().apply {
+                put(UnicodeString("validityInfo"), UnicodeString("not-a-map"))
+            }
+            val credential = buildMdocCredential(mso)
+
+            val verificationException = assertThrows(ValidationException::class.java) {
+                MsoMdocValidator().validate(credential)
+            }
+
+            assertEquals(
+                "validityInfo is not available in MSO which is expected",
                 verificationException.errorMessage
             )
             assertEquals(ERROR_CODE_INVALID_MSO, verificationException.errorCode)

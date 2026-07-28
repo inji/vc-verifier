@@ -11,6 +11,7 @@ import co.nstant.`in`.cbor.model.UnicodeString
 import co.nstant.`in`.cbor.model.UnsignedInteger
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DIGEST_ALGORITHM
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DIGEST_ID
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DOCUMENTS
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DOC_TYPE
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.ISSUING_COUNTRY
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.IssuerSignedNamespaces
@@ -118,6 +119,8 @@ internal class MsoMdocVerifier {
         }
         val docTypeInMso = mso[DOC_TYPE]
         val docTypeInDocument = decodedCredential.getOrNull(DOC_TYPE)
+            ?: decodedCredential.getOrNull(DOCUMENTS)
+                ?.let { documents -> ((documents as Array)[0] as Map).getOrNull(DOC_TYPE) }
             ?: throw InvalidPropertyException("Property docType not found in the credential")
         if (docTypeInMso == docTypeInDocument) {
             return true
