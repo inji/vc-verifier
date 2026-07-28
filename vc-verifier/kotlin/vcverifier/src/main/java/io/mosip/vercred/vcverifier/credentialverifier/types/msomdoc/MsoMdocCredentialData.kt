@@ -22,7 +22,7 @@ fun IssuerSignedNamespaces.extractFieldValue(fieldToBeExtracted: String): String
     val issuerSignedNamespacedData = this
     issuerSignedNamespacedData.keys.forEach { namespace ->
         run {
-            val namespaceData: MutableList<DataItem> =
+            val namespaceData: List<DataItem> =
                 ((issuerSignedNamespacedData[namespace]) as Array).dataItems
 
             namespaceData.forEach { issuerSignedItem ->
@@ -49,7 +49,7 @@ fun IssuerAuth.extractMso(): Map {
     }
 
     val decodedPayload: DataItem? =
-        CborDecoder.decode((this.get(2) as ByteString).bytes)[0]
+        CborDecoder.decode((this[2] as ByteString).bytes)[0]
     val mso: Map
     if ((decodedPayload?.majorType ?: MajorType.INVALID) == MajorType.MAP) {
         mso = decodedPayload as Map
@@ -63,7 +63,7 @@ fun IssuerAuth.extractMso(): Map {
     return mso
 }
 
-data class MsoMdocCredentialData(val docType: DataItem?, val issuerSigned: IssuerSigned) {
+data class MsoMdocCredentialData(val docType: DataItem?, val issuerSigned: IssuerSigned, val mso: Map) {
     data class IssuerSigned(val issuerAuth: IssuerAuth, val namespaces: IssuerSignedNamespaces)
 }
 
