@@ -99,6 +99,7 @@ class MsoMdocValidator {
 
         val validFromString = validFrom.toString()
         val validUntilString = validUntil.toString()
+        val signedString = signed.toString()
         requireValidDate(
             validFromString,
             "validFrom",
@@ -114,17 +115,15 @@ class MsoMdocValidator {
         )
         if (isLatest) {
             requireValidDate(
-                signed.toString(),
+                signedString,
                 "signed",
                 ERROR_MESSAGE_INVALID_SIGNED_MSO,
                 ERROR_CODE_INVALID_VALIDITY_INFO_MSO,
             )
         }
-        val isValidFromIsFutureDate =
-            DateUtils.isFutureDateWithTolerance(validFromString)
         val isValidUntilIsPastDate =
             !DateUtils.isFutureDateWithTolerance(validUntilString)
-        val isInvalidSignedData = isLatest && DateUtils.isFutureDateWithTolerance(signed.toString())
+        val isInvalidSignedData = isLatest && DateUtils.isFutureDateWithTolerance(signedString)
 
         if (isInvalidSignedData) {
             logger.severe("Error while doing validity verification - MSO was signed with invalid date")
@@ -137,8 +136,11 @@ class MsoMdocValidator {
         val isValidUntilGreaterThanValidFrom: Boolean =
             parseDate(validUntilString)?.after(parseDate(validFromString)) ?: false
 
-        if (isValidFromIsFutureDate) {
-            logger.severe("Error while doing validity verification - invalid validFrom in the MSO of the credential")
+        val isValidFromBeforeSigned: Boolean =
+            isLatest && (parseDate(validFromString)?.before(parseDate(signedString)) ?: false)
+
+        if (isValidFromBeforeSigned) {
+            logger.severe("Error while doing validity verification - validFrom must not be before signed in the MSO of the credential")
             throw ValidationException(
                 ERROR_MESSAGE_INVALID_VALID_FROM_MSO,
                 ERROR_CODE_INVALID_VALID_FROM_MSO
