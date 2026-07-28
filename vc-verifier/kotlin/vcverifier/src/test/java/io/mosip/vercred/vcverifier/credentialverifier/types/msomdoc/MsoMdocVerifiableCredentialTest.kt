@@ -6,11 +6,13 @@ import co.nstant.`in`.cbor.model.ByteString
 import co.nstant.`in`.cbor.model.DataItem
 import co.nstant.`in`.cbor.model.Map
 import co.nstant.`in`.cbor.model.UnicodeString
+import io.mockk.clearAllMocks
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.utils.DateUtils
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -111,6 +113,11 @@ private fun buildLegacyDocumentsCredential(
 }
 
 class MsoMdocVerifiableCredentialTest {
+
+    @AfterEach
+    fun tearDown() {
+        clearAllMocks()
+    }
 
     // Credential verification and validation
     @Test
@@ -263,6 +270,20 @@ class MsoMdocVerifiableCredentialTest {
 
             assertEquals("mso is not tagged", exception.errorMessage)
             assertEquals(ERROR_CODE_INVALID_MSO, exception.errorCode)
+        }
+
+        @Test
+        fun `should accept legacy issuerSigned structure when mso payload is not tagged with 24`() {
+            // The tag-24 requirement only applies to the latest OpenID4VCI 1.0 structure;
+            // legacy docType-issuerSigned credentials are exempt from it.
+            val mso = buildMso()
+            val issuerAuth = buildIssuerAuth(mso, tagPayload = false)
+            val credential = buildLegacyIssuerSignedCredential(issuerAuth)
+
+            val (_, credentialData, isLatest) = credentialParser.parse(credential)
+
+            assertFalse(isLatest)
+            assertNotNull(credentialData.mso)
         }
 
         @Test

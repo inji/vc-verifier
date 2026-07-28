@@ -213,7 +213,7 @@ class MsoMdocValidatorTest {
                 "Invalid validityInfo - validFrom / validUntil / signed is not in date format",
                 verificationException.message
             )
-            assertEquals("ERR_INVALID_INVALID_VALIDITY_INFO_MSO", verificationException.errorCode)
+            assertEquals("ERR_INVALID_VALIDITY_INFO", verificationException.errorCode)
         }
     }
 

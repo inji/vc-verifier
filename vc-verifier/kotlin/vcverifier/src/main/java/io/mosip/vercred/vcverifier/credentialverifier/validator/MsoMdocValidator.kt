@@ -38,10 +38,7 @@ class MsoMdocValidator {
             validateValidityInfo(mso, isLatest)
             return true
         } catch (exception: Exception) {
-            when (exception) {
-                is ValidationException -> throw exception
-
-            }
+            if (exception is ValidationException) throw exception
             throw UnknownException("Error while doing validation of credential - ${exception.message}")
         }
     }
@@ -57,7 +54,7 @@ class MsoMdocValidator {
         )
         mandatoryFields.forEach { mandatoryField ->
             if (mso[mandatoryField] == null) {
-                logger.severe("Invalid ValidityInfo in the credential's MSO")
+                logger.severe("Mandatory field '$mandatoryField' is missing in the credential's MSO")
                 throw ValidationException(
                     "$mandatoryField is not available in MSO which is expected",
                     ERROR_CODE_INVALID_MSO

@@ -125,7 +125,7 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
         val decodedCredential = cbors[0] as Map
         val (issuerAuth, issuerSignedNamespaces, isLatest) = getIssuerSignedData(decodedCredential)
         validateMsoPayload(issuerAuth, isLatest)
-        val mso = issuerAuth.extractMso()
+        val mso = issuerAuth.extractMso(isLatest)
         val docType = mso.get(UnicodeString(DOC_TYPE))
 
 
@@ -183,7 +183,7 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
     private fun validateMsoPayload(issuerAuth: Array, isLatest: Boolean) {
         try {
             val payload = CborDecoder.decode((issuerAuth[2] as ByteString).bytes)[0]
-            if (isLatest && payload.majorType != MajorType.BYTE_STRING || payload.tag != Tag(24)) {
+            if (isLatest && (payload.majorType != MajorType.BYTE_STRING || payload.tag != Tag(24))) {
                 throw ValidationException("mso is not tagged", ERROR_CODE_INVALID_MSO)
             }
 

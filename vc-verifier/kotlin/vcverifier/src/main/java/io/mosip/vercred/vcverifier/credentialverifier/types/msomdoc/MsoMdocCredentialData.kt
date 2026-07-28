@@ -44,7 +44,7 @@ fun IssuerSignedNamespaces.extractFieldValue(fieldToBeExtracted: String): String
     return ""
 }
 
-fun IssuerAuth.extractMso(): Map {
+fun IssuerAuth.extractMso(isLatest: Boolean = true): Map {
     if (this == null) {
         logger.severe("IssuerAuth in credential is not available")
         throw RuntimeException("Invalid Issuer Auth")
@@ -56,7 +56,7 @@ fun IssuerAuth.extractMso(): Map {
     if ((decodedPayload?.majorType ?: MajorType.INVALID) == MajorType.MAP) {
         mso = decodedPayload as Map
     } else if ((decodedPayload?.majorType ?: MajorType.ARRAY) == MajorType.BYTE_STRING) {
-        if (decodedPayload?.tag != Tag(24)) {
+        if (isLatest && decodedPayload?.tag != Tag(24)) {
             throw ValidationException("mso is not tagged", ERROR_CODE_INVALID_MSO)
         }
         val decodedPayloadLevel2: DataItem? =

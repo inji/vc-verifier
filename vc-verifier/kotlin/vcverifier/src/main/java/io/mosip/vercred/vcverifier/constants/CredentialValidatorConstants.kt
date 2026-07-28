@@ -75,7 +75,7 @@ object CredentialValidatorConstants {
 
     const val ERROR_MESSAGE_INVALID_SIGNED_MSO = "invalid validityInfo->signed in the MSO of the credential"
     const val ERROR_MESSAGE_INVALID_EXPECTED_UPDATE_MSO = "invalid validityInfo->expectedUpdate in the MSO of the credential"
-    const val ERROR_CODE_INVALID_MSO = "${ERROR_CODE_INVALID}_MSO"
+    const val ERROR_CODE_INVALID_MSO = "${ERROR_CODE_INVALID}MSO"
     const val ERROR_CODE_INVALID_VALIDITY_INFO_MSO = "${ERROR_CODE_INVALID}VALIDITY_INFO_MSO"
 
     const val ERROR_MESSAGE_INVALID_VALID_FROM_MSO = "invalid validFrom in the MSO of the credential"
@@ -86,7 +86,7 @@ object CredentialValidatorConstants {
 
     const val ERROR_MESSAGE_INVALID_DATE_MSO = "invalid validUntil / validFrom in the MSO of the credential"
     const val ERROR_CODE_INVALID_DATE_MSO = "${ERROR_CODE_INVALID}DATE_MSO"
-    const val ERROR_CODE_INVALID_VALIDITY_INFO = "${ERROR_CODE_INVALID}INVALID_VALIDITY_INFO_MSO"
+    const val ERROR_CODE_INVALID_VALIDITY_INFO = "${ERROR_CODE_INVALID}VALIDITY_INFO"
 
     const val ERROR_CODE_INVALID_JWT_FORMAT = "${ERROR_CODE_INVALID}JWT_FORMAT"
     const val ERROR_MESSAGE_INVALID_JWT_FORMAT = "${VALIDATION_ERROR}Invalid JWT format"
