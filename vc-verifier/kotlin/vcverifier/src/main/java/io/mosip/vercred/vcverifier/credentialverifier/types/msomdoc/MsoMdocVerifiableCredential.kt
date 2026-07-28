@@ -125,7 +125,7 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
         val decodedCredential = cbors[0] as Map
         val (issuerAuth, issuerSignedNamespaces, isLatest) = getIssuerSignedData(decodedCredential)
         validateMsoPayload(issuerAuth, isLatest)
-        val mso = issuerAuth.extractMso(isLatest)
+        val mso = issuerAuth.extractMso()
         val docType = mso.get(UnicodeString(DOC_TYPE))
 
 
