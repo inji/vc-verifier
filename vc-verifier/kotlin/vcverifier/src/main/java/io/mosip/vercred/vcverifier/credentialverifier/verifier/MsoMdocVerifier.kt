@@ -20,6 +20,7 @@ import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.NAME_SPACES
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.VALUE_DIGESTS
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.X5C
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.extractFieldValue
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.get
 import io.mosip.vercred.vcverifier.exception.InvalidPropertyException
 import io.mosip.vercred.vcverifier.exception.LikelyTamperedException
 import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
@@ -28,6 +29,7 @@ import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.signature.SignatureVerifier
 import io.mosip.vercred.vcverifier.signature.impl.CoseSignatureVerifierImpl
 import io.mosip.vercred.vcverifier.utils.CborDataItemUtils
+import io.mosip.vercred.vcverifier.utils.CborDataItemUtils.getOrNull
 import io.mosip.vercred.vcverifier.utils.Util
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -35,6 +37,7 @@ import java.security.cert.X509Certificate
 import java.util.logging.Logger
 import java.util.regex.Matcher
 import java.util.regex.Pattern
+import kotlin.run
 
 internal class MsoMdocVerifier {
 
@@ -215,32 +218,5 @@ internal class MsoMdocVerifier {
         }
 
         return true
-    }
-
-    operator fun DataItem.get(name: String): DataItem {
-        check(this.majorType == MajorType.MAP)
-        this as Map
-        return this.get(UnicodeString(name))
-    }
-
-    fun DataItem.getOrNull(name: String): DataItem? {
-        if (this.majorType != MajorType.MAP) {
-            return null
-        }
-        this as Map
-        val key = UnicodeString(name)
-        return if (this.keys.contains(key)) this.get(key) else null
-    }
-
-    operator fun DataItem.get(name: Long): DataItem {
-        check(this.majorType == MajorType.MAP)
-        this as Map
-        return this.get(UnsignedInteger(name))
-    }
-
-    operator fun DataItem.get(index: Int): DataItem {
-        check(this.majorType == MajorType.ARRAY)
-        this as Array
-        return this.dataItems[index]
     }
 }

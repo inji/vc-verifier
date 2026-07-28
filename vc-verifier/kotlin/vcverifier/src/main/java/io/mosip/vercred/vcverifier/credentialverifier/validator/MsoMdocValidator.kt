@@ -1,9 +1,7 @@
 package io.mosip.vercred.vcverifier.credentialverifier.validator
 
 import co.nstant.`in`.cbor.model.DataItem
-import co.nstant.`in`.cbor.model.MajorType
 import co.nstant.`in`.cbor.model.Map
-import co.nstant.`in`.cbor.model.UnicodeString
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DATE_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_VALIDITY_INFO
@@ -18,6 +16,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerifiableCredential
 import io.mosip.vercred.vcverifier.exception.UnknownException
 import io.mosip.vercred.vcverifier.exception.ValidationException
+import io.mosip.vercred.vcverifier.utils.CborDataItemUtils.getOrNull
 import io.mosip.vercred.vcverifier.utils.DateUtils
 import io.mosip.vercred.vcverifier.utils.DateUtils.parseDate
 import java.util.logging.Logger
@@ -53,7 +52,7 @@ class MsoMdocValidator {
             "validityInfo"
         )
         mandatoryFields.forEach { mandatoryField ->
-            if (mso[mandatoryField] == null) {
+            if (mso.getOrNull(mandatoryField) == null) {
                 logger.severe("Mandatory field '$mandatoryField' is missing in the credential's MSO")
                 throw ValidationException(
                     "$mandatoryField is not available in MSO which is expected",
@@ -62,7 +61,7 @@ class MsoMdocValidator {
             }
         }
 
-        if (mso["validityInfo"] !is Map) {
+        if (mso.getOrNull("validityInfo") !is Map) {
             logger.severe("validityInfo in the credential's MSO is not a map/object as expected")
             throw ValidationException(
                 "validityInfo is not available in MSO which is expected",
@@ -76,11 +75,11 @@ class MsoMdocValidator {
         a) The elements in the ‘ValidityInfo’ structure are verified against the current time stamp
          */
 
-        val validityInfo: Map = mso["validityInfo"] as Map
-        val validFrom: DataItem? = validityInfo["validFrom"]
-        val validUntil: DataItem? = validityInfo["validUntil"]
-        val signed: DataItem? = validityInfo["signed"]
-        val expectedUpdate: DataItem? = validityInfo["expectedUpdate"]
+        val validityInfo: Map = mso.getOrNull("validityInfo") as Map
+        val validFrom: DataItem? = validityInfo.getOrNull("validFrom")
+        val validUntil: DataItem? = validityInfo.getOrNull("validUntil")
+        val signed: DataItem? = validityInfo.getOrNull("signed")
+        val expectedUpdate: DataItem? = validityInfo.getOrNull("expectedUpdate")
         if (validUntil == null || validFrom == null || (isLatest && signed == null)) {
             logger.severe("Invalid ValidityInfo in the credential's MSO")
             throw ValidationException(
@@ -89,54 +88,43 @@ class MsoMdocValidator {
             )
         }
 
-        if (isLatest && (signed?.tag?.value != DATE_TAG || validFrom.tag?.value != DATE_TAG || validUntil.tag?.value != DATE_TAG)) {
-            logger.severe("Error while doing validity verification - validFrom / validUntil / signed is not in date format")
-            throw ValidationException(
-                "Invalid validityInfo - validFrom / validUntil / signed is not in date format",
-                ERROR_CODE_INVALID_VALIDITY_INFO
-            )
-        }
-
-        if (expectedUpdate != null) {
-            if (expectedUpdate.tag?.value != DATE_TAG) {
-                logger.severe("Error while doing validity verification - expectedUpdate is not in date format")
-                throw ValidationException(
-                    ERROR_MESSAGE_INVALID_EXPECTED_UPDATE_MSO,
-                    ERROR_CODE_INVALID_VALIDITY_INFO
-                )
-            }
-            requireValidDate(
-                expectedUpdate.toString(),
-                "expectedUpdate",
-                ERROR_MESSAGE_INVALID_EXPECTED_UPDATE_MSO,
-                ERROR_CODE_INVALID_VALIDITY_INFO,
-            )
-        }
-
         val validFromString = validFrom.toString()
         val validUntilString = validUntil.toString()
         val signedString = signed.toString()
         requireValidDate(
-            validFromString,
+            validFrom,
             "validFrom",
             ERROR_MESSAGE_INVALID_VALID_FROM_MSO,
             ERROR_CODE_INVALID_VALID_FROM_MSO,
+            isLatest,
         )
 
         requireValidDate(
-            validUntilString,
+            validUntil,
             "validUntil",
             ERROR_MESSAGE_INVALID_VALID_UNTIL_MSO,
             ERROR_CODE_INVALID_VALID_UNTIL_MSO,
+            isLatest,
         )
         if (isLatest) {
             requireValidDate(
-                signedString,
+                signed,
                 "signed",
                 ERROR_MESSAGE_INVALID_SIGNED_MSO,
                 ERROR_CODE_INVALID_VALIDITY_INFO_MSO,
+                true,
             )
         }
+        if (expectedUpdate != null) {
+            requireValidDate(
+                expectedUpdate,
+                "expectedUpdate",
+                ERROR_MESSAGE_INVALID_EXPECTED_UPDATE_MSO,
+                ERROR_CODE_INVALID_VALIDITY_INFO,
+                validateTag = true,
+            )
+        }
+
         val isValidUntilIsPastDate =
             !DateUtils.isFutureDateWithTolerance(validUntilString)
         val isInvalidSignedData = isLatest && DateUtils.isFutureDateWithTolerance(signedString)
@@ -178,22 +166,23 @@ class MsoMdocValidator {
     }
 
     private fun requireValidDate(
-        value: String,
+        date: DataItem?,
         fieldName: String,
         errorMessage: String,
         errorCode: String,
+        validateTag: Boolean,
     ) {
-        if (parseDate(value) == null) {
+        if (validateTag && date?.tag?.value != DATE_TAG) {
+            logger.severe("Error while doing validity verification - $fieldName is not in date format")
+            throw ValidationException(
+                "Invalid validityInfo - $fieldName is not in date format",
+                ERROR_CODE_INVALID_VALIDITY_INFO
+            )
+        }
+        if (parseDate(date.toString()) == null) {
             logger.severe("Error while doing validity verification - invalid $fieldName in the MSO of the credential")
             throw ValidationException(errorMessage, errorCode)
         }
     }
 }
 
-operator fun DataItem.get(name: String): DataItem? {
-    check(this.majorType == MajorType.MAP)
-    this as Map
-    if (this.keys.contains(UnicodeString(name)))
-        return this.get(UnicodeString(name))
-    return null
-}
