@@ -7,17 +7,23 @@ import co.nstant.`in`.cbor.model.ByteString
 import co.nstant.`in`.cbor.model.DataItem
 import co.nstant.`in`.cbor.model.MajorType
 import co.nstant.`in`.cbor.model.Map
-import co.nstant.`in`.cbor.model.Tag
 import co.nstant.`in`.cbor.model.UnicodeString
 import co.nstant.`in`.cbor.model.UnsignedInteger
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DIGEST_ALGORITHM
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DIGEST_ID
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DOC_TYPE
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.ISSUING_COUNTRY
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.IssuerSignedNamespaces
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerifiableCredential
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.NAME_SPACES
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.VALUE_DIGESTS
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.X5C
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.extractFieldValue
-import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.extractMso
 import io.mosip.vercred.vcverifier.exception.InvalidPropertyException
 import io.mosip.vercred.vcverifier.exception.LikelyTamperedException
 import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.UnknownException
+import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.signature.SignatureVerifier
 import io.mosip.vercred.vcverifier.signature.impl.CoseSignatureVerifierImpl
 import io.mosip.vercred.vcverifier.utils.CborDataItemUtils
@@ -29,12 +35,9 @@ import java.util.logging.Logger
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
-private const val ISSUING_COUNTRY = "issuing_country"
-
-class MsoMdocVerifier {
+internal class MsoMdocVerifier {
 
     private val logger = Logger.getLogger(MsoMdocVerifier::class.java.name)
-
 
 
     private val util = Util
@@ -42,7 +45,11 @@ class MsoMdocVerifier {
     fun verify(base64EncodedMdoc: String): Boolean {
         try {
 
-            val (docType, issuerSigned, mobileSecurityObject) = MsoMdocVerifiableCredential().parse(base64EncodedMdoc)
+            val (decodedCredential, credentialData, isLatest) = MsoMdocVerifiableCredential().parse(
+                base64EncodedMdoc
+            )
+            val issuerSigned = credentialData.issuerSigned
+            val mobileSecurityObject = credentialData.mso
             /**
              * a) The DS certificate is authenticated.
              * b) The digital signature verifies with the public key provided in the DS certificate.
@@ -56,13 +63,14 @@ class MsoMdocVerifier {
                     && verifyCountryName(issuerSigned.issuerAuth, issuerSigned.namespaces)
                     && verificationOfCoseSignature(issuerSigned.issuerAuth)
                     && verifyValueDigests(issuerSigned.namespaces, mobileSecurityObject)
-                    && verifyDocType(mobileSecurityObject, docType)
+                    && verifyDocType(decodedCredential, mobileSecurityObject, isLatest)
         } catch (exception: Exception) {
             when (exception) {
                 is SignatureVerificationException,
                 is LikelyTamperedException,
                 is InvalidPropertyException,
-                -> throw exception
+                is ValidationException
+                    -> throw exception
 
                 else -> {
                     throw UnknownException("Error while doing verification of credential - ${exception.message}")
@@ -99,23 +107,23 @@ class MsoMdocVerifier {
 
         val issuingCountry: String = issuerSignedNamespaces.extractFieldValue(ISSUING_COUNTRY)
         if (countryName == null || issuingCountry != countryName) {
-            return true
-//            throw InvalidPropertyException("Issuing country is not valid in the credential - Mismatch in credential data and DS certificate country name found")
+            throw InvalidPropertyException("Issuing country is not valid in the credential - Mismatch in credential data and DS certificate country name found")
         }
         return true
     }
 
-    private fun verifyDocType(mso: Map, docTypeInDocuments: DataItem?): Boolean {
-        val docTypeInMso = mso["docType"]
-        if (docTypeInDocuments == null) {
-            logger.severe("Error while doing docType property verification - docType property not found in the credential")
-            throw InvalidPropertyException("Property docType not found in the credential")
+    private fun verifyDocType(decodedCredential: Map, mso: Map, isLatest: Boolean): Boolean {
+        if (isLatest) {
+            return true
         }
-        if (docTypeInMso != docTypeInDocuments) {
-            logger.severe("Error while doing docType property verification - Property mismatch with docType in the credential")
-            throw InvalidPropertyException("Property mismatch with docType in the credential")
+        val docTypeInMso = mso[DOC_TYPE]
+        val docTypeInDocument = decodedCredential.getOrNull(DOC_TYPE)
+            ?: throw InvalidPropertyException("Property docType not found in the credential")
+        if (docTypeInMso == docTypeInDocument) {
+            return true
         }
-        return true
+        logger.severe("Error while doing docType property verification - Property mismatch with docType in the credential")
+        throw InvalidPropertyException("Property mismatch with docType in the credential")
     }
 
     private fun verificationOfCoseSignature(issuerAuth: DataItem): Boolean {
@@ -132,25 +140,29 @@ class MsoMdocVerifier {
     private fun extractCertificate(coseSignature: DataItem): X509Certificate? {
 
         val unprotectedHeader = (coseSignature as Array)[1] as Map
-        val x5Chain: DataItem = unprotectedHeader.get(33L)
-        // The x5chain (header parameter 33) in COSE is either:
+        val x5Chain: DataItem = unprotectedHeader.get(UnsignedInteger(X5C)) ?: return null
+        // The x5Chain (header parameter 33) in COSE is either:
         //A single DER-encoded X.509 certificate (byte string), or
         //An array of DER-encoded X.509 certificates (CBOR array of byte strings).
-        val issuerCertificateString = when (x5Chain.majorType) {
+        val issuerCertificateString: DataItem? = when (x5Chain.majorType) {
             MajorType.BYTE_STRING -> {
                 x5Chain
             }
+
             MajorType.ARRAY -> {
                 (x5Chain as Array)[0]
             }
+
             else -> {
                 null
             }
         }
-        val issuerCertificateBytes = (issuerCertificateString as ByteString).bytes
+        if (issuerCertificateString !is ByteString) {
+            return null
+        }
+        val issuerCertificateBytes = issuerCertificateString.bytes
         return Util.toX509Certificate(issuerCertificateBytes)
     }
-
 
 
     private fun verifyValueDigests(issuerSignedNamespaces: Map, mso: Map): Boolean {
@@ -165,22 +177,22 @@ class MsoMdocVerifier {
                 namespaceData.forEach { issuerSignedItem ->
                     val encodedIssuerSignedItem = ByteArrayOutputStream()
                     CborEncoder(encodedIssuerSignedItem).encode(issuerSignedItem)
-                    val digestAlgorithm = mso["digestAlgorithm"].toString()
+                    val digestAlgorithm = mso[DIGEST_ALGORITHM].toString()
                     val digest =
                         util.calculateDigest(digestAlgorithm, encodedIssuerSignedItem)
                     val decodedIssuerSignedItem =
                         CborDecoder(ByteArrayInputStream((issuerSignedItem as ByteString).bytes)).decode()[0]
                     val digestId: Number =
-                        (((decodedIssuerSignedItem as Map)["digestID"]) as UnsignedInteger).value
+                        (((decodedIssuerSignedItem as Map)[DIGEST_ID]) as UnsignedInteger).value
 
                     calculatedDigests[digestId] = digest
                 }
 
                 val valueDigests: Map =
-                    if ((mso["valueDigests"] as Map).keys.toString().contains(("nameSpaces"))) {
-                        ((mso["valueDigests"]["nameSpaces"] as Map)[namespace]) as Map
+                    if ((mso[VALUE_DIGESTS] as Map).keys.toString().contains(NAME_SPACES)) {
+                        ((mso[VALUE_DIGESTS][NAME_SPACES] as Map)[namespace]) as Map
                     } else {
-                        ((mso["valueDigests"] as Map)[namespace]) as Map
+                        ((mso[VALUE_DIGESTS] as Map)[namespace]) as Map
                     }
 
                 valueDigests.keys.forEach { digestId ->
@@ -206,6 +218,15 @@ class MsoMdocVerifier {
         check(this.majorType == MajorType.MAP)
         this as Map
         return this.get(UnicodeString(name))
+    }
+
+    fun DataItem.getOrNull(name: String): DataItem? {
+        if (this.majorType != MajorType.MAP) {
+            return null
+        }
+        this as Map
+        val key = UnicodeString(name)
+        return if (this.keys.contains(key)) this.get(key) else null
     }
 
     operator fun DataItem.get(name: Long): DataItem {
