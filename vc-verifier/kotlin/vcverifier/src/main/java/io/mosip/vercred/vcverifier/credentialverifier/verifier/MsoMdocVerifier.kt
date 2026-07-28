@@ -189,7 +189,7 @@ internal class MsoMdocVerifier {
                 }
 
                 val valueDigests: Map =
-                    if ((mso[VALUE_DIGESTS] as Map).keys.toString().contains(NAME_SPACES)) {
+                    if ((mso[VALUE_DIGESTS] as Map).keys.contains(UnicodeString(NAME_SPACES))) {
                         ((mso[VALUE_DIGESTS][NAME_SPACES] as Map)[namespace]) as Map
                     } else {
                         ((mso[VALUE_DIGESTS] as Map)[namespace]) as Map

@@ -154,7 +154,7 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
     }
 
     private fun getIssuerSignedData(decodedCredential: Map): Triple<Array, Map, Boolean> {
-        if (decodedCredential.keys.toString().contains(DOCUMENTS)) {
+        if (decodedCredential.keys.contains(UnicodeString(DOCUMENTS))) {
             val documentElement = decodedCredential[DOCUMENTS][0] as Map
             val issuerSigned: DataItem = documentElement[ISSUER_SIGNED]
             val issuerAuth: Array = getIssuerAuth(issuerSigned)
@@ -162,15 +162,15 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
             return Triple(issuerAuth, issuerSignedNamespaces, false)
         }
 
-        if (decodedCredential.keys.toString().contains(ISSUER_SIGNED)) {
+        if (decodedCredential.keys.contains(UnicodeString(ISSUER_SIGNED))) {
             val issuerSigned: DataItem = decodedCredential[ISSUER_SIGNED]
             val issuerAuth: Array = getIssuerAuth(issuerSigned)
             val issuerSignedNamespaces: Map = (issuerSigned[NAME_SPACES]) as Map
             return Triple(issuerAuth, issuerSignedNamespaces, false)
         }
 
-        if (decodedCredential.keys.toString().contains(ISSUER_AUTH) &&
-            decodedCredential.keys.toString().contains(NAME_SPACES)
+        if (decodedCredential.keys.contains(UnicodeString(ISSUER_AUTH)) &&
+            decodedCredential.keys.contains(UnicodeString(NAME_SPACES))
         ) {
             val issuerAuth: Array = getIssuerAuth(decodedCredential)
             val issuerSignedNamespaces: Map = (decodedCredential[NAME_SPACES]) as Map
