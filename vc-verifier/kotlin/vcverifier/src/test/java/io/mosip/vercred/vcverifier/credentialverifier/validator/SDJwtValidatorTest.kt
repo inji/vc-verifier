@@ -7,6 +7,7 @@ import io.mockk.unmockkAll
 import io.mosip.vercred.vcverifier.signature.impl.ES256KSignatureVerifierImpl
 import io.mosip.vercred.vcverifier.utils.Util
 import org.json.JSONObject
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -24,6 +25,11 @@ class SdJwtValidatorTest {
           any(),
           any()
         ) } returns true
+    }
+
+    @AfterEach
+    fun tearDown() {
+        unmockkAll()
     }
 
     private val validator = SdJwtValidator()

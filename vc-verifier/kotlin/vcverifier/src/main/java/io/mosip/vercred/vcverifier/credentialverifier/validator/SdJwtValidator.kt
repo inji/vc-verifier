@@ -89,7 +89,7 @@ class SdJwtValidator {
 
         validateSdJwtStructure(credentialJwt, disclosures, validateKeyBindingJwt)
         if (validateKeyBindingJwt) {
-            val kbJwt = keyBindingJwt
+            val kbJwt = keyBindingJwt?.takeIf { it.isNotBlank() }
                 ?: throw ValidationException(ERROR_MESSAGE_MISSING_KB_JWT, ERROR_CODE_MISSING_KB_JWT)
             this.processValidationsKeyBindingJwt(kbJwt, sdJwt)
         }
