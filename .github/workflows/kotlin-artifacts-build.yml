@@ -36,7 +36,7 @@ on:
 jobs:
   publish-snapshot:
     if: ${{ inputs.release_type == 'snapshot' }}
-    uses: mosip/kattu/.github/workflows/maven-publish-android.yml@gpgupdate-master
+    uses: mosip/kattu/.github/workflows/maven-publish-android.yml@v0.0.1
     with:
       SERVICE_LOCATION: 'vc-verifier/kotlin'
       ANDROID_SERVICE_LOCATION: 'vcverifier'
