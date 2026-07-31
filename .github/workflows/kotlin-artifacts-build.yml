@@ -36,7 +36,7 @@ on:
 jobs:
   publish-snapshot:
     if: ${{ inputs.release_type == 'snapshot' }}
-    uses: mosip/kattu/.github/workflows/maven-publish-android.yml@master
+    uses: mosip/kattu/.github/workflows/maven-publish-android.yml@gpgupdate-masterj21
     with:
       SERVICE_LOCATION: 'vc-verifier/kotlin'
       ANDROID_SERVICE_LOCATION: 'vcverifier'
@@ -50,11 +50,12 @@ jobs:
       OSSRH_SECRET: ${{ secrets.OSSRH_SECRET }}
       OSSRH_TOKEN: ${{ secrets.OSSRH_TOKEN }}
       GPG_SECRET: ${{ secrets.GPG_SECRET }}
+      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_INJI_TEAM }}
   
   publish-release:
     if: ${{ inputs.release_type == 'release' }}
-    uses: mosip/kattu/.github/workflows/maven-publish-android-download.yaml@master
+    uses: mosip/kattu/.github/workflows/maven-publish-android-download.yaml@gpgupdate-masterj21
     with:
       SERVICE_LOCATION: 'vc-verifier/kotlin'
       ANDROID_SERVICE_LOCATION: 'vcverifier'
@@ -69,4 +70,5 @@ jobs:
       OSSRH_SECRET: ${{ secrets.OSSRH_SECRET }}
       OSSRH_TOKEN: ${{ secrets.OSSRH_TOKEN }}
       GPG_SECRET: ${{ secrets.GPG_SECRET }}
+      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_INJI_TEAM }}
