@@ -23,7 +23,7 @@ on:
 jobs:
   build-maven-vc-verifier:
     needs: lint-check
-    uses: mosip/kattu/.github/workflows/gradle-build.yml@gpgupdate-master
+    uses: mosip/kattu/.github/workflows/gradle-build.yml@gpgupdate-masterj21
 
     with:
       SERVICE_LOCATION: vc-verifier/kotlin/vcverifier
