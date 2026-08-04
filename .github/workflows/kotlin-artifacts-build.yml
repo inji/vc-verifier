@@ -34,7 +34,7 @@ on:
           - io/mosip
     
 jobs:
-  publish:
+  publish-snapshot:
     if: ${{ inputs.release_type == 'snapshot' }}
     uses: mosip/kattu/.github/workflows/maven-publish-android.yml@v0.0.1
     with:
