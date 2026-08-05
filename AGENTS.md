@@ -8,35 +8,34 @@ This file provides guidance to coding agents when working with code in this repo
 
 ## Commands
 
-All commands are run from `vc-verifier/kotlin/vcverifier/` using the Gradle wrapper.
+All commands are run from `vc-verifier/kotlin/` (the Gradle root project, which includes the `:vcverifier` module) using the Gradle wrapper.
 
 ```bash
-# Build
 cd vc-verifier/kotlin
+
+# Build
 ./gradlew :vcverifier:assembleDebug
 
 # Run all unit tests
-cd vc-verifier/kotlin/vcverifier
-./gradlew testDebugUnitTest
+./gradlew :vcverifier:testDebugUnitTest
 
 # Run a single test class
-./gradlew testDebugUnitTest --tests "io.mosip.vercred.vcverifier.CredentialsVerifierTest"
+./gradlew :vcverifier:testDebugUnitTest --tests "io.mosip.vercred.vcverifier.CredentialsVerifierTest"
 
 # Run a single test method
-./gradlew testDebugUnitTest --tests "io.mosip.vercred.vcverifier.CredentialsVerifierTest.should return true for valid credential validation success"
+./gradlew :vcverifier:testDebugUnitTest --tests "io.mosip.vercred.vcverifier.CredentialsVerifierTest.should return true for valid credential validation success"
 
 # Lint
-cd vc-verifier/kotlin/vcverifier
-./gradlew lint
+./gradlew :vcverifier:lint
 
 # Generate test coverage report (outputs to build/reports/jacoco/)
-./gradlew jacocoTestReport
+./gradlew :vcverifier:jacocoTestReport
 
 # Build JAR for Maven consumers
 ./gradlew :vcverifier:jarRelease
 
 # Generate POM files
-./gradlew generatePom
+./gradlew :vcverifier:generatePom
 ```
 
 Java 17 is required. The project uses AGP 8.3.0 with `compileSdk = 33` and `minSdk = 23`.
