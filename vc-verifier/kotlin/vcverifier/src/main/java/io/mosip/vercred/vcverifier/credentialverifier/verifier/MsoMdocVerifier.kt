@@ -58,13 +58,10 @@ internal class MsoMdocVerifier {
              * a) The DS certificate is authenticated.
              * b) The digital signature verifies with the public key provided in the DS certificate.
              * c) The calculated message digests are the same as the message digests stored in the MSO.
-             * d) If the mDL Reader retrieved the issuing_country element, it shall be verified that the value of that
-             * element matches the countryName element in the subject field within the DS certificate.
-             * e) The DocType in the MSO matches the relevant DocType in the “Documents” structure.
+             * d) The DocType in the MSO matches the relevant DocType in the “Documents” structure.
              */
 
             return verifyCertificateChain(issuerSigned.issuerAuth!!)
-                    && verifyCountryName(issuerSigned.issuerAuth, issuerSigned.namespaces)
                     && verificationOfCoseSignature(issuerSigned.issuerAuth)
                     && verifyValueDigests(issuerSigned.namespaces, mobileSecurityObject)
                     && verifyDocType(decodedCredential, mobileSecurityObject, isLatest)
