@@ -7,7 +7,7 @@ import io.mosip.vercred.vcverifier.data.ValidationStatus
 
 class SdJwtVerifiableCredential: VerifiableCredential {
     override fun validate(credential: String): ValidationStatus {
-        return validate(credential, validateKeyBindingJwt = true)
+        return validate(credential, validateKeyBindingJwt = false)
     }
 
     override fun validate(credential: String, validateKeyBindingJwt: Boolean): ValidationStatus {

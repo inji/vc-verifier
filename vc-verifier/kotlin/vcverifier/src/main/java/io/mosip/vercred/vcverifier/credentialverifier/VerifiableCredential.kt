@@ -5,7 +5,7 @@ import io.mosip.vercred.vcverifier.data.ValidationStatus
 
 interface VerifiableCredential {
     fun validate(credential: String): ValidationStatus
-    fun validate(credential: String, validateKeyBindingJwt: Boolean = true): ValidationStatus =
+    fun validate(credential: String, validateKeyBindingJwt: Boolean = false): ValidationStatus =
         validate(credential)
     fun verify(credential: String): Boolean
     fun checkStatus(credential: String, statusPurposes: List<String>?): Map<String, CredentialStatusResult> {
