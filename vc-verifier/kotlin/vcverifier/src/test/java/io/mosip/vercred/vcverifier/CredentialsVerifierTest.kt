@@ -305,4 +305,28 @@ class CredentialsVerifierTest {
         assertTrue(verificationResult.verificationStatus)
         assertEquals("", verificationResult.verificationErrorCode)
     }
+
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    fun `verify SD-JWT without flag defaults to false and succeeds without KB-JWT`() {
+        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithRootLevelSdNestedPayload.txt")
+
+        val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT)
+
+        assertTrue(verificationResult.verificationStatus)
+        assertEquals("", verificationResult.verificationMessage)
+        assertEquals("", verificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    fun `verifyAndGetCredentialStatus SD-JWT without flag defaults to false and succeeds without KB-JWT`() {
+        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithRootLevelSdNestedPayload.txt")
+
+        val result = CredentialsVerifier().verifyAndGetCredentialStatus(vc, VC_SD_JWT)
+
+        assertTrue(result.verificationResult.verificationStatus)
+        assertEquals("", result.verificationResult.verificationMessage)
+        assertEquals("", result.verificationResult.verificationErrorCode)
+    }
 }
