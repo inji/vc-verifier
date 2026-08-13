@@ -4,6 +4,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants
 import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.signature.SignatureVerifier
 import io.mosip.vercred.vcverifier.signature.bouncyCastleProvider
+import org.bouncycastle.jce.ECNamedCurveTable
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.jce.spec.ECNamedCurveSpec
 import java.io.ByteArrayOutputStream
@@ -11,6 +12,7 @@ import java.math.BigInteger
 import java.security.PublicKey
 import java.security.Signature
 import java.security.interfaces.ECPublicKey
+import java.security.spec.ECParameterSpec
 
 private const val ECDSA_SIGNATURE_LENGTH = 64
 
@@ -27,7 +29,7 @@ abstract class ECDSASignatureVerifier : SignatureVerifier {
     ): Boolean {
         val ecKey = publicKey as? ECPublicKey ?: throw SignatureVerificationException("Provided key is not an Elliptic Curve key")
         val params = ecKey.params
-        val curveName = (params as? ECNamedCurveSpec)?.name ?: params?.toString()
+        val curveName = resolveCurveName(params)
         if (curveName == null) {
             throw SignatureVerificationException("Unable to determine curve name for $algorithmName validation")
         }
@@ -54,6 +56,27 @@ abstract class ECDSASignatureVerifier : SignatureVerifier {
         } catch (e: Exception) {
             throw SignatureVerificationException("Error while doing signature verification using $algorithmName algorithm: $e")
         }
+    }
+
+    /**
+     * Resolves the standard name of the curve a key was generated on.
+     *
+     * Key parameters by provider:
+     *  - ECNamedCurveSpec (BouncyCastle) - carries the curve name, read directly
+     *  - ECParameterSpec (Conscrypt, the default provider on Android) - carries no name,
+     *    so the curve order is matched against ECNamedCurveTable
+     *
+     * The order is a property of the curve rather than of the provider that parsed the key.
+     * Returns null when no named curve matches the given parameters.
+     *
+     */
+    private fun resolveCurveName(params: ECParameterSpec?): String? {
+        if (params == null) return null
+        (params as? ECNamedCurveSpec)?.name?.let { return it }
+        return ECNamedCurveTable.getNames().toList().filterIsInstance<String>()
+            .firstOrNull { name ->
+                ECNamedCurveTable.getParameterSpec(name)?.n == params.order
+            }
     }
 
     /**
