@@ -55,7 +55,7 @@ jobs:
   
   publish-release:
     if: ${{ inputs.release_type == 'release' }}
-    uses: mosip/kattu/.github/workflows/maven-publish-android-download.yaml@v0.0.1
+    uses: mosip/kattu/.github/workflows/maven-publish-android-download.yml@v0.0.1
     with:
       SERVICE_LOCATION: 'vc-verifier/kotlin'
       ANDROID_SERVICE_LOCATION: 'vcverifier'
