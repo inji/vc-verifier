@@ -19,7 +19,7 @@ class SdJwtVerifier {
         require(parts.size == 3) { "Invalid JWT format" }
 
         val jwsObject = JWSObject.parse(jwt)
-        val certBase64 = jwsObject.header.x509CertChain.firstOrNull()?.toString()
+        val certBase64 = jwsObject.header.x509CertChain?.firstOrNull()?.toString()
             ?: throw IllegalArgumentException("No X.509 certificate found in JWT header")
 
         val publicKey = getPublicKeyFromCertificate(certBase64)
