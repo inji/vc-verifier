@@ -11,7 +11,7 @@ fun readClasspathFile(path: String): String =
 val mapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
 
 fun mockHttpResponse(url: String, responseJson: String) {
-    every { NetworkManagerClient.Companion.sendHTTPRequest(url, any()) } answers {
+    every { NetworkManagerClient.Companion.sendHTTPRequest(url, any(), any(), any(), any(), any()) } answers {
         mapper.readValue(responseJson, Map::class.java) as Map<String, Any>?
     }
 }
