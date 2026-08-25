@@ -1,0 +1,4 @@
+{
+    "issuer": "https://trial.authlete.net",
+    "jwks_uri": "https://trial.authlete.net/api/vci/jwks"
+}
