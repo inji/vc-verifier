@@ -28,11 +28,11 @@ import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.RSA_MUL
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.RSA_MULTICODEC_SECOND
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.RSA_PROOF_TYPE
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.SECP256K1
+import io.mosip.vercred.vcverifier.constants.JwkParams
 import io.mosip.vercred.vcverifier.exception.PublicKeyNotFoundException
 import io.mosip.vercred.vcverifier.exception.PublicKeyResolutionFailedException
 import io.mosip.vercred.vcverifier.exception.PublicKeyTypeNotSupportedException
 import io.mosip.vercred.vcverifier.exception.SignatureNotSupportedException
-import io.mosip.vercred.vcverifier.signature.bouncyCastleProvider
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
 import org.bouncycastle.jce.ECNamedCurveTable
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -100,7 +100,7 @@ fun getPublicKeyObjectFromPemPublicKey(publicKeyPem: String, keyType: String): P
 fun getPublicKeyFromJWK(jwk: Map<String, Any>, keyType: String): PublicKey {
     return when (keyType) {
         ES256K_KEY_TYPE_2019,ES256_KEY_TYPE_2019,JWK_KEY_TYPE_EC  -> getECPublicKey(jwk)
-        ED25519_KEY_TYPE_2020, "OKP" -> getEdPublicKey(jwk)
+        ED25519_KEY_TYPE_2020, JwkParams.KEY_TYPE_OKP -> getEdPublicKey(jwk)
         RSA_KEY_TYPE, RSA_ALGORITHM -> getRSAPublicKey(jwk)
         else -> throw PublicKeyTypeNotSupportedException("Unsupported key type: $keyType")
     }
@@ -114,7 +114,7 @@ fun getPublicKeyFromJWK(jwkStr: String, keyType: String): PublicKey {
 
     return when (keyType) {
         ES256K_KEY_TYPE_2019,ES256_KEY_TYPE_2019,JWK_KEY_TYPE_EC  -> getECPublicKey(jwk)
-        ED25519_KEY_TYPE_2020, "OKP" -> getEdPublicKey(jwk)
+        ED25519_KEY_TYPE_2020, JwkParams.KEY_TYPE_OKP -> getEdPublicKey(jwk)
         RSA_KEY_TYPE, RSA_ALGORITHM -> getRSAPublicKey(jwk)
         else -> throw PublicKeyTypeNotSupportedException("Unsupported key type: $keyType")
     }
@@ -134,9 +134,9 @@ private fun getRSAPublicKey(jwk: Map<String, Any>): PublicKey {
 
 
 internal fun getEdPublicKey(jwk: Map<String, Any>): PublicKey {
-    val keyType = jwk["kty"]
-    require(keyType == "OKP") { throw PublicKeyResolutionFailedException("KeyType - $keyType is not supported. Supported: OKP") }
-    val curve = jwk["crv"]
+    val keyType = jwk[JwkParams.KTY]
+    require(keyType == JwkParams.KEY_TYPE_OKP) { throw PublicKeyResolutionFailedException("KeyType - $keyType is not supported. Supported: OKP") }
+    val curve = jwk[JwkParams.CRV]
     require(curve == ED25519_ALGORITHM) { throw PublicKeyResolutionFailedException("Curve - $curve is not supported. Supported: Ed25519") }
 
     val xB64Url =
@@ -152,7 +152,7 @@ internal fun getEdPublicKey(jwk: Map<String, Any>): PublicKey {
 
 
 private fun getECPublicKey(jwk: Map<String, Any>): PublicKey {
-    val curve = jwk["crv"]?.toString() ?: throw IllegalArgumentException("Missing 'crv' field for EC key")
+    val curve = jwk[JwkParams.CRV]?.toString() ?: throw IllegalArgumentException("Missing 'crv' field for EC key")
 
     val xBase64 = jwk["x"]?.toString()
         ?: throw PublicKeyResolutionFailedException("Missing 'x'")
