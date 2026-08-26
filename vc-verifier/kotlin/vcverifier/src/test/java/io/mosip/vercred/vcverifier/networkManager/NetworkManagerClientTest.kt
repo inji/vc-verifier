@@ -9,6 +9,12 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.net.InetSocketAddress
+import java.net.Proxy
+import java.net.ProxySelector
+import java.net.SocketAddress
+import java.net.URI
+import java.io.IOException
 
 class NetworkManagerClientTest {
 
@@ -47,6 +53,31 @@ class NetworkManagerClientTest {
         val response = NetworkManagerClient.sendHTTPRequest(url(), HttpMethod.GET)
 
         assertEquals(true, response!!["ok"])
+    }
+
+    @Test
+    fun `ignores a system proxy while the address guard is enabled`() {
+        val proxied = mutableListOf<String>()
+        val original = ProxySelector.getDefault()
+        ProxySelector.setDefault(object : ProxySelector() {
+            override fun select(uri: URI): MutableList<Proxy> {
+                proxied += uri.toString()
+                return mutableListOf(Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", 1)))
+            }
+            override fun connectFailed(uri: URI, sa: SocketAddress, ioe: IOException) = Unit
+        })
+        try {
+            server.enqueue(MockResponse().setResponseCode(200).setBody("""{"ok":true}"""))
+
+            val error = assertThrows(NetworkManagerClientExceptions.NetworkRequestFailed::class.java) {
+                NetworkManagerClient.sendHTTPRequest(url(), HttpMethod.GET)
+            }
+
+            assertTrue(error.message!!.contains("Refusing non-public host"))
+            assertTrue(proxied.isEmpty(), "system proxy must not be consulted: $proxied")
+        } finally {
+            ProxySelector.setDefault(original)
+        }
     }
 
     @Test

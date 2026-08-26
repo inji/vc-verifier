@@ -152,6 +152,28 @@ class JwksPublicKeyResolverTest {
     }
 
     @Test
+    fun `rejects a key whose key_ops is a scalar rather than an array`() {
+        mockJwks(publicJwk + mapOf("key_ops" to "encrypt"))
+
+        val error = assertThrows(PublicKeyNotFoundException::class.java) {
+            resolver.resolve(uri, "signing-key-1")
+        }
+
+        assertTrue(error.message!!.contains("JWK 'key_ops' must be an array of strings"))
+    }
+
+    @Test
+    fun `rejects a key whose key_ops array holds a non-string`() {
+        mockJwks(publicJwk + mapOf("key_ops" to listOf("verify", 42)))
+
+        val error = assertThrows(PublicKeyNotFoundException::class.java) {
+            resolver.resolve(uri, "signing-key-1")
+        }
+
+        assertTrue(error.message!!.contains("JWK 'key_ops' must be an array of strings"))
+    }
+
+    @Test
     fun `rejects a JWK carrying private key material`() {
         mockJwks(publicJwk + mapOf("d" to "870MB6gfuTJ4HtUnUvYMyJpr5eUZNP4Bk43bVdj3eAE"))
 

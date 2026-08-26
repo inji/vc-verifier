@@ -8,10 +8,15 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.io.IOException
 import java.io.InterruptedIOException
 import java.net.Inet4Address
 import java.net.Inet6Address
 import java.net.InetAddress
+import java.net.Proxy
+import java.net.ProxySelector
+import java.net.SocketAddress
+import java.net.URI
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 
@@ -41,6 +46,7 @@ class NetworkManagerClient {
                 .followRedirects(false)
                 .followSslRedirects(false)
                 .dns(PublicAddressDns)
+                .proxySelector(PolicyAwareProxySelector)
                 .build()
         }
 
@@ -127,6 +133,16 @@ class NetworkManagerClient {
 
         private class ResponseTooLargeException(maxResponseBytes: Long) :
             Exception("Response exceeds the $maxResponseBytes byte limit")
+
+        private object PolicyAwareProxySelector : ProxySelector() {
+            override fun select(uri: URI): MutableList<Proxy> =
+                if (NetworkPolicy.restrictToPublicHosts) mutableListOf(Proxy.NO_PROXY)
+                else getDefault().select(uri)
+
+            override fun connectFailed(uri: URI, sa: SocketAddress, ioe: IOException) {
+                if (!NetworkPolicy.restrictToPublicHosts) getDefault().connectFailed(uri, sa, ioe)
+            }
+        }
 
         private object PublicAddressDns : Dns {
             override fun lookup(hostname: String): List<InetAddress> {

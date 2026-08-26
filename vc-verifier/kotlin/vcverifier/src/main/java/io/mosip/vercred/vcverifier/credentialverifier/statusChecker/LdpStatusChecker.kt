@@ -40,6 +40,8 @@ import java.util.zip.GZIPInputStream
 private const val STATUS_LIST_MAX_RESPONSE_BYTES = 5L * 1024 * 1024
 private const val STATUS_LIST_CALL_TIMEOUT_SECONDS = 30L
 
+private const val STATUS_LIST_MAX_DECOMPRESSED_BYTES = 32L * 1024 * 1024
+
 /**
  * Generic StatusList2021 checker for LDP VCs.
  * Supports optional filtering by known statusPurposes.
@@ -347,7 +349,15 @@ class LdpStatusChecker() {
                     val baos = ByteArrayOutputStream()
                     val buffer = ByteArray(8192)
                     var bytesRead: Int
+                    var total = 0L
                     while (gzipIS.read(buffer).also { bytesRead = it } != -1) {
+                        total += bytesRead
+                        if (total > STATUS_LIST_MAX_DECOMPRESSED_BYTES) {
+                            throw StatusCheckException(
+                                "Status list exceeds the decompressed size limit",
+                                GZIP_DECOMPRESS_FAILED
+                            )
+                        }
                         baos.write(buffer, 0, bytesRead)
                     }
                     return baos.toByteArray()

@@ -98,9 +98,14 @@ private fun validateVerificationKey(jwk: Map<*, *>, algorithm: String?): String?
         return "JWK 'use' must be '${JwkParams.USE_SIGNATURE}'"
     }
 
-    val keyOps = jwk[JwkParams.KEY_OPS] as? List<*>
-    if (keyOps != null && keyOps.none { it?.toString() == JwkParams.KEY_OP_VERIFY }) {
-        return "JWK 'key_ops' must permit '${JwkParams.KEY_OP_VERIFY}'"
+    val keyOps = jwk[JwkParams.KEY_OPS]
+    if (keyOps != null) {
+        if (keyOps !is List<*> || keyOps.any { it !is String }) {
+            return "JWK 'key_ops' must be an array of strings"
+        }
+        if (keyOps.none { it == JwkParams.KEY_OP_VERIFY }) {
+            return "JWK 'key_ops' must permit '${JwkParams.KEY_OP_VERIFY}'"
+        }
     }
 
     val constraint = algorithm?.let { ALGORITHM_KEY_CONSTRAINTS[it] } ?: return null
