@@ -26,7 +26,7 @@ mockWebServer = "4.12.0"
 annotationJvm = "1.9.1"
 cbor = "0.9"
 identity = "20231002"
-authleteSdJwt = "1.5"
+authleteSdJwt = "1.9"
 cborLibrary = "4.5.6"
 authleteCbor = "1.19"
 
