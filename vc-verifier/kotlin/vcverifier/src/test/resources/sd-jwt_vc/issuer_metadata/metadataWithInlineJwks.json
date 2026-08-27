@@ -1,0 +1,21 @@
+{
+    "issuer": "https://demo.pid-issuer.bundesdruckerei.de/c",
+    "jwks": {
+        "keys": [
+            {
+                "kty": "EC",
+                "x5t#S256": "JmkRlSN_v0bcqgQ7VMmE5FfZ1hcNF1VxkDCLk-fwTqg",
+                "nbf": 1785391200,
+                "use": "sig",
+                "crv": "P-256",
+                "kid": "MIGUMIGOpIGLMIGIMQswCQYDVQQGEwJERTEPMA0GA1UEBwwGQmVybGluMR0wGwYDVQQKDBRCdW5kZXNkcnVja2VyZWkgR21iSDERMA8GA1UECwwIVCBDUyBJREUxNjA0BgNVBAMMLVNQUklORCBGdW5rZSBFVURJIFdhbGxldCBQcm90b3R5cGUgSXNzdWluZyBDQQIBBA==",
+                "x5c": [
+                    "MIICdTCCAhugAwIBAgIBBDAKBggqhkjOPQQDAjCBiDELMAkGA1UEBhMCREUxDzANBgNVBAcMBkJlcmxpbjEdMBsGA1UECgwUQnVuZGVzZHJ1Y2tlcmVpIEdtYkgxETAPBgNVBAsMCFQgQ1MgSURFMTYwNAYDVQQDDC1TUFJJTkQgRnVua2UgRVVESSBXYWxsZXQgUHJvdG90eXBlIElzc3VpbmcgQ0EwHhcNMjYwNzMwMDYwMDAwWhcNMjcwOTAzMDYwMDAwWjBsMQswCQYDVQQGEwJERTEdMBsGA1UECgwUQnVuZGVzZHJ1Y2tlcmVpIEdtYkgxCjAIBgNVBAsMAUkxMjAwBgNVBAMMKVNQUklORCBGdW5rZSBFVURJIFdhbGxldCBQcm90b3R5cGUgSXNzdWVyMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAETce+F2OXzJpSwP6FtjORuuUO1/wQeCV4VOOQ4/OBQl8OEsVk/0pxZ0oI4FUEiGQlg236QVITkU0Mjg69/GC2YKOBkDCBjTAdBgNVHQ4EFgQUmNglnxbmuAnWWwUYj2ZnS7CKVZIwDAYDVR0TAQH/BAIwADAOBgNVHQ8BAf8EBAMCB4AwLQYDVR0RBCYwJIIiZGVtby5waWQtaXNzdWVyLmJ1bmRlc2RydWNrZXJlaS5kZTAfBgNVHSMEGDAWgBTUVhjAiTjoDliEGMl2Yr+ru8WQvjAKBggqhkjOPQQDAgNIADBFAiAMidSzycsqf/oBAU9WWFIF2emsl7lFll3q/jJh2x1DaAIhAKOtdzVpoXUVChn4XELOODjOJ9rx8ZkK6334c/F/YJKM"
+                ],
+                "x": "Tce-F2OXzJpSwP6FtjORuuUO1_wQeCV4VOOQ4_OBQl8",
+                "y": "DhLFZP9KcWdKCOBVBIhkJYNt-kFSE5FNDI4OvfxgtmA",
+                "exp": 1819951200
+            }
+        ]
+    }
+}

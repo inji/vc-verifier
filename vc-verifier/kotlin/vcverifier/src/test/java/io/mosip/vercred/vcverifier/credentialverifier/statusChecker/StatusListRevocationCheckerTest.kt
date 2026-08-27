@@ -8,6 +8,7 @@ import io.mockk.unmockkAll
 import io.mosip.vercred.vcverifier.credentialverifier.types.LdpVerifiableCredential
 import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode
 import io.mosip.vercred.vcverifier.exception.StatusCheckException
+import io.mosip.vercred.vcverifier.networkManager.NetworkPolicy
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
@@ -20,7 +21,9 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.util.ResourceUtils
 import java.nio.file.Files
+import java.io.ByteArrayOutputStream
 import java.util.Base64
+import java.util.zip.GZIPOutputStream
 import java.util.regex.Matcher
 
 @ExtendWith(MockKExtension::class)
@@ -30,6 +33,8 @@ class StatusListRevocationCheckerTest {
     @BeforeEach
     fun setup() {
         MockKAnnotations.init(this)
+        // MockWebServer binds to loopback, which the public-address guard refuses by design.
+        NetworkPolicy.restrictToPublicHosts = false
         mockkConstructor(LdpVerifiableCredential::class)
         every { anyConstructed<LdpVerifiableCredential>().verify(any()) } returns true
         checker = LdpStatusChecker()
@@ -37,6 +42,7 @@ class StatusListRevocationCheckerTest {
 
     @AfterEach
     fun teardown() {
+        NetworkPolicy.restrictToPublicHosts = true
         unmockkAll()
     }
 
@@ -205,6 +211,26 @@ class StatusListRevocationCheckerTest {
         server.shutdown()
     }
 
+
+    @Test
+    fun `should return error when the status list decompresses beyond the limit`() {
+        val bomb = ByteArrayOutputStream().also { out ->
+            GZIPOutputStream(out).use { it.write(ByteArray(33 * 1024 * 1024)) }
+        }.toByteArray()
+        val encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(bomb)
+        assertTrue(bomb.size < 200 * 1024, "compressed payload should stay small: ${bomb.size}")
+
+        val vcJson = readFile("classpath:ldp_vc/vcUnrevoked-https.json")
+        val statusListJson = readFile("classpath:ldp_vc/status-list-vc.json")
+            .replace(Regex(""""encodedList":\s*".*?""""), """"encodedList": "u$encoded"""")
+
+        val (replacedVC, server) = prepareVCFromRaw(vcJson, statusListJson)
+        val result = checker.getStatuses(replacedVC).entries.first()
+
+        assertFalse(result.value.isValid)
+        assertEquals(StatusCheckErrorCode.GZIP_DECOMPRESS_FAILED, result.value.error?.errorCode)
+        server.shutdown()
+    }
 
     @Test
     fun `should return error on invalid GZIP data`() {

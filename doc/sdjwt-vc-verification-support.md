@@ -3,8 +3,27 @@
 This document provides a comprehensive overview of verifying `vc+sd-jwt` and `dc+sd-jwt` Verifiable Credentials (VCs).
 
 ### Public key resolution support
-- X.509 Certificates - Retrieves Issuer's public key using `x5c header parameter` in SD-JWT header.
-- DID Document - Retrieves Issuer's public key using `kid` in SD-JWT header.
+The mechanism is chosen by the credential, not the verifier, and an `x5c` header takes precedence:
+
+- **X.509 Certificates** — retrieves the Issuer's public key from the `x5c` header parameter.
+- **JWT VC Issuer Metadata** — when `iss` is an HTTPS URL, fetches the metadata at
+  `/.well-known/jwt-vc-issuer` (inserted between host and path of `iss`), requires its `issuer` to
+  match `iss` exactly, and selects a key from the inline `jwks` or the referenced `jwks_uri`.
+  A `kid` header selects among published keys; without one, the key is chosen by what the JWS
+  algorithm requires, and ambiguity is rejected rather than guessed at.
+- **DID resolution** — when `iss` is a DID, resolves a relative fragment or absolute DID URL `kid`,
+  but only when that `kid` is controlled by the DID in `iss`.
+
+The first two are the Issuer Signature Mechanisms defined in draft-ietf-oauth-sd-jwt-vc-10 §3.5.
+DID resolution is **not** part of that specification — it is an additional mechanism of the kind
+§3.5 permits ecosystems to define, and is out of scope for the draft.
+
+> **Note on network hardening:** the metadata location is derived from the `iss` claim, which is
+> attacker supplied until the signature has been checked. All outbound requests therefore run through
+> a single hardened client: connect/read/call timeouts, a response size cap, no redirects, and hosts
+> resolving to non-public addresses refused. The last two are configurable via `NetworkPolicy` for
+> deployments that serve issuers internally or behind a redirecting load balancer; both default to
+> the safe setting.
 
 
 ### Steps Involved

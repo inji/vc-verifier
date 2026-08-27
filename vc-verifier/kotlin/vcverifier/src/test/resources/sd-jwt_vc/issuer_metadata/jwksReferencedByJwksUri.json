@@ -1,0 +1,15 @@
+{
+    "keys": [
+        {
+            "kty": "EC",
+            "crv": "P-256",
+            "kid": "ZYGIOHYuA9IpUijVwQNul3nE536x1JSWHiOfdS7sadg",
+            "x5c": [
+                "MIICSDCCAe6gAwIBAgIUKJS5GmQjnfcBk3Zb/eW+IhnQk8swCgYIKoZIzj0EAwIwZTELMAkGA1UEBhMCSlAxDjAMBgNVBAgMBVRva3lvMRAwDgYDVQQHDAdDaGl5b2RhMRcwFQYDVQQKDA5BdXRobGV0ZSwgSW5jLjEbMBkGA1UEAwwSdHJpYWwuYXV0aGxldGUubmV0MCAXDTI1MDIyNTA1MzI0OVoYDzIyOTgxMjExMDUzMjQ5WjBlMQswCQYDVQQGEwJKUDEOMAwGA1UECAwFVG9reW8xEDAOBgNVBAcMB0NoaXlvZGExFzAVBgNVBAoMDkF1dGhsZXRlLCBJbmMuMRswGQYDVQQDDBJ0cmlhbC5hdXRobGV0ZS5uZXQwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQOd6TCwnpnmXqps8RQHq+K9NooFbrjb1yyFxJlHk7WfTVOrZDu9Nq+IOc9yro7y+G9rTf0zt8OWJ5i/WijjILTo3oweDAdBgNVHQ4EFgQUPMYa6fQJP6M6x4tYM1fbf3/E0xMwHwYDVR0jBBgwFoAUPMYa6fQJP6M6x4tYM1fbf3/E0xMwDwYDVR0TAQH/BAUwAwEB/zAlBgNVHREEHjAchhpodHRwczovL3RyaWFsLmF1dGhsZXRlLm5ldDAKBggqhkjOPQQDAgNIADBFAiEAyo3A/oQX/Me8myMWL025cTBw/keceHELfSQHmle5QAECIC5g/ynOmt/nuksfHAeMABf7to52zTRkRduqQCZHO3eY"
+            ],
+            "x": "DnekwsJ6Z5l6qbPEUB6vivTaKBW6429cshcSZR5O1n0",
+            "y": "NU6tkO702r4g5z3KujvL4b2tN_TO3w5YnmL9aKOMgtM",
+            "alg": "ES256"
+        }
+    ]
+}

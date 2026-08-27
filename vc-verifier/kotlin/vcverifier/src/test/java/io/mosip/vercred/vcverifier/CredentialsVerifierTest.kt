@@ -1,6 +1,7 @@
 package io.mosip.vercred.vcverifier
 
 import io.mockk.mockkObject
+import io.mosip.vercred.vcverifier.constants.CredentialFormat.DC_SD_JWT
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.LDP_VC
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.MSO_MDOC
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.VC_SD_JWT
@@ -328,5 +329,55 @@ class CredentialsVerifierTest {
         assertTrue(result.verificationResult.verificationStatus)
         assertEquals("", result.verificationResult.verificationMessage)
         assertEquals("", result.verificationResult.verificationErrorCode)
+    }
+
+    /**
+     * Credentials captured from live external issuers; see `sd-jwt_vc/FIXTURES.md` for provenance.
+     * Between them they cover both Issuer Signature Mechanisms the verifier supports — an `x5c`
+     * certificate across four certificate shapes, and a `kid` resolved against a DID in `iss`.
+     * None requires a network call: the key is either embedded in the certificate or derived from
+     * the self-certifying DID.
+     */
+    private fun verifyRealCredential(name: String) =
+        CredentialsVerifier().verify(readClasspathFile("sd-jwt_vc/$name").trim(), DC_SD_JWT)
+
+    @Test
+    fun `should verify a real credential whose x5c certificate has a SAN matching iss`() {
+        val result = verifyRealCredential("sdJwtVcWithX5cSanMatchingIss.txt")
+
+        assertTrue(result.verificationStatus)
+        assertEquals("", result.verificationErrorCode)
+    }
+
+    @Test
+    fun `should verify a real credential whose x5c certificate carries no SAN`() {
+        val result = verifyRealCredential("sdJwtVcWithX5cNoSan.txt")
+
+        assertTrue(result.verificationStatus)
+        assertEquals("", result.verificationErrorCode)
+    }
+
+    @Test
+    fun `should verify a real credential whose x5c certificate carries several SANs`() {
+        val result = verifyRealCredential("sdJwtVcWithX5cMultipleSans.txt")
+
+        assertTrue(result.verificationStatus)
+        assertEquals("", result.verificationErrorCode)
+    }
+
+    @Test
+    fun `should verify a real credential resolvable by either mechanism, through its x5c`() {
+        val result = verifyRealCredential("sdJwtVcResolvableByX5cAndKid.txt")
+
+        assertTrue(result.verificationStatus)
+        assertEquals("", result.verificationErrorCode)
+    }
+
+    @Test
+    fun `should verify a real credential whose issuer key comes from a did-key in iss`() {
+        val result = verifyRealCredential("sdJwtVcWithDidKeyIssuer.txt")
+
+        assertTrue(result.verificationStatus)
+        assertEquals("", result.verificationErrorCode)
     }
 }
