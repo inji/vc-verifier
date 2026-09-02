@@ -13,6 +13,7 @@ import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.UnknownException
 import io.mosip.vercred.vcverifier.keyResolver.PublicKeyResolverFactory
 import io.mosip.vercred.vcverifier.keyResolver.getJwsAlgorithmFromProofType
+import io.mosip.vercred.vcverifier.proof.DataIntegrityProofVerifier
 import io.mosip.vercred.vcverifier.signature.SignatureFactory
 import io.mosip.vercred.vcverifier.utils.Util
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -31,6 +32,10 @@ class LdpVerifier {
     fun verify(credential: String): Boolean {
 
         logger.info("Received Credentials Verification - Start")
+        if (DataIntegrityProofVerifier.isDataIntegrityProof(credential)) {
+            return DataIntegrityProofVerifier.verify(credential, expectedProofPurpose = "assertionMethod")
+        }
+
         val confDocumentLoader: ConfigurableDocumentLoader = Util.getConfigurableDocumentLoader()
         val vcJsonLdObject: JsonLDObject = JsonLDObject.fromJson(credential)
         vcJsonLdObject.documentLoader = confDocumentLoader

@@ -33,6 +33,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.VERIFIA
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.HOLDER_PROOF_MISSING_MSG
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.INVALID_HOLDER_PROOF_MSG
 import io.mosip.vercred.vcverifier.constants.Shared.KEY_VERIFIABLE_CREDENTIAL
+import io.mosip.vercred.vcverifier.proof.DataIntegrityProofVerifier
 import io.mosip.vercred.vcverifier.data.PresentationVerificationResult
 import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatus
 import io.mosip.vercred.vcverifier.data.PresentationResultWithCredentialStatusV2
@@ -109,7 +110,12 @@ class PresentationVerifier {
         }
 
         return try {
-            if (verifyPresentationProof(vcJsonLdObject)) {
+            val proofVerified = if (DataIntegrityProofVerifier.isDataIntegrityProof(presentation)) {
+                verifyDataIntegrityPresentationProof(presentation)
+            } else {
+                verifyPresentationProof(vcJsonLdObject)
+            }
+            if (proofVerified) {
                 //perform holder binding check
                 return if (validateHolderBindingForDidKeyAndJwk(vcJsonLdObject).verificationStatus)
                     VPVerificationStatus.VALID
@@ -145,7 +151,11 @@ class PresentationVerifier {
             throw PresentationNotSupportedException("Unsupported VP Token type")
         }
         return try {
-            val isVerified = verifyPresentationProof(vcJsonLdObject)
+            val isVerified = if (DataIntegrityProofVerifier.isDataIntegrityProof(presentation)) {
+                verifyDataIntegrityPresentationProof(presentation)
+            } else {
+                verifyPresentationProof(vcJsonLdObject)
+            }
 
             if (isVerified) {
                 //perform holder binding check
@@ -435,6 +445,13 @@ class PresentationVerifier {
 
     private fun isP256KeyType(decodedKey: ByteArray) =
         decodedKey[0] == P256_KEY_PREFIX_FIRST && decodedKey[1] == P256_KEY_PREFIX_SECOND
+
+    private fun verifyDataIntegrityPresentationProof(presentation: String): Boolean {
+        return DataIntegrityProofVerifier.verify(
+            presentation,
+            expectedProofPurpose = "authentication"
+        )
+    }
 
     private fun verifyPresentationProof(vcJsonLdObject: JsonLDObject): Boolean {
 
