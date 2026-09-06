@@ -117,6 +117,7 @@ object CredentialValidatorConstants {
         "PS256",
         "RS256",
         "EdDSA",
+        "ES256",
         "ES256K"
     )
 
@@ -126,5 +127,6 @@ object CredentialValidatorConstants {
         "Ed25519Signature2020",
         "EcdsaSecp256k1Signature2019",
         "EcdsaSecp256r1Signature2019",
+        "DataIntegrityProof",
     )
 }

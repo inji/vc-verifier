@@ -26,6 +26,17 @@ publishing {
                         dependencyNode.appendNode('groupId', it.group)
                         dependencyNode.appendNode('artifactId', it.name)
                         dependencyNode.appendNode('version', it.version)
+                        // carry dependency-level excludes into the POM; without this a
+                        // consumer re-resolves the excluded transitive and any version pin
+                        // guarding it is silently defeated
+                        if (it instanceof ModuleDependency && !it.excludeRules.isEmpty()) {
+                            def exclusionsNode = dependencyNode.appendNode('exclusions')
+                            it.excludeRules.each { rule ->
+                                def exclusionNode = exclusionsNode.appendNode('exclusion')
+                                exclusionNode.appendNode('groupId', rule.group ?: '*')
+                                exclusionNode.appendNode('artifactId', rule.module ?: '*')
+                            }
+                        }
                     }
                     asNode().appendNode('name', "vcverifier")
                     asNode().appendNode('url', "https://github.com/inji/vc-verifier")
@@ -121,6 +132,17 @@ publishing {
                         dependencyNode.appendNode('groupId', it.group)
                         dependencyNode.appendNode('artifactId', it.name)
                         dependencyNode.appendNode('version', it.version)
+                        // carry dependency-level excludes into the POM; without this a
+                        // consumer re-resolves the excluded transitive and any version pin
+                        // guarding it is silently defeated
+                        if (it instanceof ModuleDependency && !it.excludeRules.isEmpty()) {
+                            def exclusionsNode = dependencyNode.appendNode('exclusions')
+                            it.excludeRules.each { rule ->
+                                def exclusionNode = exclusionsNode.appendNode('exclusion')
+                                exclusionNode.appendNode('groupId', rule.group ?: '*')
+                                exclusionNode.appendNode('artifactId', rule.module ?: '*')
+                            }
+                        }
                     }
                     asNode().appendNode('name', "vcverifier")
                     asNode().appendNode('url', "https://github.com/inji/vc-verifier")

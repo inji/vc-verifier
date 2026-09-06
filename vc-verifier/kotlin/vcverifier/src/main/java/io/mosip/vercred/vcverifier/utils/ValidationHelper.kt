@@ -73,6 +73,15 @@ class ValidationHelper {
         if (!PROOF_TYPES_SUPPORTED.contains(ldProofType)) {
             throw ValidationException( ERROR_MESSAGE_PROOF_TYPE_NOT_SUPPORTED, "${ERROR_CODE_INVALID}${PROOF.uppercase()}_${TYPE.uppercase()}")
         }
+        if (ldProofType == "DataIntegrityProof") {
+            val cryptosuite = vcJsonObject.getJSONObject(PROOF).optString("cryptosuite")
+            if (cryptosuite !in setOf("eddsa-rdfc-2022", "ecdsa-rdfc-2019")) {
+                throw ValidationException(
+                    ERROR_MESSAGE_PROOF_TYPE_NOT_SUPPORTED,
+                    "${ERROR_CODE_INVALID}${PROOF.uppercase()}_CRYPTOSUITE"
+                )
+            }
+        }
     }
 
     fun validateId(vcJsonObject: JSONObject){

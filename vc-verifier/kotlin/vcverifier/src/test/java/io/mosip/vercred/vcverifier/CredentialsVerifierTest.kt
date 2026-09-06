@@ -1,6 +1,8 @@
 package io.mosip.vercred.vcverifier
 
+import io.mockk.every
 import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.DC_SD_JWT
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.LDP_VC
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.MSO_MDOC
@@ -14,6 +16,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_C
 import io.mosip.vercred.vcverifier.data.CredentialVerificationSummary
 import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
 import io.mosip.vercred.vcverifier.utils.LocalDocumentLoader
+import io.mosip.vercred.vcverifier.utils.DateUtils
 import io.mosip.vercred.vcverifier.utils.Util
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -43,6 +46,22 @@ class CredentialsVerifierTest {
     @AfterAll
     fun teardownAll() {
         Util.documentLoader = null
+    }
+
+    /**
+     * The published SD-JWT fixture is signed by an external issuer (funke.animo.id) and its
+     * exp has since passed, so it cannot be re-issued locally. These tests cover SD-JWT and
+     * Key Binding JWT verification rather than expiry, so the expiry check is held open for
+     * their duration; expiry itself is covered by DateUtils' own tests.
+     */
+    private fun <T> ignoringCredentialExpiry(block: () -> T): T {
+        mockkObject(DateUtils)
+        every { DateUtils.isVCExpired(any()) } returns false
+        try {
+            return block()
+        } finally {
+            unmockkObject(DateUtils)
+        }
     }
 
     @Test
@@ -272,7 +291,9 @@ class CredentialsVerifierTest {
     fun `should verify SD-JWT with KB JWT when holder binding is not required`() {
         val vc = readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtES256.txt")
 
-        val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
+        val verificationResult = ignoringCredentialExpiry {
+            CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
+        }
 
         assertTrue(verificationResult.verificationStatus)
         assertEquals("", verificationResult.verificationMessage)
@@ -284,11 +305,13 @@ class CredentialsVerifierTest {
     fun `should verify SD-JWT with KB JWT via verifyAndGetCredentialStatus when holder binding is required`() {
         val vc = readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtES256.txt")
 
-        val result = CredentialsVerifier().verifyAndGetCredentialStatus(
-            vc,
-            VC_SD_JWT,
-            validateKeyBindingJwt = true
-        )
+        val result = ignoringCredentialExpiry {
+            CredentialsVerifier().verifyAndGetCredentialStatus(
+                vc,
+                VC_SD_JWT,
+                validateKeyBindingJwt = true
+            )
+        }
 
         assertTrue(result.verificationResult.verificationStatus)
         assertEquals("", result.verificationResult.verificationMessage)

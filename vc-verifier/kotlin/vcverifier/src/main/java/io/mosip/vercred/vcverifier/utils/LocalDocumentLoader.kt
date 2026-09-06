@@ -34,6 +34,8 @@ object LocalDocumentLoader : ConfigurableDocumentLoader() {
                 "/contexts/ed25519-2020-context.json"
             url.toString().contains("https://www.w3.org/ns/credentials/v2") ->
                 "/contexts/w3vc2-context.json"
+            url.toString().contains("https://www.w3.org/ns/credentials/examples/v2") ->
+                "/contexts/w3vc-examples-v2-context.json"
             url.toString().contains("https://vharsh.github.io/DID/SchoolCredential.json") ->
                 "/contexts/school-context.json"
             url.toString().contains("https://api.collab.mosip.net/.well-known/mosip-ida-context.json") ->
