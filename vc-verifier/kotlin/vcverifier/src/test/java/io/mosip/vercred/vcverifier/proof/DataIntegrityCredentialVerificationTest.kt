@@ -2,12 +2,28 @@ package io.mosip.vercred.vcverifier.proof
 
 import io.mosip.vercred.vcverifier.CredentialsVerifier
 import io.mosip.vercred.vcverifier.constants.CredentialFormat
+import io.mosip.vercred.vcverifier.utils.LocalDocumentLoader
+import io.mosip.vercred.vcverifier.utils.Util
 import org.json.JSONObject
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DataIntegrityCredentialVerificationTest {
+
+    @BeforeAll
+    fun setUp() {
+        Util.documentLoader = LocalDocumentLoader
+    }
+
+    @AfterAll
+    fun tearDown() {
+        Util.documentLoader = null
+    }
 
     private fun vector(name: String): String =
         javaClass.classLoader.getResourceAsStream("w3c/$name")!!
