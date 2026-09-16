@@ -199,7 +199,7 @@ class SdJwtVerifierTest{
         mockkObject(NetworkManagerClient.Companion)
         every {
             NetworkManagerClient.sendHTTPRequest(
-                "https://issuer.example/.well-known/jwt-vc-issuer", any(), any(), any(), any(), any()
+                "https://issuer.example/.well-known/jwt-vc-issuer", any(), any(), any()
             )
         } returns mapOf(
             "issuer" to "https://issuer.example",

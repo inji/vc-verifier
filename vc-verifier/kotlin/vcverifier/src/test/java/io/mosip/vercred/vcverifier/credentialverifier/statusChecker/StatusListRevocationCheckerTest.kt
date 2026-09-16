@@ -8,7 +8,6 @@ import io.mockk.unmockkAll
 import io.mosip.vercred.vcverifier.credentialverifier.types.LdpVerifiableCredential
 import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode
 import io.mosip.vercred.vcverifier.exception.StatusCheckException
-import io.mosip.vercred.vcverifier.networkManager.NetworkPolicy
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
@@ -33,8 +32,6 @@ class StatusListRevocationCheckerTest {
     @BeforeEach
     fun setup() {
         MockKAnnotations.init(this)
-        // MockWebServer binds to loopback, which the public-address guard refuses by design.
-        NetworkPolicy.restrictToPublicHosts = false
         mockkConstructor(LdpVerifiableCredential::class)
         every { anyConstructed<LdpVerifiableCredential>().verify(any()) } returns true
         checker = LdpStatusChecker()
@@ -42,7 +39,6 @@ class StatusListRevocationCheckerTest {
 
     @AfterEach
     fun teardown() {
-        NetworkPolicy.restrictToPublicHosts = true
         unmockkAll()
     }
 

@@ -37,8 +37,6 @@ import java.io.IOException
 import java.util.logging.Logger
 import java.util.zip.GZIPInputStream
 
-private const val STATUS_LIST_MAX_RESPONSE_BYTES = 5L * 1024 * 1024
-private const val STATUS_LIST_CALL_TIMEOUT_SECONDS = 30L
 
 private const val STATUS_LIST_MAX_DECOMPRESSED_BYTES = 32L * 1024 * 1024
 
@@ -141,12 +139,7 @@ class LdpStatusChecker() {
         val statusListVCMap: Map<*, *>
 
         try {
-            statusListVCMap = sendHTTPRequest(
-                statusListCredentialUrl,
-                GET,
-                maxResponseBytes = STATUS_LIST_MAX_RESPONSE_BYTES,
-                callTimeoutSeconds = STATUS_LIST_CALL_TIMEOUT_SECONDS
-            )
+            statusListVCMap = sendHTTPRequest(statusListCredentialUrl, GET)
                 ?: throw StatusCheckException(
                     "Failed to retrieve status list VC",
                     STATUS_RETRIEVAL_ERROR
