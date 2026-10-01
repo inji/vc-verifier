@@ -28,7 +28,7 @@ open class DidPublicKeyResolver : PublicKeyResolver {
     }
 
     final override fun resolve(uri: String, keyId: String?): PublicKey {
-        val parsedDID: ParsedDID = parseDidUrl(uri)
+        val parsedDID: ParsedDID = parseDidUrl(stripDidJwkPadding(uri))
         val didPublicKeyResolver: DidPublicKeyResolver = resolver(parsedDID)
 
         return didPublicKeyResolver.extractPublicKey(parsedDID, keyId)
@@ -40,6 +40,14 @@ open class DidPublicKeyResolver : PublicKeyResolver {
             DidMethod.KEY -> DidKeyPublicKeyResolver()
             DidMethod.JWK -> DidJwkPublicKeyResolver()
         }
+    }
+
+    // Some issuers encode did:jwk with base64url "=" padding, which DID syntax does not allow;
+    // strip it so those holder DIDs still resolve.
+    private fun stripDidJwkPadding(didUrl: String): String {
+        if (!didUrl.startsWith("did:jwk:")) return didUrl
+        val did = didUrl.substringBefore('#').trimEnd('=')
+        return if (didUrl.contains('#')) "$did#${didUrl.substringAfter('#')}" else did
     }
 
     private fun parseDidUrl(didUrl: String): ParsedDID {
