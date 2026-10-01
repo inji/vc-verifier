@@ -359,10 +359,12 @@ class CredentialsVerifierTest {
      * Between them they cover both Issuer Signature Mechanisms the verifier supports — an `x5c`
      * certificate across four certificate shapes, and a `kid` resolved against a DID in `iss`.
      * None requires a network call: the key is either embedded in the certificate or derived from
-     * the self-certifying DID.
+     * the self-certifying DID. Their `exp` passes over time and these tests cover key resolution,
+     * not expiry, so expiry is held open.
      */
-    private fun verifyRealCredential(name: String) =
+    private fun verifyRealCredential(name: String) = ignoringCredentialExpiry {
         CredentialsVerifier().verify(readClasspathFile("sd-jwt_vc/$name").trim(), DC_SD_JWT)
+    }
 
     @Test
     fun `should verify a real credential whose x5c certificate has a SAN matching iss`() {
