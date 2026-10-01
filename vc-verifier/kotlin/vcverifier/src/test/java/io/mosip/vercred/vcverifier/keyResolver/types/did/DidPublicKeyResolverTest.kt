@@ -14,6 +14,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
+import java.util.Base64
 
 class DidPublicKeyResolverTest {
     @BeforeEach
@@ -108,6 +109,23 @@ class DidPublicKeyResolverTest {
         val publicKey = didPublicKeyResolver.resolve(validDid)
 
         assertEquals("EC",publicKey.algorithm)
+    }
+
+    @Test
+    fun `should resolve did jwk with base64url padding to the same key as without padding`() {
+        unmockkAll()
+        val jwk = """{"kty":"EC","crv":"P-256","x":"MKBCTNIcKUSDii11ySs3526iDZ8AiTo7Tu6KPAqv7D4","y":"4Etl6SRW2YiLUrN5vfvVHuhp7x8PxltmWWlbbM4IFyM","kid":"1"}"""
+        val paddedId = Base64.getUrlEncoder().encodeToString(jwk.toByteArray())
+        val unpaddedId = Base64.getUrlEncoder().withoutPadding().encodeToString(jwk.toByteArray())
+        assertTrue(paddedId.endsWith("=="))
+        val didPublicKeyResolver = DidPublicKeyResolver()
+
+        val paddedKey = didPublicKeyResolver.resolve("did:jwk:$paddedId")
+        val paddedKeyWithFragment = didPublicKeyResolver.resolve("did:jwk:$paddedId#0")
+        val unpaddedKey = didPublicKeyResolver.resolve("did:jwk:$unpaddedId#0")
+
+        assertArrayEquals(unpaddedKey.encoded, paddedKey.encoded)
+        assertArrayEquals(unpaddedKey.encoded, paddedKeyWithFragment.encoded)
     }
 
 }
