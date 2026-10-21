@@ -4,8 +4,15 @@ plugins {
     `maven-publish`
     alias(libs.plugins.dokka)
     alias(libs.plugins.sonarqube)
+    alias(libs.plugins.dependency.guard)
     jacoco
     signing
+}
+
+dependencyGuard {
+    configuration("releaseRuntimeClasspath") {
+        tree = true
+    }
 }
 
 configurations.all {

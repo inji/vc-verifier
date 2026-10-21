@@ -21,6 +21,7 @@
     - 6.2 [Presentation Verifier](#62-presentation-verifier)
 7. [Public Key Extraction](#public-key-extraction)
 8. [Error Codes](#error-codes)
+9. [Reviewing Dependency Graph Changes](#reviewing-dependency-graph-changes)
 
 ---
 
@@ -1017,3 +1018,37 @@ For other unknown exceptions, error code will be `ERR_GENERIC`
 | UNKNOWN_ERROR             | Unknown error occurred during status check    |
 
 For other unknown exceptions, error code will be `ERR_INVALID_UNKNOWN`
+## Reviewing dependency graph changes
+
+The [Dependency graph workflow](../../.github/workflows/dependency-graph.yml) runs
+independently of lint on pull requests, pushes to `develop`/`master`, and manual
+runs. It uses [Dependency Guard](https://github.com/dropbox/dependency-guard) to
+compare the library's resolved `releaseRuntimeClasspath`, including transitive
+dependencies, with the committed baselines in `vcverifier/dependencies/`.
+
+From this directory, check the graph with:
+
+```sh
+./gradlew :vcverifier:dependencyGuard --console=plain
+```
+
+When intentionally changing dependencies, regenerate both baselines:
+
+```sh
+./gradlew :vcverifier:dependencyGuardBaseline --console=plain
+```
+
+Review and commit the resulting `.txt` and `.tree.txt` changes alongside the
+dependency change. The tree shows dependency paths and version selections; the
+flat list makes resolved version changes easy to scan. Do not automatically
+rebaseline in CI: an unexpected transitive change should require review.
+
+The workflow summary includes the PR's baseline tree diff and the guard output,
+even when the check fails. Download the `dependency-graph` artifact for the full
+resolved tree, baselines, and logs. Summary excerpts are capped; artifacts retain
+the complete output. Missing or empty committed baselines also fail the check.
+
+This checks the library's Gradle release runtime graph. It does not validate the
+Maven graph selected by an application consuming the published JAR/POM, detect
+duplicate classes, or prove runtime compatibility. It also does not lock versions
+or detect changed contents published under the same SNAPSHOT coordinates.

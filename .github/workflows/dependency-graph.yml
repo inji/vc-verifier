@@ -1,0 +1,106 @@
+name: Dependency graph
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  push:
+    branches: [develop, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-graph:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: vc-verifier/kotlin
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Check dependency graph baseline
+        id: guard
+        run: |
+          mkdir -p build/dependency-guard
+          for baseline in vcverifier/dependencies/releaseRuntimeClasspath.txt vcverifier/dependencies/releaseRuntimeClasspath.tree.txt; do
+            git ls-files --error-unmatch "$baseline"
+            test -s "$baseline"
+          done
+          ./gradlew :vcverifier:dependencyGuard --console=plain 2>&1 | tee build/dependency-guard/check.log
+
+      - name: Export resolved dependency graph
+        if: always()
+        run: |
+          mkdir -p build/dependency-guard
+          ./gradlew :vcverifier:dependencies --configuration releaseRuntimeClasspath --console=plain > build/dependency-guard/resolved-tree.txt 2>&1
+
+      - name: Summarize dependency changes
+        if: always()
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CHECK_OUTCOME: ${{ steps.guard.outcome }}
+        run: |
+          report=build/dependency-guard/pr-graph.diff
+          baseline=vcverifier/dependencies/releaseRuntimeClasspath.tree.txt
+          if [ -n "$BASE_SHA" ]; then
+            git diff --no-ext-diff --no-textconv --no-color --unified=5 "$BASE_SHA" -- "$baseline" > "$report"
+          fi
+          {
+            echo '## Runtime dependency graph'
+            echo
+            echo "Baseline check: $CHECK_OUTCOME"
+            echo
+            echo 'Dependency Guard checks the resolved release runtime tree against its committed baseline.'
+            echo 'For intentional changes, update the baseline locally and include it in the PR.'
+            echo
+            if [ -f build/dependency-guard/check.log ]; then
+              echo '<details><summary>Dependency Guard result and unbaselined changes</summary>'
+              echo
+              echo '```text'
+              python3 -c 'import re, sys; print(re.sub(r"\x1b\[[0-9;]*m", "", sys.stdin.read())[-30000:])' < build/dependency-guard/check.log
+              echo
+              echo '```'
+              echo '</details>'
+            fi
+            echo
+            if [ -s "$report" ]; then
+              echo '<details><summary>Dependency tree changes in this PR</summary>'
+              echo
+              echo '```diff'
+              head -c 50000 "$report"
+              echo
+              echo '```'
+              echo '</details>'
+            else
+              echo 'No committed dependency tree changes relative to the PR base (or no PR base for this run).'
+            fi
+            echo
+            echo 'The check log includes any unbaselined graph changes. Full logs and the resolved tree are available in the dependency-graph artifact.'
+            echo
+            echo 'Run locally: `cd vc-verifier/kotlin && ./gradlew :vcverifier:dependencyGuardBaseline`'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload dependency graph and check log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-graph
+          path: |
+            vc-verifier/kotlin/build/dependency-guard/
+            vc-verifier/kotlin/vcverifier/dependencies/
+          retention-days: 14
