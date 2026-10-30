@@ -291,9 +291,7 @@ class CredentialsVerifierTest {
     fun `should verify SD-JWT with KB JWT when holder binding is not required`() {
         val vc = readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtES256.txt")
 
-        val verificationResult = ignoringCredentialExpiry {
-            CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
-        }
+        val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
 
         assertTrue(verificationResult.verificationStatus)
         assertEquals("", verificationResult.verificationMessage)
@@ -305,13 +303,7 @@ class CredentialsVerifierTest {
     fun `should verify SD-JWT with KB JWT via verifyAndGetCredentialStatus when holder binding is required`() {
         val vc = readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtES256.txt")
 
-        val result = ignoringCredentialExpiry {
-            CredentialsVerifier().verifyAndGetCredentialStatus(
-                vc,
-                VC_SD_JWT,
-                validateKeyBindingJwt = true
-            )
-        }
+        val result = CredentialsVerifier().verifyAndGetCredentialStatus(vc, VC_SD_JWT, validateKeyBindingJwt = true )
 
         assertTrue(result.verificationResult.verificationStatus)
         assertEquals("", result.verificationResult.verificationMessage)

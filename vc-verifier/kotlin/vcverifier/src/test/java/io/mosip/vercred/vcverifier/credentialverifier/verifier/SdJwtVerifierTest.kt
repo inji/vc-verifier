@@ -1,9 +1,11 @@
 package io.mosip.vercred.vcverifier.credentialverifier.verifier
 
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_X5C_CERT_VALIDITY
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerifiableCredential
 import io.mockk.*
 import io.mosip.vercred.vcverifier.keyResolver.types.did.DidPublicKeyResolver
 import io.mosip.vercred.vcverifier.exception.PublicKeyNotFoundException
+import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -20,11 +22,25 @@ class SdJwtVerifierTest{
 
     @Test
     fun `should verify sd-jwt successfully`() {
-
         val file = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "sd-jwt_vc/sdJwt.txt")
         val vc = String(Files.readAllBytes(file.toPath()))
 
-        assertTrue( SdJwtVerifier().verify(vc))
+        assertTrue(SdJwtVerifier().verify(vc))
+    }
+
+    @Test
+    fun `should reject sd-jwt when x5c certificate is expired`() {
+        // sdJwtWithExpiredX5c.txt: certify-issued RS256 SD-JWT whose x5c notAfter is 2025-10-30.
+        val file = ResourceUtils.getFile(
+            ResourceUtils.CLASSPATH_URL_PREFIX + "sd-jwt_vc/sdJwtWithExpiredX5c.txt"
+        )
+        val vc = String(Files.readAllBytes(file.toPath())).trim()
+
+        val error = assertThrows(SignatureVerificationException::class.java) {
+            SdJwtVerifier().verify(vc)
+        }
+
+        assertEquals(ERROR_MESSAGE_INVALID_X5C_CERT_VALIDITY, error.message)
     }
 
     @Test

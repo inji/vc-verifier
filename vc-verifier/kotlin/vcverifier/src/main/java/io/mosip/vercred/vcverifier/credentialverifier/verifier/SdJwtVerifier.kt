@@ -1,13 +1,17 @@
 package io.mosip.vercred.vcverifier.credentialverifier.verifier
 
 import com.nimbusds.jose.JWSObject
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_X5C_CERT_VALIDITY
 import io.mosip.vercred.vcverifier.constants.DidMethod
+import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.keyResolver.types.did.DidPublicKeyResolver
 import io.mosip.vercred.vcverifier.keyResolver.types.jwks.SdJwtVcIssuerMetadataResolver
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
 import io.mosip.vercred.vcverifier.utils.Util
 import io.mosip.vercred.vcverifier.utils.Util.verifyJwt
 import java.security.PublicKey
+import java.security.cert.CertificateExpiredException
+import java.security.cert.CertificateNotYetValidException
 
 private const val DID_SCHEME = "did:"
 private const val HTTPS_SCHEME = "https://"
@@ -101,7 +105,13 @@ class SdJwtVerifier {
     private fun getPublicKeyFromCertificate(certBase64: String): PublicKey {
         val certificateBytes = Base64Decoder().decodeFromBase64(certBase64)
         val x509Certificate = Util.toX509Certificate(certificateBytes)
-        val publicKey = x509Certificate.publicKey
-        return publicKey
+        try {
+            x509Certificate.checkValidity()
+        } catch (_: CertificateExpiredException) {
+            throw SignatureVerificationException(ERROR_MESSAGE_INVALID_X5C_CERT_VALIDITY)
+        } catch (_: CertificateNotYetValidException) {
+            throw SignatureVerificationException(ERROR_MESSAGE_INVALID_X5C_CERT_VALIDITY)
+        }
+        return x509Certificate.publicKey
     }
 }

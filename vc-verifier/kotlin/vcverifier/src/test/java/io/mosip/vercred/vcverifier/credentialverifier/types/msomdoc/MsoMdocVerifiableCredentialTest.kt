@@ -24,7 +24,6 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
 import java.util.Base64
-import java.util.Date
 
 private const val MSO_TAG24 = 24L
 
@@ -123,8 +122,7 @@ class MsoMdocVerifiableCredentialTest {
     @Test
     fun `should validate and verify valid mDocs successfully`() {
         mockkObject(DateUtils)
-        every { DateUtils.parseDate("2024-10-23T07:01:17Z") } returns Date(1729666877000L)
-        every { DateUtils.parseDate("2026-10-23T07:01:17Z") } returns Date(1792738877000L)
+        every { DateUtils.isFutureDateWithTolerance("2026-10-23T07:01:17Z") } returns true
 
         val validMDocs = listOf(
             // VCI 1.0 compliant
