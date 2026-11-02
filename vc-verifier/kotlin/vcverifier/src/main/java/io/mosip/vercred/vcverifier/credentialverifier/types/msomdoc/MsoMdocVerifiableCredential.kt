@@ -22,18 +22,43 @@ import java.util.logging.Logger
 
 internal const val DOCUMENTS = "documents"
 internal const val ISSUING_COUNTRY = "issuing_country"
+internal const val ISSUING_JURISDICTION = "issuing_jurisdiction"
+internal const val ISSUE_DATE = "issue_date"
 internal const val X5C = 33L
+internal const val COSE_ALG_HEADER_LABEL = 1L
+/** COSE algorithm identifiers for ECDSA (RFC 9053). */
+internal const val COSE_ALG_ES256 = -7L
+internal const val COSE_ALG_ES384 = -35L
+internal const val COSE_ALG_ES512 = -36L
+internal val SUPPORTED_COSE_ALGS = setOf(
+    java.math.BigInteger.valueOf(COSE_ALG_ES256),
+    java.math.BigInteger.valueOf(COSE_ALG_ES384),
+    java.math.BigInteger.valueOf(COSE_ALG_ES512),
+)
 internal const val DOC_TYPE = "docType"
 internal const val DIGEST_ALGORITHM = "digestAlgorithm"
 internal const val DIGEST_ID = "digestID"
+internal const val RANDOM = "random"
 internal const val VALUE_DIGESTS = "valueDigests"
 internal const val NAME_SPACES = "nameSpaces"
+internal const val MDL_DOCTYPE = "org.iso.18013.5.1.mDL"
+internal const val MDL_NAMESPACE = "org.iso.18013.5.1"
+internal const val MDL_DS_EKU = "1.0.18013.5.1.2"
+internal const val KEY_USAGE_OID = "2.5.29.15"
+internal const val EXTENDED_KEY_USAGE_OID = "2.5.29.37"
+/** ISO 18013-5: digestID values must be less than 2^31. */
+internal val DIGEST_ID_MAX_EXCLUSIVE = java.math.BigInteger.valueOf(1L shl 31)
+internal const val MIN_DIGEST_SALT_BYTES = 16
+internal const val MSO_VERSION_1_0 = "1.0"
+internal val SUPPORTED_DIGEST_ALGORITHMS = setOf("SHA-256", "SHA-384", "SHA-512")
 private const val ISSUER_SIGNED = "issuerSigned"
 
 
 private const val ISSUER_AUTH = "issuerAuth"
 
-class MsoMdocVerifiableCredential : VerifiableCredential {
+class MsoMdocVerifiableCredential(
+    private val options: MsoMdocVerificationOptions = MsoMdocVerificationOptions(),
+) : VerifiableCredential {
 
     private val logger = Logger.getLogger(MsoMdocVerifiableCredential::class.java.name)
 
@@ -60,7 +85,7 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
     }
 
     override fun verify(credential: String): Boolean {
-        return MsoMdocVerifier().verify(credential)
+        return MsoMdocVerifier(options).verify(credential)
     }
 
     /**
@@ -127,7 +152,15 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
         validateMsoPayload(issuerAuth, isLatest)
         val mso = issuerAuth.extractMso()
         val docType = mso.get(UnicodeString(DOC_TYPE))
-
+        val encodedNameSpaceItems = try {
+            MsoMdocNameSpacesRawBytes.extract(decodedData)
+        } catch (exception: Exception) {
+            logger.severe("Failed to capture as-received nameSpaces item bytes: ${exception.message}")
+            throw ValidationException(
+                "Failed to capture as-received IssuerSignedItemBytes",
+                ERROR_CODE_INVALID_MSO
+            )
+        }
 
         return Triple(
             decodedCredential,
@@ -135,7 +168,8 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
                 docType,
                 issuerSigned = MsoMdocCredentialData.IssuerSigned(
                     issuerAuth,
-                    issuerSignedNamespaces
+                    issuerSignedNamespaces,
+                    encodedNameSpaceItems,
                 ),
                 mso
             ),

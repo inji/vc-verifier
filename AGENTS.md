@@ -52,7 +52,7 @@ Java 17 is required. The project uses AGP 8.3.0 with `compileSdk = 33` and `minS
 
 **Supported formats** (`CredentialFormat` enum):
 - `LDP_VC` — JSON-LD with Linked Data Proofs → `LdpVerifiableCredential`
-- `MSO_MDOC` — CBOR/COSE → `MsoMdocVerifiableCredential`
+- `MSO_MDOC` — base64url CBOR/COSE (ISO 18013-5 mDL) → `MsoMdocVerifiableCredential` / `MsoMdocValidator` / `MsoMdocVerifier` (see `doc/mso-mdoc-verification-support.md`). Accepts shapes A/B/C; Base45 is not supported.
 - `VC_SD_JWT` / `DC_SD_JWT` — SD-JWT → `SdJwtVerifiableCredential` (same impl for both)
 - `CWT_VC` — CBOR Web Token → `CwtVerifiableCredential`
 - `JWT_VC_JSON` — JWT → `JwtVerifiableCredential`

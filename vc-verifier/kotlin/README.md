@@ -96,14 +96,29 @@ refer to the implementation classes for complete rules.
 
 ### 3.2 MSO MDOC Validation
 
-* Parses CBOR MSO structure using `MsoMdocVerifiableCredential().parse(...)`
+* Input must be **base64url**-encoded CBOR (Base45 / QR transport is not accepted)
+* Parses CBOR using `MsoMdocVerifiableCredential().parse(...)` for shapes:
+    * **A (latest / OpenID4VCI 1.0):** `{ issuerAuth, nameSpaces }`
+    * **B (legacy):** `{ docType, issuerSigned: { issuerAuth, nameSpaces } }`
+    * **C (legacy):** `{ documents: [ { docType, issuerSigned } ] }` (uses `documents[0]`)
+* **MSO structure:**
+    * `version` must be `"1.0"`
+    * `digestAlgorithm` must be `SHA-256`, `SHA-384`, or `SHA-512`
+    * Shape A: MSO payload must be wrapped in CBOR tag 24
 * **Validates the `validityInfo` block:**
-    * `validFrom` should not be in future
-    * `validUntil` should not be in past
+    * Dates must have no fractional seconds and end in `Z`
+    * `validFrom` should not be in the future (3s skew)
+    * `validUntil` in the past → `ERR_VC_EXPIRED` (soft fail; same pattern as other formats)
     * `validUntil > validFrom` must hold
+    * Shape A: `signed` required; `validFrom` must not be before `signed`
 * Field access uses a CBOR helper operator `DataItem["validFrom"]`
 * Exceptions thrown for any date inconsistencies
 * **Validation class:** `MsoMdocValidator`
+* **Verification (`MsoMdocVerifier`)** adds ISO 18013-5 checks: DS cert validity / mDL EKU
+  `1.0.18013.5.1.2` / critical KeyUsage `digitalSignature`, MSO `signed` within DS validity,
+  COSE `alg`, IssuerSignedItemBytes digests (tag-24 records, selective disclosure allowed),
+  and mDL `issuing_country` / optional `issuing_jurisdiction` / `issue_date` vs `validFrom`
+* Details: [`doc/mso-mdoc-verification-support.md`](../../doc/mso-mdoc-verification-support.md)
 
 ### 3.3 SD-JWT VC Validation
 
@@ -250,7 +265,7 @@ and [IETF SD-JWT](https://datatracker.ietf.org/doc/draft-ietf-oauth-selective-di
 | VC format     | Issuer Signature Mechanism                                             | Verification Algorithms                      | Signature Suites / Proof Types                                                            |
 |---------------|------------------------------------------------------------------------|----------------------------------------------|-------------------------------------------------------------------------------------------|
 | `ldp_vc`      | Linked Data Proof                                                      | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | RsaSignature2018, Ed25519Signature2018, Ed25519Signature2020, EcdsaSecp256k1Signature2019 |
-| `mso_mdoc`    | COSE (CBOR Object Signing and Encryption)                              | ES256                                        | Uses COSE_Sign1                                                                           |
+| `mso_mdoc`    | COSE (CBOR Object Signing and Encryption)                              | ES256, ES384, ES512                          | Uses COSE_Sign1                                                                           |
 | `vc+sd-jwt`   | X.509 Certificate, JWT VC Issuer Metadata/JWKS, DID `kid` | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | -                                                                                         |
 | `dc+sd-jwt`   | X.509 Certificate, JWT VC Issuer Metadata/JWKS, DID `kid` | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | -                                                                                         |
 | `cwt_vc`      | COSE_Sign1 (CBOR Web Token – RFC 8392)                                 | ES256, EdDSA (COSE alg based)                | COSE_Sign1                                                                                |
@@ -913,10 +928,32 @@ For other unknown exceptions, error code will be `ERR_GENERIC`
 
 **mso_mdoc Format VC Error Codes**
 
-| Field      | Error Code           |
-|------------|----------------------|
-| validFrom  | ERR_INVALID_DATE_MSO |
-| validUntil | ERR_INVALID_DATE_MSO |
+| Field / check                         | Error Code                      |
+|---------------------------------------|---------------------------------|
+| validFrom / validUntil structural     | ERR_INVALID_DATE_MSO            |
+| validFrom invalid                     | ERR_INVALID_VALID_FROM_MSO      |
+| validUntil invalid                    | ERR_INVALID_VALID_UNTIL_MSO     |
+| validityInfo dates format (no frac / Z) | ERR_INVALID_MSO_DATE_FORMAT   |
+| validFrom in the future               | ERR_VALID_FROM_IS_FUTURE_DATE   |
+| validUntil in the past (expired)      | ERR_VC_EXPIRED                  |
+| MSO version                           | ERR_INVALID_MSO_VERSION         |
+| digestAlgorithm                       | ERR_INVALID_DIGEST_ALGORITHM    |
+| MSO / issuerAuth payload              | ERR_INVALID_MSO                 |
+| DS certificate validity               | ERR_INVALID_DS_CERT_VALIDITY    |
+| DS certificate EKU                    | ERR_INVALID_DS_CERT_EKU         |
+| DS certificate KeyUsage               | ERR_INVALID_DS_CERT_KEY_USAGE   |
+| MSO signed outside DS cert            | ERR_INVALID_SIGNED_OUTSIDE_DS_CERT |
+| issuing_country                       | ERR_INVALID_ISSUING_COUNTRY     |
+| issuing_jurisdiction                  | ERR_INVALID_ISSUING_JURISDICTION |
+| valueDigests mismatch / missing       | ERR_INVALID_VALUE_DIGESTS       |
+| duplicate digestID                    | ERR_INVALID_DIGEST_ID           |
+| nameSpaces record not tag-24          | ERR_INVALID_ISSUER_SIGNED_ITEM  |
+| COSE protected `alg` missing          | ERR_MISSING_ALG                 |
+| COSE protected `alg` not ES256/384/512 | ERR_INVALID_ALG                |
+| digestID ≥ 2^31 or missing            | ERR_INVALID_DIGEST_ID           |
+| salt (`random`) &lt; 16 bytes           | ERR_INVALID_DIGEST_SALT         |
+| mDL field type/structure/mandatory/age | ERR_INVALID_MDL_ELEMENT        |
+| issue_date after validFrom / invalid date | ERR_INVALID_ISSUE_DATE      |
 
 For other unknown exceptions, error code will be `ERR_GENERIC`
 

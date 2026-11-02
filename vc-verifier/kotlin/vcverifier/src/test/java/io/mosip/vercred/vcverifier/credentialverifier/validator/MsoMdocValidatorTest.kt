@@ -10,17 +10,27 @@ import co.nstant.`in`.cbor.model.UnicodeString
 import io.mockk.clearAllMocks
 import io.mockk.every
 import io.mockk.mockkObject
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_CURRENT_DATE_BEFORE_VALID_FROM
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_VALID_FROM_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_VALID_UNTIL_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DATE_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_VALIDITY_INFO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_VALIDITY_INFO_MSO
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_VC_EXPIRED
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CURRENT_DATE_BEFORE_VALID_FROM
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_VALID_FROM_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_VALID_UNTIL_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_EXPECTED_UPDATE_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_SIGNED_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_DATE_MSO
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_VC_EXPIRED
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DIGEST_ALGORITHM
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO_DATE_FORMAT
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO_VERSION
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_DIGEST_ALGORITHM
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_MSO_DATE_FORMAT
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_MSO_VERSION
 import io.mosip.vercred.vcverifier.exception.UnknownException
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.utils.BuildConfig
@@ -116,6 +126,8 @@ class MsoMdocValidatorTest {
         mockkObject(DateUtils)
         every { DateUtils.parseDate("2024-10-23T07:01:17Z") } returns Date(1729666877000L)
         every { DateUtils.parseDate("2026-10-23T07:01:17Z") } returns Date(1792738877000L)
+        every { DateUtils.isIsoMsoDateTime(any()) } answers { callOriginal() }
+        every { DateUtils.isIsoFullDate(any()) } answers { callOriginal() }
 
     }
 
@@ -139,19 +151,22 @@ class MsoMdocValidatorTest {
     }
 
     @Test
-    fun `should return true when validFrom is a future date for legacy structure since only latest checks validFrom against signed`() {
+    fun `should throw when validFrom is a future date for legacy structure`() {
         every { DateUtils.isFutureDateWithTolerance("2024-10-23T07:01:17Z") } returns true
         every { DateUtils.isFutureDateWithTolerance("2026-10-23T07:01:17Z") } returns true
 
-        val isVerified = MsoMdocValidator().validate(
-            "omdkb2NUeXBldW9yZy5pc28uMTgwMTMuNS4xLm1ETGxpc3N1ZXJTaWduZWSiamlzc3VlckF1dGiEQ6EBJqEYIVkBxDCCAcAwggFloAMCAQICFH6lICTsAhkMivItOT9v6JeZubwmMAoGCCqGSM49BAMCME4xCzAJBgNVBAYTAk1LMQ4wDAYDVQQIDAVNSy1LQTERMA8GA1UEBwwITW9ja0NpdHkxDTALBgNVBAoMBE1vY2sxDTALBgNVBAsMBE1vY2swHhcNMjQxMDIyMDcwMjUwWhcNMjUxMDIyMDcwMjUwWjBOMQswCQYDVQQGEwJNSzEOMAwGA1UECAwFTUstS0ExETAPBgNVBAcMCE1vY2tDaXR5MQ0wCwYDVQQKDARNb2NrMQ0wCwYDVQQLDARNb2NrMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEjtRcOXgIyR_xqGB-M6d0qkrjQWOBGGdlPgfIfb2xW0egZAVEz_55IXCofWaprRGxX7qQTlNAZyByniay2jzhR6MhMB8wHQYDVR0OBBYEFNqAHypQYcwWoeUfmMv4SbztomFvMAoGCCqGSM49BAMCA0kAMEYCIQDsgsz9wCa56ukpfyvq9371b5GhkSZb38G7xFofWgFtJwIhAKxACllIOtcleKETDFGa3araADjKd2isahQtXZwQmPr1WQJR2BhZAkymZ3ZlcnNpb25jMS4wb2RpZ2VzdEFsZ29yaXRobWdTSEEtMjU2Z2RvY1R5cGV1b3JnLmlzby4xODAxMy41LjEubURMbHZhbHVlRGlnZXN0c6Fxb3JnLmlzby4xODAxMy41LjGoAlggd4bqGFzNwBXyzdGmeipRMfjTQKQuzs6nvM7Z1AXsFBQGWCCaGHxiAeoHvfCNpkG3XpGTTQ787Fg9f3R9UTvKGa0mqwNYICnPRqwtKq9fYqI0sR96Ha3151joEQb24VAzTK4jw8puAVggHp8Y6cV73O670tvfMiyCZoxGczcYyfOh43Q8ahKpxxcEWCC75BhZBjDE1I4S5NLZAsaUmBERMZM9rMgZPkAzl45VeABYIIlDF4uT1D3MLGPsLL-kVBP0SHyxAYcAVf9SLYLUJUUgB1ggFuI0cmV1WwSJGv5VxI5a7Dsm6fIqr2MeIDBmYjIlZ0oFWCA88kOo8KNGtCpl2XH5CXMcgoE6D_fag9xjmPoLUcpgpG1kZXZpY2VLZXlJbmZvoWlkZXZpY2VLZXmkAQIgASFYIOMdpjABg7S1sJBCgdC4D6V237Jk_oGhMl_LInX0CFnGIlggPdyNKVXrSZb4CYQmoK6lX7Zux0DIBcnhJ9-_a7ZlYtdsdmFsaWRpdHlJbmZvo2ZzaWduZWTAdDIwMjQtMTAtMjNUMDc6MDE6MTdaaXZhbGlkRnJvbcB0MjAyNC0xMC0yM1QwNzowMToxN1pqdmFsaWRVbnRpbMB0MjAyNi0xMC0yM1QwNzowMToxN1pYQOkgtaSchZRTPO01AjYgnKBT9mgXG4NUWsp_W5pCxz5eyB6SIpL9lVYg3tPOkTfYggsVSgPO8ostvTXn7DsBRl5qbmFtZVNwYWNlc6Fxb3JnLmlzby4xODAxMy41LjGI2BhYWKRoZGlnZXN0SUQCZnJhbmRvbVBthSy1vmphqpoMYRe9Z0PncWVsZW1lbnRJZGVudGlmaWVyamlzc3VlX2RhdGVsZWxlbWVudFZhbHVlajIwMjQtMTAtMjPYGFhZpGhkaWdlc3RJRAZmcmFuZG9tUNyXhXOZjmheiFyzYfhsl0ZxZWxlbWVudElkZW50aWZpZXJrZXhwaXJ5X2RhdGVsZWxlbWVudFZhbHVlajIwMjktMTAtMjPYGFifpGhkaWdlc3RJRANmcmFuZG9tUCC-v7ARALJ2VFcYww9AbMhxZWxlbWVudElkZW50aWZpZXJyZHJpdmluZ19wcml2aWxlZ2VzbGVsZW1lbnRWYWx1ZXhIe2lzc3VlX2RhdGU9MjAyNC0xMC0yMywgdmVoaWNsZV9jYXRlZ29yeV9jb2RlPUEsIGV4cGlyeV9kYXRlPTIwMjktMTAtMjN92BhYV6RoZGlnZXN0SUQBZnJhbmRvbVDjoYj_8RBZ62-85iZV371vcWVsZW1lbnRJZGVudGlmaWVyb2RvY3VtZW50X251bWJlcmxlbGVtZW50VmFsdWVkMTIzM9gYWFWkaGRpZ2VzdElEBGZyYW5kb21Qg7iWcNbZ-b9S2D3u3Av2YnFlbGVtZW50SWRlbnRpZmllcm9pc3N1aW5nX2NvdW50cnlsZWxlbWVudFZhbHVlYk1L2BhYWKRoZGlnZXN0SUQAZnJhbmRvbVAFg1zMFq1oLYxHiib0UCeYcWVsZW1lbnRJZGVudGlmaWVyamJpcnRoX2RhdGVsZWxlbWVudFZhbHVlajE5OTQtMTEtMDbYGFhUpGhkaWdlc3RJRAdmcmFuZG9tUElZm1bdU7M1GlcrQPJ_ctNxZWxlbWVudElkZW50aWZpZXJqZ2l2ZW5fbmFtZWxlbGVtZW50VmFsdWVmSm9zZXBo2BhYVaRoZGlnZXN0SUQFZnJhbmRvbVB_NHtdmXkWLPqVnSgypGGWcWVsZW1lbnRJZGVudGlmaWVya2ZhbWlseV9uYW1lbGVsZW1lbnRWYWx1ZWZBZ2F0aGE="
-        )
+        val verificationException = assertThrows(ValidationException::class.java) {
+            MsoMdocValidator().validate(
+                "omdkb2NUeXBldW9yZy5pc28uMTgwMTMuNS4xLm1ETGxpc3N1ZXJTaWduZWSiamlzc3VlckF1dGiEQ6EBJqEYIVkBxDCCAcAwggFloAMCAQICFH6lICTsAhkMivItOT9v6JeZubwmMAoGCCqGSM49BAMCME4xCzAJBgNVBAYTAk1LMQ4wDAYDVQQIDAVNSy1LQTERMA8GA1UEBwwITW9ja0NpdHkxDTALBgNVBAoMBE1vY2sxDTALBgNVBAsMBE1vY2swHhcNMjQxMDIyMDcwMjUwWhcNMjUxMDIyMDcwMjUwWjBOMQswCQYDVQQGEwJNSzEOMAwGA1UECAwFTUstS0ExETAPBgNVBAcMCE1vY2tDaXR5MQ0wCwYDVQQKDARNb2NrMQ0wCwYDVQQLDARNb2NrMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEjtRcOXgIyR_xqGB-M6d0qkrjQWOBGGdlPgfIfb2xW0egZAVEz_55IXCofWaprRGxX7qQTlNAZyByniay2jzhR6MhMB8wHQYDVR0OBBYEFNqAHypQYcwWoeUfmMv4SbztomFvMAoGCCqGSM49BAMCA0kAMEYCIQDsgsz9wCa56ukpfyvq9371b5GhkSZb38G7xFofWgFtJwIhAKxACllIOtcleKETDFGa3araADjKd2isahQtXZwQmPr1WQJR2BhZAkymZ3ZlcnNpb25jMS4wb2RpZ2VzdEFsZ29yaXRobWdTSEEtMjU2Z2RvY1R5cGV1b3JnLmlzby4xODAxMy41LjEubURMbHZhbHVlRGlnZXN0c6Fxb3JnLmlzby4xODAxMy41LjGoAlggd4bqGFzNwBXyzdGmeipRMfjTQKQuzs6nvM7Z1AXsFBQGWCCaGHxiAeoHvfCNpkG3XpGTTQ787Fg9f3R9UTvKGa0mqwNYICnPRqwtKq9fYqI0sR96Ha3151joEQb24VAzTK4jw8puAVggHp8Y6cV73O670tvfMiyCZoxGczcYyfOh43Q8ahKpxxcEWCC75BhZBjDE1I4S5NLZAsaUmBERMZM9rMgZPkAzl45VeABYIIlDF4uT1D3MLGPsLL-kVBP0SHyxAYcAVf9SLYLUJUUgB1ggFuI0cmV1WwSJGv5VxI5a7Dsm6fIqr2MeIDBmYjIlZ0oFWCA88kOo8KNGtCpl2XH5CXMcgoE6D_fag9xjmPoLUcpgpG1kZXZpY2VLZXlJbmZvoWlkZXZpY2VLZXmkAQIgASFYIOMdpjABg7S1sJBCgdC4D6V237Jk_oGhMl_LInX0CFnGIlggPdyNKVXrSZb4CYQmoK6lX7Zux0DIBcnhJ9-_a7ZlYtdsdmFsaWRpdHlJbmZvo2ZzaWduZWTAdDIwMjQtMTAtMjNUMDc6MDE6MTdaaXZhbGlkRnJvbcB0MjAyNC0xMC0yM1QwNzowMToxN1pqdmFsaWRVbnRpbMB0MjAyNi0xMC0yM1QwNzowMToxN1pYQOkgtaSchZRTPO01AjYgnKBT9mgXG4NUWsp_W5pCxz5eyB6SIpL9lVYg3tPOkTfYggsVSgPO8ostvTXn7DsBRl5qbmFtZVNwYWNlc6Fxb3JnLmlzby4xODAxMy41LjGI2BhYWKRoZGlnZXN0SUQCZnJhbmRvbVBthSy1vmphqpoMYRe9Z0PncWVsZW1lbnRJZGVudGlmaWVyamlzc3VlX2RhdGVsZWxlbWVudFZhbHVlajIwMjQtMTAtMjPYGFhZpGhkaWdlc3RJRAZmcmFuZG9tUNyXhXOZjmheiFyzYfhsl0ZxZWxlbWVudElkZW50aWZpZXJrZXhwaXJ5X2RhdGVsZWxlbWVudFZhbHVlajIwMjktMTAtMjPYGFifpGhkaWdlc3RJRANmcmFuZG9tUCC-v7ARALJ2VFcYww9AbMhxZWxlbWVudElkZW50aWZpZXJyZHJpdmluZ19wcml2aWxlZ2VzbGVsZW1lbnRWYWx1ZXhIe2lzc3VlX2RhdGU9MjAyNC0xMC0yMywgdmVoaWNsZV9jYXRlZ29yeV9jb2RlPUEsIGV4cGlyeV9kYXRlPTIwMjktMTAtMjN92BhYV6RoZGlnZXN0SUQBZnJhbmRvbVDjoYj_8RBZ62-85iZV371vcWVsZW1lbnRJZGVudGlmaWVyb2RvY3VtZW50X251bWJlcmxlbGVtZW50VmFsdWVkMTIzM9gYWFWkaGRpZ2VzdElEBGZyYW5kb21Qg7iWcNbZ-b9S2D3u3Av2YnFlbGVtZW50SWRlbnRpZmllcm9pc3N1aW5nX2NvdW50cnlsZWxlbWVudFZhbHVlYk1L2BhYWKRoZGlnZXN0SUQAZnJhbmRvbVAFg1zMFq1oLYxHiib0UCeYcWVsZW1lbnRJZGVudGlmaWVyamJpcnRoX2RhdGVsZWxlbWVudFZhbHVlajE5OTQtMTEtMDbYGFhUpGhkaWdlc3RJRAdmcmFuZG9tUElZm1bdU7M1GlcrQPJ_ctNxZWxlbWVudElkZW50aWZpZXJqZ2l2ZW5fbmFtZWxlbGVtZW50VmFsdWVmSm9zZXBo2BhYVaRoZGlnZXN0SUQFZnJhbmRvbVB_NHtdmXkWLPqVnSgypGGWcWVsZW1lbnRJZGVudGlmaWVya2ZhbWlseV9uYW1lbGVsZW1lbnRWYWx1ZWZBZ2F0aGE="
+            )
+        }
 
-        assertTrue(isVerified)
+        assertEquals(ERROR_CURRENT_DATE_BEFORE_VALID_FROM, verificationException.errorMessage)
+        assertEquals(ERROR_CODE_CURRENT_DATE_BEFORE_VALID_FROM, verificationException.errorCode)
     }
 
     @Test
-    fun `should throw exception when current time is less than validUntil`() {
+    fun `should throw ERR_VC_EXPIRED when validUntil is in the past`() {
         every { DateUtils.isFutureDateWithTolerance("2024-10-23T07:01:17Z") } returns false
         every { DateUtils.isFutureDateWithTolerance("2026-10-23T07:01:17Z") } returns false
 
@@ -161,8 +176,8 @@ class MsoMdocValidatorTest {
             )
         }
 
-        assertEquals(ERROR_MESSAGE_INVALID_VALID_UNTIL_MSO, verificationException.errorMessage)
-        assertEquals(ERROR_CODE_INVALID_VALID_UNTIL_MSO, verificationException.errorCode)
+        assertEquals(ERROR_MESSAGE_VC_EXPIRED, verificationException.errorMessage)
+        assertEquals(ERROR_CODE_VC_EXPIRED, verificationException.errorCode)
     }
 
     @Test
@@ -221,8 +236,8 @@ class MsoMdocValidatorTest {
         
         @ParameterizedTest(name = "validFrom isFutureDateWithTolerance={0}, validUntil isFutureDateWithTolerance={1} should throw={2}")
         @CsvSource(
-            "true,  true,  false",  // legacy structure: validFrom future is no longer checked, validUntil future = valid
-            "true,  false, true",   // validUntil past = throw
+            "true,  true,  true",   // validFrom future = throw
+            "true,  false, true",   // validFrom future and validUntil past = throw
             "false, false, true",   // validUntil past = throw
             "false, true,  false"   // valid case
         )
@@ -362,6 +377,29 @@ class MsoMdocValidatorTest {
         }
 
         @Test
+        fun `should throw ERR_INVALID_DATE_MSO not soft expiry when inverted window is fully in the past`() {
+            // Both dates past; validUntil before validFrom. Ordering must fail hard before ERR_VC_EXPIRED.
+            every { DateUtils.parseDate("2023-10-23T07:01:17Z") } returns Date(1698044477000L)
+            every { DateUtils.parseDate("2024-10-23T07:01:17Z") } returns Date(1729666877000L)
+            every { DateUtils.isFutureDateWithTolerance("2023-10-23T07:01:17Z") } returns false
+            every { DateUtils.isFutureDateWithTolerance("2024-10-23T07:01:17Z") } returns false
+
+            val mso = buildMso(
+                validFrom = taggedDate("2024-10-23T07:01:17Z"),
+                validUntil = taggedDate("2023-10-23T07:01:17Z"),
+                signed = taggedDate("2024-10-23T07:01:17Z")
+            )
+            val credential = buildMdocCredential(mso)
+
+            val verificationException = assertThrows(ValidationException::class.java) {
+                MsoMdocValidator().validate(credential)
+            }
+
+            assertEquals(ERROR_MESSAGE_INVALID_DATE_MSO, verificationException.errorMessage)
+            assertEquals(ERROR_CODE_INVALID_DATE_MSO, verificationException.errorCode)
+        }
+
+        @Test
         fun `should throw exception when validFrom is before signed in the latest MSO structure`() {
             every { DateUtils.parseDate("2024-10-23T07:01:17Z") } returns Date(1729666877000L)
             every { DateUtils.parseDate("2025-10-23T07:01:17Z") } returns Date(1761202877000L)
@@ -406,15 +444,14 @@ class MsoMdocValidatorTest {
         }
 
         @Test
-        fun `should return true when validFrom is a future date but not before signed in the latest MSO structure`() {
+        fun `should throw when validFrom is a future date in the latest MSO structure`() {
             every { DateUtils.parseDate("2024-10-23T07:01:17Z") } returns Date(1729666877000L)
             every { DateUtils.parseDate("2026-10-23T07:01:17Z") } returns Date(1792738877000L)
             every { DateUtils.parseDate("2028-10-23T07:01:17Z") } returns Date(1856156477000L)
-            every { DateUtils.isFutureDateWithTolerance("2024-10-23T07:01:17Z") } returns false
+            every { DateUtils.isFutureDateWithTolerance("2026-10-23T07:01:17Z") } returns true
             every { DateUtils.isFutureDateWithTolerance("2028-10-23T07:01:17Z") } returns true
+            every { DateUtils.isFutureDateWithTolerance("2024-10-23T07:01:17Z") } returns false
 
-            // validFrom (2026) is a future date, but that alone is no longer checked; it's still
-            // after signed (2024), so this must pass.
             val mso = buildMso(
                 validFrom = taggedDate("2026-10-23T07:01:17Z"),
                 validUntil = taggedDate("2028-10-23T07:01:17Z"),
@@ -422,9 +459,76 @@ class MsoMdocValidatorTest {
             )
             val credential = buildMdocCredential(mso)
 
-            val isVerified = MsoMdocValidator().validate(credential)
+            val verificationException = assertThrows(ValidationException::class.java) {
+                MsoMdocValidator().validate(credential)
+            }
 
-            assertTrue(isVerified)
+            assertEquals(ERROR_CURRENT_DATE_BEFORE_VALID_FROM, verificationException.errorMessage)
+            assertEquals(ERROR_CODE_CURRENT_DATE_BEFORE_VALID_FROM, verificationException.errorCode)
+        }
+
+        @Test
+        fun `should throw when version major is not 1`() {
+            every { DateUtils.isFutureDateWithTolerance("2024-10-23T07:01:17Z") } returns false
+            every { DateUtils.isFutureDateWithTolerance("2026-10-23T07:01:17Z") } returns true
+
+            val mso = buildMso().apply {
+                put(UnicodeString("version"), UnicodeString("2.0"))
+            }
+            val credential = buildMdocCredential(mso)
+
+            val verificationException = assertThrows(ValidationException::class.java) {
+                MsoMdocValidator().validate(credential)
+            }
+
+            assertEquals(ERROR_MESSAGE_INVALID_MSO_VERSION, verificationException.errorMessage)
+            assertEquals(ERROR_CODE_INVALID_MSO_VERSION, verificationException.errorCode)
+        }
+
+        @Test
+        fun `should accept version 1_1 as major version 1`() {
+            every { DateUtils.isFutureDateWithTolerance("2024-10-23T07:01:17Z") } returns false
+            every { DateUtils.isFutureDateWithTolerance("2026-10-23T07:01:17Z") } returns true
+
+            val mso = buildMso().apply {
+                put(UnicodeString("version"), UnicodeString("1.1"))
+            }
+            val credential = buildMdocCredential(mso)
+
+            assertTrue(MsoMdocValidator().validate(credential))
+        }
+
+        @Test
+        fun `should throw when digestAlgorithm is unsupported`() {
+            every { DateUtils.isFutureDateWithTolerance("2024-10-23T07:01:17Z") } returns false
+            every { DateUtils.isFutureDateWithTolerance("2026-10-23T07:01:17Z") } returns true
+
+            val mso = buildMso().apply {
+                put(UnicodeString("digestAlgorithm"), UnicodeString("MD5"))
+            }
+            val credential = buildMdocCredential(mso)
+
+            val verificationException = assertThrows(ValidationException::class.java) {
+                MsoMdocValidator().validate(credential)
+            }
+
+            assertEquals(ERROR_MESSAGE_INVALID_DIGEST_ALGORITHM, verificationException.errorMessage)
+            assertEquals(ERROR_CODE_INVALID_DIGEST_ALGORITHM, verificationException.errorCode)
+        }
+
+        @Test
+        fun `should throw when validityInfo date has fractional seconds`() {
+            every { DateUtils.isFutureDateWithTolerance(any()) } returns false
+
+            val mso = buildMso(validFrom = taggedDate("2024-10-23T07:01:17.500Z"))
+            val credential = buildMdocCredential(mso)
+
+            val verificationException = assertThrows(ValidationException::class.java) {
+                MsoMdocValidator().validate(credential)
+            }
+
+            assertTrue(verificationException.errorMessage.startsWith(ERROR_MESSAGE_INVALID_MSO_DATE_FORMAT))
+            assertEquals(ERROR_CODE_INVALID_MSO_DATE_FORMAT, verificationException.errorCode)
         }
 
         @Test

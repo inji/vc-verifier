@@ -117,4 +117,19 @@ object DateUtils {
         return odt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
     }
 
+    /**
+     * ISO 18013-5 tdate values in validityInfo must be full-date-times in UTC with no
+     * fractional seconds, e.g. `2024-10-23T07:01:17Z`.
+     */
+    fun isIsoMsoDateTime(dateString: String): Boolean {
+        return MSO_DATE_TIME_PATTERN.matches(dateString) && parseDate(dateString) != null
+    }
+
+    fun isIsoFullDate(dateString: String): Boolean {
+        return FULL_DATE_PATTERN.matches(dateString)
+    }
+
+    private val MSO_DATE_TIME_PATTERN = Regex("""^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$""")
+    private val FULL_DATE_PATTERN = Regex("""^\d{4}-\d{2}-\d{2}$""")
+
 }

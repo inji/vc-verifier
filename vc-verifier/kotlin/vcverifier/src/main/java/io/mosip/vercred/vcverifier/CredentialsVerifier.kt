@@ -7,9 +7,11 @@ import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_C
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_MESSAGE_VERIFICATION_FAILED
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.EXCEPTION_DURING_VERIFICATION
 import io.mosip.vercred.vcverifier.credentialverifier.CredentialVerifierFactory
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerificationOptions
 import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.CredentialVerificationSummary
 import io.mosip.vercred.vcverifier.data.VerificationResult
+import io.mosip.vercred.vcverifier.exception.ValidationException
 import java.util.logging.Logger
 
 
@@ -38,9 +40,21 @@ class CredentialsVerifier {
         return true
     }
 
+    /**
+     * @param mdocStrictProfile when [credentialFormat] is mso_mdoc, enforces mDL DS EKU and
+     * ISO Table 5 field checks (issue #300). Set false temporarily for non-conformant Certify fixtures.
+     */
     @JvmOverloads
-    fun verify(credential: String, credentialFormat: CredentialFormat, validateKeyBindingJwt: Boolean = false): VerificationResult {
-        val credentialVerifier = credentialVerifierFactory.get(credentialFormat)
+    fun verify(
+        credential: String,
+        credentialFormat: CredentialFormat,
+        validateKeyBindingJwt: Boolean = false,
+        mdocStrictProfile: Boolean = true,
+    ): VerificationResult {
+        val credentialVerifier = credentialVerifierFactory.get(
+            credentialFormat,
+            MsoMdocVerificationOptions(strictMdlProfile = mdocStrictProfile),
+        )
         val validationStatus = credentialVerifier.validate(credential, validateKeyBindingJwt)
         if (validationStatus.validationMessage.isNotEmpty() && !validationStatus.validationErrorCode.contentEquals(
                 ERROR_CODE_VC_EXPIRED
@@ -67,6 +81,8 @@ class CredentialsVerifier {
                 ERROR_CODE_VERIFICATION_FAILED
             )
 
+        } catch (e: ValidationException) {
+            VerificationResult(false, e.errorMessage, e.errorCode)
         } catch (e: Exception) {
             val errorCode = validationStatus.validationErrorCode.takeIf { !it.isNullOrEmpty() }
                 ?: ERROR_CODE_VERIFICATION_FAILED
@@ -96,9 +112,15 @@ class CredentialsVerifier {
         credential: String,
         credentialFormat: CredentialFormat,
         statusPurposeList: List<String> = emptyList(),
-        validateKeyBindingJwt: Boolean = false
+        validateKeyBindingJwt: Boolean = false,
+        mdocStrictProfile: Boolean = true,
     ): CredentialVerificationSummary {
-        val verificationResult = verify(credential, credentialFormat, validateKeyBindingJwt)
+        val verificationResult = verify(
+            credential,
+            credentialFormat,
+            validateKeyBindingJwt,
+            mdocStrictProfile,
+        )
         if (verificationResult.verificationStatus) {
             val statusResults = getCredentialStatus(credential, credentialFormat, statusPurposeList)
             return CredentialVerificationSummary(verificationResult, statusResults)

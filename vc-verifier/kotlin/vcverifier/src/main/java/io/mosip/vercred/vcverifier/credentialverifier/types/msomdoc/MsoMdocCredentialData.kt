@@ -1,14 +1,13 @@
 package io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc
 
 import co.nstant.`in`.cbor.CborDecoder
+import co.nstant.`in`.cbor.model.Array
 import co.nstant.`in`.cbor.model.ByteString
 import co.nstant.`in`.cbor.model.DataItem
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import co.nstant.`in`.cbor.CborEncoder
-import co.nstant.`in`.cbor.model.*
-import co.nstant.`in`.cbor.model.Array
+import co.nstant.`in`.cbor.model.MajorType
 import co.nstant.`in`.cbor.model.Map
+import co.nstant.`in`.cbor.model.UnicodeString
+import java.io.ByteArrayInputStream
 import java.util.logging.Logger
 
 
@@ -19,27 +18,40 @@ private val logger = Logger.getLogger(MsoMdocCredentialData::class.java.name)
 
 
 fun IssuerSignedNamespaces.extractFieldValue(fieldToBeExtracted: String): String {
+    return extractFieldValue(fieldToBeExtracted, namespaceFilter = null) ?: ""
+}
+
+fun IssuerSignedNamespaces.extractFieldValue(
+    fieldToBeExtracted: String,
+    namespaceFilter: String?,
+): String? {
     val issuerSignedNamespacedData = this
     issuerSignedNamespacedData.keys.forEach { namespace ->
-        run {
-            val namespaceData: List<DataItem> =
-                ((issuerSignedNamespacedData[namespace]) as Array).dataItems
+        if (namespaceFilter != null && (namespace as? UnicodeString)?.string != namespaceFilter) {
+            return@forEach
+        }
+        val namespaceData: List<DataItem> =
+            ((issuerSignedNamespacedData[namespace]) as Array).dataItems
 
-            namespaceData.forEach { issuerSignedItem ->
-                val encodedIssuerSignedItem = ByteArrayOutputStream()
-                CborEncoder(encodedIssuerSignedItem).encode(issuerSignedItem)
-                val decodedIssuerSignedItem =
-                    CborDecoder(ByteArrayInputStream((issuerSignedItem as ByteString).bytes)).decode()[0] as Map
-                val elementIdentifier: String =
-                    ((decodedIssuerSignedItem["elementIdentifier"]) as UnicodeString).string
+        namespaceData.forEach { issuerSignedItem ->
+            if (issuerSignedItem !is ByteString) {
+                return@forEach
+            }
+            val decodedIssuerSignedItem =
+                CborDecoder(ByteArrayInputStream(issuerSignedItem.bytes)).decode()[0] as Map
+            val elementIdentifier: String =
+                ((decodedIssuerSignedItem["elementIdentifier"]) as UnicodeString).string
 
-                if (elementIdentifier == fieldToBeExtracted) {
-                    return (decodedIssuerSignedItem["elementValue"] as UnicodeString).string
+            if (elementIdentifier == fieldToBeExtracted) {
+                val elementValue = decodedIssuerSignedItem["elementValue"]
+                return when (elementValue) {
+                    is UnicodeString -> elementValue.string
+                    else -> elementValue?.toString()
                 }
             }
         }
     }
-    return ""
+    return null
 }
 
 fun IssuerAuth.extractMso(): Map {
@@ -64,6 +76,15 @@ fun IssuerAuth.extractMso(): Map {
 }
 
 data class MsoMdocCredentialData(val docType: DataItem?, val issuerSigned: IssuerSigned, val mso: Map) {
-    data class IssuerSigned(val issuerAuth: IssuerAuth, val namespaces: IssuerSignedNamespaces)
+    /**
+     * @param encodedNameSpaceItems exact on-the-wire CBOR bytes for each nameSpaces array
+     * element (full tag-24 IssuerSignedItemBytes), keyed by namespace string and aligned
+     * with the decoded [namespaces] array order.
+     */
+    data class IssuerSigned(
+        val issuerAuth: IssuerAuth,
+        val namespaces: IssuerSignedNamespaces,
+        val encodedNameSpaceItems: kotlin.collections.Map<String, List<ByteArray>> = emptyMap(),
+    )
 }
 

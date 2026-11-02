@@ -131,4 +131,22 @@ class DateUtilsTest {
         assertFalse(isValidDate("2025-09-17 10:15:30"))
         assertFalse(isValidDate("2023-02-29T12:00:00Z"))
     }
+
+    @Test
+    fun `isIsoMsoDateTime accepts Z full-date-time without fractional seconds`() {
+        assertTrue(DateUtils.isIsoMsoDateTime("2024-10-23T07:01:17Z"))
+    }
+
+    @Test
+    fun `isIsoMsoDateTime rejects fractional seconds and non-Z offsets`() {
+        assertFalse(DateUtils.isIsoMsoDateTime("2024-10-23T07:01:17.123Z"))
+        assertFalse(DateUtils.isIsoMsoDateTime("2024-10-23T07:01:17+00:00"))
+        assertFalse(DateUtils.isIsoMsoDateTime("2024-10-23"))
+    }
+
+    @Test
+    fun `isIsoFullDate accepts YYYY-MM-DD only`() {
+        assertTrue(DateUtils.isIsoFullDate("2024-06-15"))
+        assertFalse(DateUtils.isIsoFullDate("2024-06-15T00:00:00Z"))
+    }
 }
