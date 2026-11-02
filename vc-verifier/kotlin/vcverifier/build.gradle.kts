@@ -61,6 +61,7 @@ dependencies {
     implementation (libs.titaniumJsonLd)
     implementation(libs.okHttp)
     implementation(libs.bouncyCastle)
+    implementation(libs.bouncyCastlePkix)
     implementation(libs.jsonldCommonJava)
     implementation(libs.jackson.module.kotlin)
     implementation(libs.jackson.databind)

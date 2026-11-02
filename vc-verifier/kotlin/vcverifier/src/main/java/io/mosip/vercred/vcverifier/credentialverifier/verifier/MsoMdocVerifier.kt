@@ -33,10 +33,18 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_SIGNED_OUTSIDE_DS_CERT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_VALUE_DIGESTS
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MISSING_ALG
-import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.COSE_ALG_ES256
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DIGEST_SALT
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_DIGEST_ID_OUT_OF_RANGE
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_DIGEST_SALT
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.COSE_ALG_HEADER_LABEL
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DIGEST_ALGORITHM
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DIGEST_ID
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DIGEST_ID_MAX_EXCLUSIVE
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MIN_DIGEST_SALT_BYTES
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocDataElementValidator
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerificationOptions
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.RANDOM
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.SUPPORTED_COSE_ALGS
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DOCUMENTS
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DOC_TYPE
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.EXTENDED_KEY_USAGE_OID
@@ -73,15 +81,20 @@ import java.security.cert.X509Certificate
 import java.util.Date
 import java.util.logging.Logger
 import javax.security.auth.x500.X500Principal
+import org.bouncycastle.asn1.x500.X500Name
+import org.bouncycastle.asn1.x500.style.BCStyle
+import org.bouncycastle.asn1.x500.style.IETFUtils
 
-internal class MsoMdocVerifier {
+internal class MsoMdocVerifier(
+    private val options: MsoMdocVerificationOptions = MsoMdocVerificationOptions(),
+) {
 
     private val logger = Logger.getLogger(MsoMdocVerifier::class.java.name)
 
     fun verify(base64EncodedMdoc: String): Boolean {
         try {
 
-            val (decodedCredential, credentialData, isLatest) = MsoMdocVerifiableCredential().parse(
+            val (decodedCredential, credentialData, isLatest) = MsoMdocVerifiableCredential(options).parse(
                 base64EncodedMdoc
             )
             val issuerSigned = credentialData.issuerSigned
@@ -98,7 +111,9 @@ internal class MsoMdocVerifier {
             verifyCertificateChain(issuerAuth)
             verifyProtectedHeaderAlg(issuerAuth)
             val dsCertificate = verifyDsCertificate(issuerAuth, mobileSecurityObject)
-            verificationOfCoseSignature(issuerAuth, dsCertificate)
+            if (!verificationOfCoseSignature(issuerAuth, dsCertificate)) {
+                throw SignatureVerificationException("COSE signature verification failed")
+            }
             verifyValueDigests(
                 issuerSigned.namespaces,
                 issuerSigned.encodedNameSpaceItems,
@@ -141,13 +156,13 @@ internal class MsoMdocVerifier {
         if (!protectedHeader.keys.contains(UnsignedInteger(COSE_ALG_HEADER_LABEL))) {
             throw ValidationException(ERROR_MESSAGE_MISSING_ALG, ERROR_CODE_MISSING_ALG)
         }
-        // Only ES256 (COSE alg -7) is supported for mso_mdoc today (#300 out of scope: ES384/ES512/EdDSA).
-        // Compare the full BigInteger so unsigned wrap values (e.g. 2^64-7) are not narrowed to -7.
+        // ES256/ES384/ES512 supported; EdDSA remains out of scope (#300).
+        // Compare the full BigInteger so unsigned wrap values (e.g. 2^64-7) are not narrowed.
         val protectedAlg =
             (protectedHeader[UnsignedInteger(COSE_ALG_HEADER_LABEL)]
                 as? co.nstant.`in`.cbor.model.Number)
                 ?.value
-        if (protectedAlg == null || protectedAlg != java.math.BigInteger.valueOf(COSE_ALG_ES256)) {
+        if (protectedAlg == null || protectedAlg !in SUPPORTED_COSE_ALGS) {
             throw ValidationException(ERROR_MESSAGE_INVALID_MSO_ALG, ERROR_CODE_INVALID_ALG)
         }
     }
@@ -173,7 +188,7 @@ internal class MsoMdocVerifier {
         }
 
         val docType = (mso.getOrNull(DOC_TYPE) as? UnicodeString)?.string
-        if (docType == MDL_DOCTYPE) {
+        if (docType == MDL_DOCTYPE && options.strictMdlProfile) {
             verifyMdlDsCertificateProfile(issuerCertificate)
         }
 
@@ -235,23 +250,32 @@ internal class MsoMdocVerifier {
         verifyCountryName(dsCertificate, issuerSignedNamespaces)
         verifyIssuingJurisdiction(dsCertificate, issuerSignedNamespaces)
         verifyIssueDate(mso, issuerSignedNamespaces)
+        // §3.4 mandatory presence is gated inside the validator to full issued credentials only.
+        MsoMdocDataElementValidator.validate(
+            namespaces = issuerSignedNamespaces,
+            mso = mso,
+            checkTypesAndStructure = options.strictMdlProfile,
+            checkMandatoryPresence = options.strictMdlProfile,
+        )
     }
 
     private fun verifyCountryName(
         issuerCertificate: X509Certificate,
         issuerSignedNamespaces: IssuerSignedNamespaces,
     ) {
-        val countryName = extractDnAttribute(issuerCertificate.subjectX500Principal, "C")
-            ?: throw ValidationException(
-                ERROR_MESSAGE_INVALID_ISSUING_COUNTRY,
-                ERROR_CODE_INVALID_ISSUING_COUNTRY
-            )
-
         val issuingCountry = issuerSignedNamespaces.extractFieldValue(
             ISSUING_COUNTRY,
             MDL_NAMESPACE
         )
-        if (issuingCountry.isNullOrEmpty() || issuingCountry != countryName) {
+        if (issuingCountry.isNullOrEmpty()) {
+            return
+        }
+        val countryName = extractDnAttribute(issuerCertificate.subjectX500Principal, BCStyle.C)
+            ?: throw ValidationException(
+                ERROR_MESSAGE_INVALID_ISSUING_COUNTRY,
+                ERROR_CODE_INVALID_ISSUING_COUNTRY
+            )
+        if (issuingCountry != countryName) {
             throw ValidationException(
                 ERROR_MESSAGE_INVALID_ISSUING_COUNTRY,
                 ERROR_CODE_INVALID_ISSUING_COUNTRY
@@ -263,7 +287,7 @@ internal class MsoMdocVerifier {
         issuerCertificate: X509Certificate,
         issuerSignedNamespaces: IssuerSignedNamespaces,
     ) {
-        val stateOrProvinceName = extractDnAttribute(issuerCertificate.subjectX500Principal, "ST")
+        val stateOrProvinceName = extractDnAttribute(issuerCertificate.subjectX500Principal, BCStyle.ST)
             ?: return
         val issuingJurisdiction = issuerSignedNamespaces.extractFieldValue(
             ISSUING_JURISDICTION,
@@ -312,67 +336,18 @@ internal class MsoMdocVerifier {
         }
     }
 
-    /**
-     * Extract a DN attribute from an RFC 2253 name. Escaped commas/backslashes in values are
-     * respected (Android has no javax.naming.ldap.LdapName on the runtime classpath).
-     * When multiple RDNs share the type, the most-specific (rightmost in RFC 2253) wins.
-     */
-    private fun extractDnAttribute(principal: X500Principal, attribute: String): String? {
+    private fun extractDnAttribute(
+        principal: X500Principal,
+        oid: org.bouncycastle.asn1.ASN1ObjectIdentifier,
+    ): String? {
         return try {
-            splitRfc2253Rdns(principal.name)
-                .asReversed()
-                .map { it.trim() }
-                .firstOrNull { rdn ->
-                    val eq = rdn.indexOf('=')
-                    eq > 0 && rdn.substring(0, eq).equals(attribute, ignoreCase = true)
-                }
-                ?.substringAfter('=')
-                ?.let { unescapeRfc2253Value(it) }
+            val subject = X500Name.getInstance(principal.encoded)
+            val rdns = subject.getRDNs(oid)
+            if (rdns.isEmpty()) null
+            else IETFUtils.valueToString(rdns[0].first.value)
         } catch (_: Exception) {
             null
         }
-    }
-
-    private fun splitRfc2253Rdns(dn: String): List<String> {
-        val rdns = mutableListOf<String>()
-        val current = StringBuilder()
-        var i = 0
-        while (i < dn.length) {
-            val c = dn[i]
-            if (c == '\\' && i + 1 < dn.length) {
-                current.append(c).append(dn[i + 1])
-                i += 2
-                continue
-            }
-            if (c == ',') {
-                rdns.add(current.toString())
-                current.clear()
-                i++
-                continue
-            }
-            current.append(c)
-            i++
-        }
-        if (current.isNotEmpty()) {
-            rdns.add(current.toString())
-        }
-        return rdns
-    }
-
-    private fun unescapeRfc2253Value(value: String): String {
-        val out = StringBuilder(value.length)
-        var i = 0
-        while (i < value.length) {
-            val c = value[i]
-            if (c == '\\' && i + 1 < value.length) {
-                out.append(value[i + 1])
-                i += 2
-                continue
-            }
-            out.append(c)
-            i++
-        }
-        return out.toString()
     }
 
     private fun verifyDocType(decodedCredential: Map, mso: Map, isLatest: Boolean): Boolean {
@@ -477,8 +452,27 @@ internal class MsoMdocVerifier {
                 val digest = MessageDigest.getInstance(digestAlgorithm).digest(issuerSignedItemBytes)
                 val decodedIssuerSignedItem =
                     CborDecoder(ByteArrayInputStream(issuerSignedItem.bytes)).decode()[0]
-                val digestId: Number =
-                    (((decodedIssuerSignedItem as Map)[DIGEST_ID]) as UnsignedInteger).value
+                val decodedMap = decodedIssuerSignedItem as Map
+                val digestIdValue = (decodedMap[DIGEST_ID] as? UnsignedInteger)?.value
+                    ?: throw ValidationException(
+                        ERROR_MESSAGE_DIGEST_ID_OUT_OF_RANGE,
+                        ERROR_CODE_INVALID_DIGEST_ID
+                    )
+                if (digestIdValue.signum() < 0 || digestIdValue >= DIGEST_ID_MAX_EXCLUSIVE) {
+                    throw ValidationException(
+                        ERROR_MESSAGE_DIGEST_ID_OUT_OF_RANGE,
+                        ERROR_CODE_INVALID_DIGEST_ID
+                    )
+                }
+                val digestId: Number = digestIdValue
+
+                val salt = decodedMap[RANDOM] as? ByteString
+                if (salt == null || salt.bytes.size < MIN_DIGEST_SALT_BYTES) {
+                    throw ValidationException(
+                        ERROR_MESSAGE_INVALID_DIGEST_SALT,
+                        ERROR_CODE_INVALID_DIGEST_SALT
+                    )
+                }
 
                 if (calculatedDigests.containsKey(digestId)) {
                     throw ValidationException(

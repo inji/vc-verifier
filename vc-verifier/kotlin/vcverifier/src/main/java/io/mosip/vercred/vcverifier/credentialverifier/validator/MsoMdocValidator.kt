@@ -25,7 +25,6 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_VALID_UNTIL_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_VC_EXPIRED
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DIGEST_ALGORITHM
-import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MSO_VERSION_1_0
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerifiableCredential
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.SUPPORTED_DIGEST_ALGORITHMS
 import io.mosip.vercred.vcverifier.exception.UnknownException
@@ -84,8 +83,9 @@ class MsoMdocValidator {
         }
 
         val version = (mso.getOrNull("version") as? UnicodeString)?.string
-        if (version != MSO_VERSION_1_0) {
-            logger.severe("MSO version must be \"$MSO_VERSION_1_0\", found: $version")
+        val major = version?.substringBefore('.')?.toIntOrNull()
+        if (major != 1) {
+            logger.severe("MSO version major must be 1, found: $version")
             throw ValidationException(
                 ERROR_MESSAGE_INVALID_MSO_VERSION,
                 ERROR_CODE_INVALID_MSO_VERSION

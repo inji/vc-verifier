@@ -41,25 +41,28 @@ Detection order: C → B → A.
 
 Order of checks:
 
-1. COSE protected header must contain `alg` and the value must be ES256 (`-7`); other algs → `ERR_INVALID_ALG`
+1. COSE protected header must contain `alg` and the value must be ES256 (`-7`), ES384 (`-35`), or ES512 (`-36`); other algs (incl. EdDSA) → `ERR_INVALID_ALG`
 2. DS certificate from `x5chain`: within `notBefore` / `notAfter`
-3. For `docType` `org.iso.18013.5.1.mDL`:
+3. For `docType` `org.iso.18013.5.1.mDL` **when `mdocStrictProfile=true` (default)**:
    - KeyUsage includes `digitalSignature` and is critical
    - ExtendedKeyUsage includes `1.0.18013.5.1.2` and is critical
-4. MSO `signed` falls within DS certificate validity **when `signed` is present**. For shapes B/C, `signed` is optional today (pending confirmation of issue #300 §2 #5); if absent, this check is skipped
+4. MSO `signed` falls within DS certificate validity **when `signed` is present**. For shapes B/C, `signed` is optional today (pending confirmation of issue #300 §2 #8); if absent, this check is skipped
 5. COSE signature verifies with DS public key. This does **not** establish IACA trust (`verifyCertificateChain` is currently a no-op / out of scope)
-6. Value digests: each received `nameSpaces` record is tag-24; hash the **exact on-the-wire** `IssuerSignedItemBytes` (full tag-24 wrapper bytes as received, not a re-encoded `DataItem`); match MSO digests; reject duplicate `digestID`s; MSO digests without a received record are allowed (selective disclosure)
+6. Value digests: each received `nameSpaces` record is tag-24; hash the **exact on-the-wire** `IssuerSignedItemBytes`; `digestID` &lt; 2³¹; `random` ≥ 16 bytes; match MSO digests; reject duplicate `digestID`s; MSO digests without a received record are allowed (selective disclosure)
 7. Credential `docType` matches MSO `docType` (legacy shapes). Shape C still uses only `documents[0]` (spike: multi-doc later)
-8. For mDL: `issuing_country` matches DS `countryName` (mandatory when verifying mDL); `issuing_jurisdiction` matches DS `stateOrProvinceName` when both present; `issue_date` (if disclosed) must be a valid full date and not after `validFrom`
+8. For mDL: if `issuing_country` is disclosed it must match DS `C` (via BouncyCastle `X500Name`); `issuing_jurisdiction` matches `ST` when both present; `issue_date` (if disclosed) must be a valid full date and not after `validFrom`
+9. For mDL **when `mdocStrictProfile=true`**: ISO Table 5 field types/structure, Latin-1 ≤150 for text fields, age consistency vs `birth_date` at `validFrom`, and **mandatory field presence only for a full issued credential** (every MSO digest for `org.iso.18013.5.1` is present in `nameSpaces`). Selective disclosure skips §3.4
+
+Use `CredentialsVerifier.verify(..., mdocStrictProfile = false)` to temporarily relax EKU + §3 field checks for non-conformant Certify fixtures (issue #300).
 
 ## Out of scope
 
 - IACA trust chain / CRL
 - IACA ↔ DS `countryName` match
-- Algorithms other than ES256
+- EdDSA (ES384/ES512 are supported)
 - DeviceResponse / holder `deviceKey` presentation binding
 
-## Pending confirmation (issue #300 §2 #4 and #5)
+## Pending confirmation (issue #300 §2.7 and §2.8)
 
 - Require MSO tag-24 for **all** shapes (currently shape A only)
 - Require `validFrom` ≥ `signed` for **all** shapes (currently shape A only)

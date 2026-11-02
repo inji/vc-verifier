@@ -468,7 +468,7 @@ class MsoMdocValidatorTest {
         }
 
         @Test
-        fun `should throw when version is not 1_0`() {
+        fun `should throw when version major is not 1`() {
             every { DateUtils.isFutureDateWithTolerance("2024-10-23T07:01:17Z") } returns false
             every { DateUtils.isFutureDateWithTolerance("2026-10-23T07:01:17Z") } returns true
 
@@ -483,6 +483,19 @@ class MsoMdocValidatorTest {
 
             assertEquals(ERROR_MESSAGE_INVALID_MSO_VERSION, verificationException.errorMessage)
             assertEquals(ERROR_CODE_INVALID_MSO_VERSION, verificationException.errorCode)
+        }
+
+        @Test
+        fun `should accept version 1_1 as major version 1`() {
+            every { DateUtils.isFutureDateWithTolerance("2024-10-23T07:01:17Z") } returns false
+            every { DateUtils.isFutureDateWithTolerance("2026-10-23T07:01:17Z") } returns true
+
+            val mso = buildMso().apply {
+                put(UnicodeString("version"), UnicodeString("1.1"))
+            }
+            val credential = buildMdocCredential(mso)
+
+            assertTrue(MsoMdocValidator().validate(credential))
         }
 
         @Test

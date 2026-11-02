@@ -119,19 +119,37 @@ object CredentialValidatorConstants {
     const val ERROR_CODE_INVALID_DIGEST_ID = "${ERROR_CODE_INVALID}DIGEST_ID"
     const val ERROR_MESSAGE_INVALID_DIGEST_ID =
         "Duplicate digestID found in a namespace"
+    const val ERROR_MESSAGE_DIGEST_ID_OUT_OF_RANGE =
+        "digestID must be an unsigned integer less than 2^31"
+
+    const val ERROR_CODE_INVALID_DIGEST_SALT = "${ERROR_CODE_INVALID}DIGEST_SALT"
+    const val ERROR_MESSAGE_INVALID_DIGEST_SALT =
+        "IssuerSignedItem random (salt) must be at least 16 bytes"
 
     const val ERROR_CODE_INVALID_DIGEST_ALGORITHM = "${ERROR_CODE_INVALID}DIGEST_ALGORITHM"
     const val ERROR_MESSAGE_INVALID_DIGEST_ALGORITHM =
         "digestAlgorithm must be SHA-256, SHA-384 or SHA-512"
 
     const val ERROR_CODE_INVALID_MSO_VERSION = "${ERROR_CODE_INVALID}MSO_VERSION"
-    const val ERROR_MESSAGE_INVALID_MSO_VERSION = "version must be \"1.0\""
+    const val ERROR_MESSAGE_INVALID_MSO_VERSION = "MSO version major number must be 1"
 
     const val ERROR_CODE_MISSING_ALG = "${ERROR_CODE_MISSING}ALG"
     const val ERROR_MESSAGE_MISSING_ALG = "alg is missing from the COSE protected header"
 
     const val ERROR_CODE_INVALID_ALG = "${ERROR_CODE_INVALID}ALG"
-    const val ERROR_MESSAGE_INVALID_MSO_ALG = "alg must be ES256 (-7)"
+    const val ERROR_MESSAGE_INVALID_MSO_ALG = "alg must be ES256 (-7), ES384 (-35) or ES512 (-36)"
+
+    const val ERROR_CODE_INVALID_MDL_ELEMENT = "${ERROR_CODE_INVALID}MDL_ELEMENT"
+    const val ERROR_MESSAGE_INVALID_MDL_ELEMENT_TYPE =
+        "mDL data element has an invalid type"
+    const val ERROR_MESSAGE_INVALID_MDL_ELEMENT_TEXT =
+        "mDL text element must be Latin-1 and at most 150 characters"
+    const val ERROR_MESSAGE_INVALID_DRIVING_PRIVILEGES =
+        "driving_privileges structure is invalid"
+    const val ERROR_MESSAGE_MISSING_MDL_MANDATORY_ELEMENT =
+        "Mandatory mDL data element is missing"
+    const val ERROR_MESSAGE_INVALID_MDL_AGE =
+        "age_over_NN / age_in_years is inconsistent with birth_date"
 
     const val ERROR_CODE_INVALID_ISSUE_DATE = "${ERROR_CODE_INVALID}ISSUE_DATE"
     const val ERROR_MESSAGE_INVALID_ISSUE_DATE =

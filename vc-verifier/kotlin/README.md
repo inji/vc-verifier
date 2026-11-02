@@ -265,7 +265,7 @@ and [IETF SD-JWT](https://datatracker.ietf.org/doc/draft-ietf-oauth-selective-di
 | VC format     | Issuer Signature Mechanism                                             | Verification Algorithms                      | Signature Suites / Proof Types                                                            |
 |---------------|------------------------------------------------------------------------|----------------------------------------------|-------------------------------------------------------------------------------------------|
 | `ldp_vc`      | Linked Data Proof                                                      | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | RsaSignature2018, Ed25519Signature2018, Ed25519Signature2020, EcdsaSecp256k1Signature2019 |
-| `mso_mdoc`    | COSE (CBOR Object Signing and Encryption)                              | ES256                                        | Uses COSE_Sign1                                                                           |
+| `mso_mdoc`    | COSE (CBOR Object Signing and Encryption)                              | ES256, ES384, ES512                          | Uses COSE_Sign1                                                                           |
 | `vc+sd-jwt`   | X.509 Certificate, JWT VC Issuer Metadata/JWKS, DID `kid` | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | -                                                                                         |
 | `dc+sd-jwt`   | X.509 Certificate, JWT VC Issuer Metadata/JWKS, DID `kid` | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | -                                                                                         |
 | `cwt_vc`      | COSE_Sign1 (CBOR Web Token – RFC 8392)                                 | ES256, EdDSA (COSE alg based)                | COSE_Sign1                                                                                |
@@ -949,7 +949,10 @@ For other unknown exceptions, error code will be `ERR_GENERIC`
 | duplicate digestID                    | ERR_INVALID_DIGEST_ID           |
 | nameSpaces record not tag-24          | ERR_INVALID_ISSUER_SIGNED_ITEM  |
 | COSE protected `alg` missing          | ERR_MISSING_ALG                 |
-| COSE protected `alg` not ES256 (-7)   | ERR_INVALID_ALG                 |
+| COSE protected `alg` not ES256/384/512 | ERR_INVALID_ALG                |
+| digestID ≥ 2^31 or missing            | ERR_INVALID_DIGEST_ID           |
+| salt (`random`) &lt; 16 bytes           | ERR_INVALID_DIGEST_SALT         |
+| mDL field type/structure/mandatory/age | ERR_INVALID_MDL_ELEMENT        |
 | issue_date after validFrom / invalid date | ERR_INVALID_ISSUE_DATE      |
 
 For other unknown exceptions, error code will be `ERR_GENERIC`

@@ -39,6 +39,7 @@ threetenbp = { module = "org.threeten:threetenbp", version.ref = "threetenbp" }
 titaniumJsonLd = { group = "com.apicatalog", name = "titanium-json-ld-jre8", version.ref = "titaniumJsonLd" }
 okHttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okHttp" }
 bouncyCastle = { group = "org.bouncycastle", name = "bcprov-jdk15to18", version.ref = "bouncyCastle" }
+bouncyCastlePkix = { group = "org.bouncycastle", name = "bcpkix-jdk15to18", version.ref = "bouncyCastle" }
 jsonldCommonJava = { group = "decentralized-identity", name = "jsonld-common-java", version.ref = "jsonldCommonJava" }
 nimbusJoseJwt = { group = "com.nimbusds", name = "nimbus-jose-jwt", version.ref = "nimbusJoseJwt" }
 springWeb = { group = "org.springframework", name = "spring-web", version.ref = "springWeb" }
