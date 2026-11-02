@@ -3,6 +3,7 @@ package io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc
 import co.nstant.`in`.cbor.CborEncoder
 import co.nstant.`in`.cbor.model.Array as CborArray
 import co.nstant.`in`.cbor.model.ByteString
+import co.nstant.`in`.cbor.model.DataItem
 import co.nstant.`in`.cbor.model.Map as CborMap
 import co.nstant.`in`.cbor.model.SimpleValue
 import co.nstant.`in`.cbor.model.SimpleValueType
@@ -79,6 +80,68 @@ class MsoMdocDataElementValidatorTest {
             MsoMdocDataElementValidator.validate(
                 namespaces = namespaces,
                 mso = msoWithDigests(0, 1),
+                checkTypesAndStructure = false,
+                checkMandatoryPresence = true,
+            )
+        }
+    }
+
+    @Test
+    fun `should allow an empty disclosure when the MSO has undisclosed mDL digests`() {
+        assertDoesNotThrow {
+            MsoMdocDataElementValidator.validate(
+                namespaces = namespacesOf(),
+                mso = msoWithDigests(0),
+                checkTypesAndStructure = false,
+                checkMandatoryPresence = true,
+            )
+        }
+    }
+
+    @Test
+    fun `should reject an empty disclosure when the MSO has no mDL digests`() {
+        val exception = assertThrows(ValidationException::class.java) {
+            MsoMdocDataElementValidator.validate(
+                namespaces = namespacesOf(),
+                mso = emptyMso(),
+                checkTypesAndStructure = false,
+                checkMandatoryPresence = true,
+            )
+        }
+
+        assertEquals(ERROR_CODE_INVALID_MDL_ELEMENT, exception.errorCode)
+    }
+
+    @Test
+    fun `should allow all mandatory elements for a full issued credential`() {
+        val requiredElements: List<Pair<String, DataItem>> = listOf(
+            "family_name" to UnicodeString("Doe"),
+            "given_name" to UnicodeString("Jane"),
+            "birth_date" to UnicodeString("1990-01-01"),
+            "issue_date" to UnicodeString("2024-01-01"),
+            "expiry_date" to UnicodeString("2030-01-01"),
+            "issuing_country" to UnicodeString("IN"),
+            "issuing_authority" to UnicodeString("Authority"),
+            "document_number" to UnicodeString("123456"),
+            "portrait" to ByteString(byteArrayOf(1)),
+            "driving_privileges" to CborArray().apply {
+                add(CborMap().apply {
+                    put(UnicodeString("vehicle_category_code"), UnicodeString("A"))
+                })
+            },
+            "un_distinguishing_sign" to UnicodeString("IND"),
+        )
+        val namespaces = namespacesOf(
+            *requiredElements.mapIndexed { index, (identifier, value) ->
+                item(index.toLong(), identifier, value)
+            }.toTypedArray()
+        )
+        val mso = msoWithDigests(*requiredElements.indices.map { it.toLong() }.toLongArray())
+
+        assertDoesNotThrow {
+            MsoMdocDataElementValidator.validate(
+                namespaces = namespaces,
+                mso = mso,
                 checkTypesAndStructure = false,
                 checkMandatoryPresence = true,
             )

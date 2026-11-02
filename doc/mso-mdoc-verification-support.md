@@ -29,7 +29,7 @@ Detection order: C → B → A.
 ## Validation (`MsoMdocValidator`)
 
 - Mandatory MSO fields: `version`, `digestAlgorithm`, `valueDigests`, `deviceKeyInfo`, `docType`, `validityInfo`
-- `version` must be `"1.0"`
+- `version` major version must be `1` (for example, `"1.0"` or `"1.1"`)
 - `digestAlgorithm` must be `SHA-256`, `SHA-384`, or `SHA-512`
 - `validityInfo` dates (`validFrom`, `validUntil`, and `signed` when latest): no fractional seconds, must end in `Z`
 - `validFrom` must not be in the future (3s skew via `DateUtils`)

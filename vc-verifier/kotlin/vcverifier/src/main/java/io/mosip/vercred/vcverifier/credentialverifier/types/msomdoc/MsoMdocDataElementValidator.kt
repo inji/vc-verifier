@@ -67,7 +67,11 @@ internal object MsoMdocDataElementValidator {
     ) {
         val records = collectMdlRecords(namespaces)
         if (records.isEmpty()) {
-            if (checkMandatoryPresence) {
+            val msoDigestIds = collectMsoMdlDigestIds(mso)
+            val receivedDigestIds = collectReceivedMdlDigestIds(namespaces)
+            val selectiveDisclosure =
+                msoDigestIds.isNotEmpty() && !receivedDigestIds.containsAll(msoDigestIds)
+            if (checkMandatoryPresence && !selectiveDisclosure) {
                 throw ValidationException(
                     ERROR_MESSAGE_MISSING_MDL_MANDATORY_ELEMENT,
                     ERROR_CODE_INVALID_MDL_ELEMENT

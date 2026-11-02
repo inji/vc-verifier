@@ -20,6 +20,7 @@ import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
 import io.mosip.vercred.vcverifier.utils.LocalDocumentLoader
 import io.mosip.vercred.vcverifier.utils.DateUtils
 import io.mosip.vercred.vcverifier.utils.Util
+import testutils.MsoMdocTestCredentialFactory
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -142,6 +143,17 @@ class CredentialsVerifierTest {
 
         assertFalse(verify.verificationStatus)
         assertEquals(ERROR_CODE_VERIFICATION_FAILED, verify.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS)
+    fun `should verify currently valid ISO conformant mDL through public API`() {
+        val credential = MsoMdocTestCredentialFactory.create()
+        val result = CredentialsVerifier().verify(credential, MSO_MDOC)
+
+        assertEquals("", result.verificationMessage)
+        assertTrue(result.verificationStatus)
+        assertEquals("", result.verificationErrorCode)
     }
 
     @Test
