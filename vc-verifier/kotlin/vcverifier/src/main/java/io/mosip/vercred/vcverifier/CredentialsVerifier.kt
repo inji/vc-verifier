@@ -2,13 +2,18 @@ package io.mosip.vercred.vcverifier
 
 import io.mosip.vercred.vcverifier.constants.CredentialFormat
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.LDP_VC
+import io.mosip.vercred.vcverifier.constants.CredentialFormat.MSO_MDOC
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_GENERIC
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_VC_EXPIRED
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_CODE_VERIFICATION_FAILED
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_MESSAGE_VERIFICATION_FAILED
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.EXCEPTION_DURING_VERIFICATION
 import io.mosip.vercred.vcverifier.credentialverifier.CredentialVerifierFactory
+import io.mosip.vercred.vcverifier.credentialverifier.statusChecker.mdoc.MdocStatusListChecker
 import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.CredentialVerificationSummary
+import io.mosip.vercred.vcverifier.data.MdocVerificationOptions
+import io.mosip.vercred.vcverifier.data.MdocVerificationResult
 import io.mosip.vercred.vcverifier.data.VerificationResult
 import java.util.logging.Logger
 
@@ -89,6 +94,31 @@ class CredentialsVerifier {
             logger.severe("Error occurred while checking credential status: ${e.message}")
             throw e
         }
+    }
+
+    @JvmOverloads
+    fun verifyMdocWithStatus(
+        credential: String,
+        credentialFormat: CredentialFormat,
+        options: MdocVerificationOptions = MdocVerificationOptions()
+    ): MdocVerificationResult {
+        if (credentialFormat != MSO_MDOC) {
+            return MdocVerificationResult(
+                VerificationResult(
+                    false,
+                    "verifyMdocWithStatus supports MSO_MDOC only",
+                    ERROR_CODE_GENERIC
+                )
+            )
+        }
+        val verificationResult = verify(credential, credentialFormat)
+        if (!verificationResult.verificationStatus) {
+            return MdocVerificationResult(verificationResult)
+        }
+        return MdocVerificationResult(
+            verificationResult,
+            MdocStatusListChecker().checkStatusList(credential, options)
+        )
     }
 
     @JvmOverloads
