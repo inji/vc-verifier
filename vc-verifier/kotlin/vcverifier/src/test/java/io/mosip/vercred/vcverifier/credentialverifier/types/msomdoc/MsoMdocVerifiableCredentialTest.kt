@@ -23,8 +23,8 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
+import java.time.Instant
 import java.util.Base64
-import java.util.Date
 
 private const val MSO_TAG24 = 24L
 
@@ -122,9 +122,12 @@ class MsoMdocVerifiableCredentialTest {
     // Credential verification and validation
     @Test
     fun `should validate and verify valid mDocs successfully`() {
+        val fixedNowMillis = Instant.parse("2026-08-01T00:00:00Z").toEpochMilli()
         mockkObject(DateUtils)
-        every { DateUtils.parseDate("2024-10-23T07:01:17Z") } returns Date(1729666877000L)
-        every { DateUtils.parseDate("2026-10-23T07:01:17Z") } returns Date(1792738877000L)
+        every { DateUtils.isFutureDateWithTolerance(any(), any()) } answers {
+            val inputDate = DateUtils.parseDate(firstArg()) ?: return@answers false
+            inputDate.time > fixedNowMillis + secondArg<Long>()
+        }
 
         val validMDocs = listOf(
             // VCI 1.0 compliant
