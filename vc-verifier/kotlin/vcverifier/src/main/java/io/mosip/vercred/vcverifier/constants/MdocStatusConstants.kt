@@ -3,7 +3,6 @@ package io.mosip.vercred.vcverifier.constants
 object MdocStatusConstants {
     const val STATUS_REFERENCE_ABSENT = "STATUS_REFERENCE_ABSENT"
     const val STATUS_REFERENCE_MALFORMED = "STATUS_REFERENCE_MALFORMED"
-    const val STATUS_LIST_RESOLVER_REQUIRED = "STATUS_LIST_RESOLVER_REQUIRED"
     const val STATUS_LIST_FETCH_FAILED = "STATUS_LIST_FETCH_FAILED"
     const val STATUS_LIST_INVALID_SIGNATURE = "STATUS_LIST_INVALID_SIGNATURE"
     const val STATUS_LIST_UNTRUSTED_ISSUER = "STATUS_LIST_UNTRUSTED_ISSUER"
@@ -36,4 +35,8 @@ object MdocStatusConstants {
     const val STATUS_VALUE_INVALID = 1
     const val STATUS_VALUE_SUSPENDED = 2
     const val STATUS_VALUE_UNUSED = 3
+
+    const val STATUS_RESULT_KEY = "status"
+    const val STATUS_PURPOSE_REVOCATION = "revocation"
+    const val STATUS_PURPOSE_SUSPENSION = "suspension"
 }

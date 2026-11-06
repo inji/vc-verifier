@@ -1,17 +1,22 @@
 package io.mosip.vercred.vcverifier.credentialverifier.statusChecker.mdoc
 
+import co.nstant.`in`.cbor.model.Map
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_FETCH_FAILED
-import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_RESOLVER_REQUIRED
-import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_REFERENCE_MALFORMED
-import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerifiableCredential
-import io.mosip.vercred.vcverifier.data.MdocStatusResult
-import io.mosip.vercred.vcverifier.data.MdocVerificationOptions
-import io.mosip.vercred.vcverifier.data.MsoStatusPointer
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_TYP
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_REVOCATION
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_SUSPENSION
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_RESULT_KEY
+import io.mosip.vercred.vcverifier.data.CredentialStatusResult
+import io.mosip.vercred.vcverifier.data.MdocCredentialStatus
+import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode
+import io.mosip.vercred.vcverifier.exception.StatusCheckException
+import io.mosip.vercred.vcverifier.networkManager.HttpMethod.GET
+import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
 import java.util.logging.Logger
 
 /**
- * Orchestrates MSO status-list pointer parsing, injected resolution, CWT validation,
- * and IETF bit reading. Does not perform HTTP.
+ * IETF Token Status List (ASL / CWT) checker for mDoc.
+ * Fetches the status list CWT from `status.status_list.uri`, same as LDP HTTP GET.
  */
 class MdocStatusListChecker(
     private val pointerParser: MsoStatusPointerParser = MsoStatusPointerParser(),
@@ -20,71 +25,61 @@ class MdocStatusListChecker(
 ) {
     private val logger = Logger.getLogger(MdocStatusListChecker::class.java.name)
 
-    fun checkStatusList(credential: String, options: MdocVerificationOptions): MdocStatusResult {
-        val pointer = when (val parsed = parsePointer(credential)) {
-            is MsoStatusPointerParseResult.Absent -> {
-                return MdocStatusResult()
-            }
+    fun getStatuses(mso: Map): kotlin.collections.Map<String, CredentialStatusResult> {
+        val pointer = when (val parsed = pointerParser.parse(mso)) {
+            is MsoStatusPointerParseResult.Absent -> return emptyMap()
             is MsoStatusPointerParseResult.Malformed -> {
-                return MdocStatusResult(
-                    errorCode = parsed.errorCode,
-                    errorMessage = parsed.errorMessage
-                )
+                return errorResult(parsed.errorCode, parsed.errorMessage)
             }
             is MsoStatusPointerParseResult.Found -> parsed.pointer
         }
-        val resolver = options.statusListResolver
-            ?: return errorResult(
-                STATUS_LIST_RESOLVER_REQUIRED,
-                "A StatusListResolver is required to read the mDoc status list",
-                pointer
-            )
         val cwtBytes = try {
-            resolver.resolve(pointer.uri)
+            NetworkManagerClient.sendHTTPRequestBytes(
+                pointer.uri,
+                GET,
+                mapOf("Accept" to STATUS_LIST_TYP)
+            )
         } catch (exception: Exception) {
-            logger.warning("Status list resolver failed for ${pointer.uri}: ${exception.message}")
+            logger.warning("Status list fetch failed for ${pointer.uri}: ${exception.message}")
             return errorResult(
                 STATUS_LIST_FETCH_FAILED,
-                "Failed to resolve status list at ${pointer.uri}: ${exception.message}",
-                pointer
+                "Failed to retrieve status list at ${pointer.uri}: ${exception.message}"
             )
         }
         return try {
             val validated = cwtValidator.validate(cwtBytes, pointer.uri)
             val status = bitReader.readStatus(validated.compressedLst, validated.bits, pointer.idx)
-            MdocStatusResult(
-                status = status,
-                uri = pointer.uri,
-                idx = pointer.idx,
-                ttlSeconds = validated.ttlSeconds
-            )
+            mapStatus(status)
         } catch (exception: MdocStatusCheckException) {
-            errorResult(exception.errorCode, exception.message, pointer)
+            errorResult(exception.errorCode, exception.message)
         }
     }
 
-    private fun parsePointer(credential: String): MsoStatusPointerParseResult {
-        return try {
-            val (_, credentialData, _) = MsoMdocVerifiableCredential().parse(credential)
-            pointerParser.parse(credentialData.mso)
-        } catch (exception: Exception) {
-            MsoStatusPointerParseResult.Malformed(
-                STATUS_REFERENCE_MALFORMED,
-                "Failed to read MSO status pointer: ${exception.message}"
-            )
+    private fun mapStatus(status: MdocCredentialStatus): kotlin.collections.Map<String, CredentialStatusResult> {
+        return when (status) {
+            MdocCredentialStatus.VALID ->
+                mapOf(STATUS_RESULT_KEY to CredentialStatusResult(true, null))
+            MdocCredentialStatus.INVALID ->
+                mapOf(STATUS_PURPOSE_REVOCATION to CredentialStatusResult(false, null))
+            MdocCredentialStatus.SUSPENDED ->
+                mapOf(STATUS_PURPOSE_SUSPENSION to CredentialStatusResult(false, null))
         }
     }
 
     private fun errorResult(
         errorCode: String,
-        errorMessage: String,
-        pointer: MsoStatusPointer
-    ): MdocStatusResult {
-        return MdocStatusResult(
-            errorCode = errorCode,
-            errorMessage = errorMessage,
-            uri = pointer.uri,
-            idx = pointer.idx
+        errorMessage: String?
+    ): kotlin.collections.Map<String, CredentialStatusResult> {
+        return mapOf(
+            STATUS_RESULT_KEY to CredentialStatusResult(
+                false,
+                StatusCheckException(errorMessage ?: errorCode, toErrorCode(errorCode))
+            )
         )
+    }
+
+    private fun toErrorCode(code: String): StatusCheckErrorCode {
+        return runCatching { StatusCheckErrorCode.valueOf(code) }
+            .getOrDefault(StatusCheckErrorCode.UNKNOWN_ERROR)
     }
 }
