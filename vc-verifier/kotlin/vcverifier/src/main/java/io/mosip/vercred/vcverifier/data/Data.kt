@@ -82,3 +82,7 @@ data class VCResultWithCredentialStatusV2(
     val verificationResult: VerificationResult,
     val credentialStatus: Map<String, CredentialStatusResult>
 )
+
+enum class MdocCredentialStatus { VALID, INVALID, SUSPENDED }
+
+data class MsoStatusPointer(val uri: String, val idx: Long)

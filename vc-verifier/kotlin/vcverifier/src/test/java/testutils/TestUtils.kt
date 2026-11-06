@@ -15,3 +15,7 @@ fun mockHttpResponse(url: String, responseJson: String) {
         mapper.readValue(responseJson, Map::class.java) as Map<String, Any>?
     }
 }
+
+fun mockHttpBytesResponse(url: String, body: ByteArray) {
+    every { NetworkManagerClient.Companion.sendHTTPRequestBytes(url, any(), any()) } returns body
+}

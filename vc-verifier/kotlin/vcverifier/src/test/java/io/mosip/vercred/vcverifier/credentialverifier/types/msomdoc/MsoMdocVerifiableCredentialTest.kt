@@ -125,6 +125,7 @@ class MsoMdocVerifiableCredentialTest {
         mockkObject(DateUtils)
         every { DateUtils.parseDate("2024-10-23T07:01:17Z") } returns Date(1729666877000L)
         every { DateUtils.parseDate("2026-10-23T07:01:17Z") } returns Date(1792738877000L)
+        every { DateUtils.isFutureDateWithTolerance("2026-10-23T07:01:17Z") } returns true
 
         val validMDocs = listOf(
             // VCI 1.0 compliant

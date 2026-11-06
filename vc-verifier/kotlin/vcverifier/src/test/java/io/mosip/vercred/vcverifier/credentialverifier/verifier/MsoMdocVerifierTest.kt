@@ -163,11 +163,9 @@ class MsoMdocVerifierTest {
     }
 
     @Test
-    fun `should throw exception for mso_mdoc status check as its not supported`() {
-        val unsupportedStatusCheckException = assertThrows(UnsupportedOperationException::class.java) {
-            MsoMdocVerifiableCredential().checkStatus(validMdoc, null)
-        }
+    fun `should return empty status when mso_mdoc has no status list`() {
+        val status = MsoMdocVerifiableCredential().checkStatus(validMdoc, null)
 
-        assertEquals("Credential status checking not supported for this credential format",unsupportedStatusCheckException.message)
+        assertTrue(status.isEmpty())
     }
 }

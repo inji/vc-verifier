@@ -1,0 +1,42 @@
+package io.mosip.vercred.vcverifier.constants
+
+object MdocStatusConstants {
+    const val STATUS_REFERENCE_ABSENT = "STATUS_REFERENCE_ABSENT"
+    const val STATUS_REFERENCE_MALFORMED = "STATUS_REFERENCE_MALFORMED"
+    const val STATUS_LIST_FETCH_FAILED = "STATUS_LIST_FETCH_FAILED"
+    const val STATUS_LIST_INVALID_SIGNATURE = "STATUS_LIST_INVALID_SIGNATURE"
+    const val STATUS_LIST_UNTRUSTED_ISSUER = "STATUS_LIST_UNTRUSTED_ISSUER"
+    const val STATUS_LIST_URI_MISMATCH = "STATUS_LIST_URI_MISMATCH"
+    const val STATUS_LIST_EXPIRED = "STATUS_LIST_EXPIRED"
+    const val STATUS_LIST_MALFORMED = "STATUS_LIST_MALFORMED"
+    const val STATUS_LIST_DECOMPRESSION_FAILED = "STATUS_LIST_DECOMPRESSION_FAILED"
+    const val STATUS_LIST_INDEX_OUT_OF_BOUNDS = "STATUS_LIST_INDEX_OUT_OF_BOUNDS"
+    const val STATUS_PROFILE_UNSUPPORTED = "STATUS_PROFILE_UNSUPPORTED"
+
+    const val COSE_SIGN1_TAG = 18L
+    const val COSE_HEADER_ALG = 1L
+    const val COSE_HEADER_TYP = 16L
+    const val COSE_HEADER_X5CHAIN = 33L
+    const val CWT_CLAIM_SUB = 2L
+    const val CWT_CLAIM_EXP = 4L
+    const val CWT_CLAIM_IAT = 6L
+    const val CWT_CLAIM_STATUS_LIST = 65533L
+    const val CWT_CLAIM_TTL = 65534L
+    const val STATUS_LIST_TYP = "application/statuslist+cwt"
+    const val STATUS_LIST_BITS_KEY = "bits"
+    const val STATUS_LIST_LST_KEY = "lst"
+    const val MSO_STATUS_KEY = "status"
+    const val MSO_STATUS_LIST_KEY = "status_list"
+    const val MSO_STATUS_URI_KEY = "uri"
+    const val MSO_STATUS_IDX_KEY = "idx"
+    const val IETF_BITS_1 = 1
+    const val IETF_BITS_2 = 2
+    const val STATUS_VALUE_VALID = 0
+    const val STATUS_VALUE_INVALID = 1
+    const val STATUS_VALUE_SUSPENDED = 2
+    const val STATUS_VALUE_UNUSED = 3
+
+    const val STATUS_RESULT_KEY = "status"
+    const val STATUS_PURPOSE_REVOCATION = "revocation"
+    const val STATUS_PURPOSE_SUSPENSION = "suspension"
+}

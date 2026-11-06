@@ -11,10 +11,15 @@ import co.nstant.`in`.cbor.model.UnicodeString
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_GENERIC
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_RESULT_KEY
 import io.mosip.vercred.vcverifier.credentialverifier.VerifiableCredential
+import io.mosip.vercred.vcverifier.credentialverifier.statusChecker.mdoc.MdocStatusListChecker
 import io.mosip.vercred.vcverifier.credentialverifier.validator.MsoMdocValidator
 import io.mosip.vercred.vcverifier.credentialverifier.verifier.MsoMdocVerifier
+import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.ValidationStatus
+import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode
+import io.mosip.vercred.vcverifier.exception.StatusCheckException
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
 import java.io.ByteArrayInputStream
@@ -61,6 +66,26 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
 
     override fun verify(credential: String): Boolean {
         return MsoMdocVerifier().verify(credential)
+    }
+
+    override fun checkStatus(
+        credential: String,
+        statusPurposes: List<String>?
+    ): kotlin.collections.Map<String, CredentialStatusResult> {
+        return try {
+            val (_, credentialData, _) = parse(credential)
+            MdocStatusListChecker().getStatuses(credentialData.mso)
+        } catch (exception: Exception) {
+            mapOf(
+                STATUS_RESULT_KEY to CredentialStatusResult(
+                    false,
+                    StatusCheckException(
+                        "Failed to read MSO status pointer: ${exception.message}",
+                        StatusCheckErrorCode.STATUS_REFERENCE_MALFORMED
+                    )
+                )
+            )
+        }
     }
 
     /**
