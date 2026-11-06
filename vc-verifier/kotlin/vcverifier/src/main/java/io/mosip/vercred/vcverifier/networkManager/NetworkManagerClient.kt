@@ -18,43 +18,70 @@ class NetworkManagerClient {
             headers: Map<String, String>? = null
         ): Map<String, Any>? {
             try {
-                val client = OkHttpClient.Builder().build()
-                val request: Request
-                when (method) {
-                    HttpMethod.POST -> {
-                        val requestBodyBuilder = FormBody.Builder()
-                        bodyParams?.forEach { (key, value) ->
-                            requestBodyBuilder.add(key, value)
-                        }
-                        val requestBody = requestBodyBuilder.build()
-                        val requestBuilder = Request.Builder().url(url).post(requestBody)
-                        headers?.forEach { (key, value) ->
-                            requestBuilder.addHeader(key, value)
-                        }
-                        request = requestBuilder.build()
-                    }
-
-                    HttpMethod.GET -> request = Request.Builder().url(url).get().build()
-                }
-                val response: Response = client.newCall(request).execute()
-                if (response.isSuccessful) {
-                    return response.body?.let { body ->
-                        Util.convertJsonToMap(
-                            body.byteStream().bufferedReader().use { it.readText() }
-                        )
-                    }
-                } else {
-                    throw Exception(response.toString())
+                val response = executeRequest(url, method, bodyParams, headers)
+                return response.body?.let { body ->
+                    Util.convertJsonToMap(
+                        body.byteStream().bufferedReader().use { it.readText() }
+                    )
                 }
             } catch (exception: InterruptedIOException) {
-                val specificException =
-                    NetworkManagerClientExceptions.NetworkRequestTimeout()
-                throw specificException
+                throw NetworkManagerClientExceptions.NetworkRequestTimeout()
             } catch (exception: Exception) {
-                val specificException =
-                    NetworkManagerClientExceptions.NetworkRequestFailed(exception.message!!)
-                throw specificException
+                throw NetworkManagerClientExceptions.NetworkRequestFailed(exception.message!!)
             }
+        }
+
+        fun sendHTTPRequestBytes(
+            url: String,
+            method: HttpMethod,
+            headers: Map<String, String>? = null
+        ): ByteArray {
+            try {
+                val response = executeRequest(url, method, headers = headers)
+                return response.body?.bytes()
+                    ?: throw Exception("Empty response body")
+            } catch (exception: InterruptedIOException) {
+                throw NetworkManagerClientExceptions.NetworkRequestTimeout()
+            } catch (exception: Exception) {
+                throw NetworkManagerClientExceptions.NetworkRequestFailed(exception.message!!)
+            }
+        }
+
+        private fun executeRequest(
+            url: String,
+            method: HttpMethod,
+            bodyParams: Map<String, String>? = null,
+            headers: Map<String, String>? = null
+        ): Response {
+            val client = OkHttpClient.Builder().build()
+            val request: Request
+            when (method) {
+                HttpMethod.POST -> {
+                    val requestBodyBuilder = FormBody.Builder()
+                    bodyParams?.forEach { (key, value) ->
+                        requestBodyBuilder.add(key, value)
+                    }
+                    val requestBody = requestBodyBuilder.build()
+                    val requestBuilder = Request.Builder().url(url).post(requestBody)
+                    headers?.forEach { (key, value) ->
+                        requestBuilder.addHeader(key, value)
+                    }
+                    request = requestBuilder.build()
+                }
+
+                HttpMethod.GET -> {
+                    val requestBuilder = Request.Builder().url(url).get()
+                    headers?.forEach { (key, value) ->
+                        requestBuilder.addHeader(key, value)
+                    }
+                    request = requestBuilder.build()
+                }
+            }
+            val response: Response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                return response
+            }
+            throw Exception(response.toString())
         }
     }
 }
