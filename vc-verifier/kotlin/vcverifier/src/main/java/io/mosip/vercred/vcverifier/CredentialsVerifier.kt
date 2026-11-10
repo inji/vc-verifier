@@ -8,7 +8,6 @@ import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_M
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.EXCEPTION_DURING_VERIFICATION
 import io.mosip.vercred.vcverifier.credentialverifier.CredentialVerifierFactory
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerificationOptions
-import io.mosip.vercred.vcverifier.credentialverifier.statusChecker.mdoc.MdocStatusListChecker
 import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.CredentialVerificationSummary
 import io.mosip.vercred.vcverifier.data.VerificationResult
@@ -63,6 +62,7 @@ class CredentialsVerifier {
                 ERROR_CODE_VC_EXPIRED
             )
         ) {
+            logger.warning("Credential validation failed")
             return VerificationResult(
                 false,
                 validationStatus.validationMessage,
@@ -78,6 +78,7 @@ class CredentialsVerifier {
                     validationStatus.validationErrorCode
                 )
             }
+            logger.warning("Credential verification failed")
             return VerificationResult(
                 false,
                 ERROR_MESSAGE_VERIFICATION_FAILED,
@@ -92,6 +93,7 @@ class CredentialsVerifier {
             VerificationResult(false, e.errorMessage, e.errorCode)
         } catch (e: Exception) {
             // mso_mdoc: an expired mDL that fails verification must not report ERR_VC_EXPIRED.
+            logger.warning("Credential verification failed")
             val errorCode = validationStatus.validationErrorCode
                 .takeIf { !it.isNullOrEmpty() && credentialFormat != CredentialFormat.MSO_MDOC }
                 ?: ERROR_CODE_VERIFICATION_FAILED

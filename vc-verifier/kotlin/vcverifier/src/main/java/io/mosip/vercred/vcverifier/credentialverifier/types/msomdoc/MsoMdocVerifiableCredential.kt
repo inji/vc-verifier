@@ -124,6 +124,7 @@ class MsoMdocVerifiableCredential(
             val (_, credentialData, _) = parse(credential)
             MdocStatusListChecker().getStatuses(credentialData.mso)
         } catch (exception: Exception) {
+            logger.warning("mDoc status check failed")
             mapOf(
                 STATUS_RESULT_KEY to CredentialStatusResult(
                     false,

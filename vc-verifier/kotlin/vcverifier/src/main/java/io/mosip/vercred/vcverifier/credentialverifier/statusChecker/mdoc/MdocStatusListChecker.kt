@@ -26,9 +26,14 @@ class MdocStatusListChecker(
     private val logger = Logger.getLogger(MdocStatusListChecker::class.java.name)
 
     fun getStatuses(mso: Map): kotlin.collections.Map<String, CredentialStatusResult> {
+        logger.info("Started mDoc status check")
         val pointer = when (val parsed = pointerParser.parse(mso)) {
-            is MsoStatusPointerParseResult.Absent -> return emptyMap()
+            is MsoStatusPointerParseResult.Absent -> {
+                logger.warning("No status list in MSO, skipping status check")
+                return emptyMap()
+            }
             is MsoStatusPointerParseResult.Malformed -> {
+                logger.warning("MSO status pointer is malformed")
                 return errorResult(parsed.errorCode, parsed.errorMessage)
             }
             is MsoStatusPointerParseResult.Found -> parsed.pointer
@@ -40,7 +45,7 @@ class MdocStatusListChecker(
                 mapOf("Accept" to STATUS_LIST_TYP)
             )
         } catch (exception: Exception) {
-            logger.warning("Status list fetch failed for ${pointer.uri}: ${exception.message}")
+            logger.warning("Status list fetch failed")
             return errorResult(
                 STATUS_LIST_FETCH_FAILED,
                 "Failed to retrieve status list at ${pointer.uri}: ${exception.message}"
@@ -49,8 +54,10 @@ class MdocStatusListChecker(
         return try {
             val validated = cwtValidator.validate(cwtBytes, pointer.uri)
             val status = bitReader.readStatus(validated.compressedLst, validated.bits, pointer.idx)
+            logger.info("mDoc status check completed")
             mapStatus(status)
         } catch (exception: MdocStatusCheckException) {
+            logger.warning("Status list check failed")
             errorResult(exception.errorCode, exception.message)
         }
     }
@@ -59,10 +66,14 @@ class MdocStatusListChecker(
         return when (status) {
             MdocCredentialStatus.VALID ->
                 mapOf(STATUS_RESULT_KEY to CredentialStatusResult(true, null))
-            MdocCredentialStatus.INVALID ->
+            MdocCredentialStatus.INVALID -> {
+                logger.warning("mDoc credential is revoked")
                 mapOf(STATUS_PURPOSE_REVOCATION to CredentialStatusResult(false, null))
-            MdocCredentialStatus.SUSPENDED ->
+            }
+            MdocCredentialStatus.SUSPENDED -> {
+                logger.warning("mDoc credential is suspended")
                 mapOf(STATUS_PURPOSE_SUSPENSION to CredentialStatusResult(false, null))
+            }
         }
     }
 
