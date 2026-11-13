@@ -36,7 +36,7 @@ object MdocStatusConstants {
     const val STATUS_VALUE_SUSPENDED = 2
     const val STATUS_VALUE_UNUSED = 3
 
-    const val STATUS_RESULT_KEY = "status"
+    const val STATUS_PURPOSE_VALID = "valid"
     const val STATUS_PURPOSE_REVOCATION = "revocation"
     const val STATUS_PURPOSE_SUSPENSION = "suspension"
 }

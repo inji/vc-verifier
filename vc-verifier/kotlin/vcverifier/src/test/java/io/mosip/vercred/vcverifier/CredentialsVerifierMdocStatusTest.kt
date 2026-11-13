@@ -8,7 +8,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialFormat.MSO_MDOC
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_VALID_UNTIL_MSO
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_REVOCATION
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_SUSPENSION
-import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_RESULT_KEY
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_VALID
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerifiableCredential
 import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.CredentialVerificationSummary
@@ -47,7 +47,7 @@ class CredentialsVerifierMdocStatusTest {
         val result = verifyWith(validCwt())
 
         assertTrue(result.verificationResult.verificationStatus)
-        val status = result.credentialStatus.getValue(STATUS_RESULT_KEY)
+        val status = result.credentialStatus.getValue(STATUS_PURPOSE_VALID)
         assertTrue(status.isValid)
         assertNull(status.error)
     }
@@ -76,7 +76,7 @@ class CredentialsVerifierMdocStatusTest {
     fun `bits 2 value 0 is VALID`() {
         val result = verifyWith(MdocStatusListFixtures.statusListCwt(bits = 2, valuesAtIndex = intArrayOf(0)))
 
-        assertTrue(result.credentialStatus.getValue(STATUS_RESULT_KEY).isValid)
+        assertTrue(result.credentialStatus.getValue(STATUS_PURPOSE_VALID).isValid)
     }
 
     @Test
@@ -200,7 +200,7 @@ class CredentialsVerifierMdocStatusTest {
 
         val status = MsoMdocVerifiableCredential().checkStatus(mdocWithStatus, null)
 
-        assertTrue(status.getValue(STATUS_RESULT_KEY).isValid)
+        assertTrue(status.getValue(STATUS_PURPOSE_VALID).isValid)
     }
 
     @Test
@@ -220,7 +220,7 @@ class CredentialsVerifierMdocStatusTest {
         result: CredentialVerificationSummary,
         errorCode: StatusCheckErrorCode
     ) {
-        val status: CredentialStatusResult = result.credentialStatus.getValue(STATUS_RESULT_KEY)
+        val status: CredentialStatusResult = result.credentialStatus.getValue(STATUS_PURPOSE_VALID)
         assertFalse(status.isValid)
         assertEquals(errorCode, status.error?.errorCode)
     }

@@ -6,7 +6,7 @@ import io.mosip.vercred.vcverifier.CredentialsVerifier
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.MSO_MDOC
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_REVOCATION
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_SUSPENSION
-import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_RESULT_KEY
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_VALID
 import io.mosip.vercred.vcverifier.data.CredentialVerificationSummary
 import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode
 import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
@@ -40,7 +40,7 @@ class MdocStatusListFixtureFileTest {
     fun `resource VALID CWT maps to VALID`() {
         val result = verifyWith("statuslist_valid.cwt")
         assertTrue(result.verificationResult.verificationStatus)
-        assertTrue(result.credentialStatus.getValue(STATUS_RESULT_KEY).isValid)
+        assertTrue(result.credentialStatus.getValue(STATUS_PURPOSE_VALID).isValid)
     }
 
     @Test
@@ -58,7 +58,7 @@ class MdocStatusListFixtureFileTest {
     @Test
     fun `resource bits2 VALID CWT maps to VALID`() {
         val result = verifyWith("statuslist_bits2_valid.cwt")
-        assertTrue(result.credentialStatus.getValue(STATUS_RESULT_KEY).isValid)
+        assertTrue(result.credentialStatus.getValue(STATUS_PURPOSE_VALID).isValid)
     }
 
     @Test
@@ -106,7 +106,7 @@ class MdocStatusListFixtureFileTest {
         result: CredentialVerificationSummary,
         errorCode: StatusCheckErrorCode
     ) {
-        val status = result.credentialStatus.getValue(STATUS_RESULT_KEY)
+        val status = result.credentialStatus.getValue(STATUS_PURPOSE_VALID)
         assertFalse(status.isValid)
         assertEquals(errorCode, status.error?.errorCode)
     }

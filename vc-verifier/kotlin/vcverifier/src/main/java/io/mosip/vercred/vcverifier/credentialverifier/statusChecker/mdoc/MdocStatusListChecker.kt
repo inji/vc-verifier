@@ -5,7 +5,7 @@ import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_FET
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_TYP
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_REVOCATION
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_SUSPENSION
-import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_RESULT_KEY
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_VALID
 import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.MdocCredentialStatus
 import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode
@@ -65,7 +65,7 @@ class MdocStatusListChecker(
     private fun mapStatus(status: MdocCredentialStatus): kotlin.collections.Map<String, CredentialStatusResult> {
         return when (status) {
             MdocCredentialStatus.VALID ->
-                mapOf(STATUS_RESULT_KEY to CredentialStatusResult(true, null))
+                mapOf(STATUS_PURPOSE_VALID to CredentialStatusResult(true, null))
             MdocCredentialStatus.INVALID -> {
                 logger.warning("mDoc credential is revoked")
                 mapOf(STATUS_PURPOSE_REVOCATION to CredentialStatusResult(false, null))
@@ -82,7 +82,7 @@ class MdocStatusListChecker(
         errorMessage: String?
     ): kotlin.collections.Map<String, CredentialStatusResult> {
         return mapOf(
-            STATUS_RESULT_KEY to CredentialStatusResult(
+            STATUS_PURPOSE_VALID to CredentialStatusResult(
                 false,
                 StatusCheckException(errorMessage ?: errorCode, toErrorCode(errorCode))
             )

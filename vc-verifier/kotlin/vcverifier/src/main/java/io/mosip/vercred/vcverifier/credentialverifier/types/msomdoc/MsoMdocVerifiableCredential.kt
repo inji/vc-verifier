@@ -11,7 +11,7 @@ import co.nstant.`in`.cbor.model.UnicodeString
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_GENERIC
-import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_RESULT_KEY
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_VALID
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_ISSUER_SIGNED_ITEM
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DIGEST_ALGORITHM
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_DIGEST_ALGORITHM
@@ -126,7 +126,7 @@ class MsoMdocVerifiableCredential(
         } catch (exception: Exception) {
             logger.warning("mDoc status check failed")
             mapOf(
-                STATUS_RESULT_KEY to CredentialStatusResult(
+                STATUS_PURPOSE_VALID to CredentialStatusResult(
                     false,
                     StatusCheckException(
                         "Failed to read MSO status pointer: ${exception.message}",
