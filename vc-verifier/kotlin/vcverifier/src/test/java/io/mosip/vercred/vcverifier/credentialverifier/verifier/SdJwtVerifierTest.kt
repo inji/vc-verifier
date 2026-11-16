@@ -6,8 +6,9 @@ import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerif
 import io.mockk.*
 import io.mosip.vercred.vcverifier.keyResolver.types.did.DidPublicKeyResolver
 import io.mosip.vercred.vcverifier.exception.PublicKeyNotFoundException
-import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
+import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
+import io.mosip.vercred.vcverifier.utils.DateUtils
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -19,43 +20,72 @@ import java.nio.file.Files
 import java.security.PublicKey
 import java.time.Instant
 import java.util.Base64
+import java.util.Date
 
 class SdJwtVerifierTest{
 
-    // Pinned inside the validity window of every x5c fixture used here (and after the expired
-    // fixture's notAfter), so certificate validity checks do not depend on the wall clock.
-    private val fixedClock: () -> Long = { Instant.parse("2026-11-01T00:00:00Z").toEpochMilli() }
+    /**
+     * Pins [DateUtils.currentDate] so certificate validity checks do not depend on the wall clock.
+     * The default is inside the validity window of every x5c fixture that is expected to verify
+     * here, and after sdJwtWithExpiredX5c.txt's notAfter. [tearDown] unmocks it.
+     */
+    private fun pinCurrentDate(now: String = "2026-11-01T00:00:00Z") {
+        mockkObject(DateUtils)
+        every { DateUtils.currentDate() } returns Date(Instant.parse(now).toEpochMilli())
+    }
+
+    private fun readSdJwt(name: String): String =
+        String(Files.readAllBytes(ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "sd-jwt_vc/$name").toPath())).trim()
+
+    private fun assertRejectedForCertificateValidity(vc: String) {
+        val error = assertThrows(ValidationException::class.java) { SdJwtVerifier().verify(vc) }
+
+        assertEquals(ERROR_MESSAGE_INVALID_X5C_CERT_VALIDITY, error.errorMessage)
+        assertEquals(ERROR_CODE_INVALID_X5C_CERT_VALIDITY, error.errorCode)
+    }
 
     @Test
     fun `should verify sd-jwt successfully`() {
+        pinCurrentDate()
         val file = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "sd-jwt_vc/sdJwt.txt")
         val vc = String(Files.readAllBytes(file.toPath()))
 
-        assertTrue(SdJwtVerifier(fixedClock).verify(vc))
+        assertTrue(SdJwtVerifier().verify(vc))
     }
 
     @Test
     fun `should reject sd-jwt when x5c certificate is expired`() {
         // sdJwtWithExpiredX5c.txt: certify-issued RS256 SD-JWT whose x5c notAfter is 2025-10-30.
-        val file = ResourceUtils.getFile(
-            ResourceUtils.CLASSPATH_URL_PREFIX + "sd-jwt_vc/sdJwtWithExpiredX5c.txt"
-        )
-        val vc = String(Files.readAllBytes(file.toPath())).trim()
+        pinCurrentDate()
 
-        val error = assertThrows(SignatureVerificationException::class.java) {
-            SdJwtVerifier(fixedClock).verify(vc)
-        }
+        assertRejectedForCertificateValidity(readSdJwt("sdJwtWithExpiredX5c.txt"))
+    }
 
-        assertEquals(ERROR_MESSAGE_INVALID_X5C_CERT_VALIDITY, error.message)
-        assertEquals(ERROR_CODE_INVALID_X5C_CERT_VALIDITY, error.errorCode)
+    @Test
+    fun `should reject sd-jwt when x5c certificate is not yet valid`() {
+        // sdJwt.txt: x5c notBefore is 2025-04-29T05:55:01Z.
+        pinCurrentDate("2025-01-01T00:00:00Z")
+
+        assertRejectedForCertificateValidity(readSdJwt("sdJwt.txt"))
+    }
+
+    @Test
+    fun `should reject sd-jwt when a non-leaf x5c certificate is expired`() {
+        // sdJwtWithKbJwtEdDSA.txt carries a three-certificate chain. The intermediate's notAfter
+        // (2028-03-06T06:50:52Z) is three seconds before the leaf's (2028-03-06T06:50:55Z), so at
+        // this instant only the intermediate is expired. A leaf-only check would accept it.
+        pinCurrentDate("2028-03-06T06:50:53Z")
+
+        assertRejectedForCertificateValidity(readSdJwt("sdJwtWithKbJwtEdDSA.txt"))
     }
 
     @Test
     fun `should verify a real dc+sd-jwt successfully with x5c`() {
+        pinCurrentDate()
         val file = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "sd-jwt_vc/sdJwtVcWithX5cSanMatchingIss.txt")
         val vc = String(Files.readAllBytes(file.toPath())).trim()
 
-        assertTrue(SdJwtVerifier(fixedClock).verify(vc))
+        assertTrue(SdJwtVerifier().verify(vc))
     }
 
     @Test
@@ -68,11 +98,11 @@ class SdJwtVerifierTest{
 
     @Test
     fun `should return false for tampered sd-jwt`() {
-
+        pinCurrentDate()
         val file = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "sd-jwt_vc/invalidSdJwt.txt")
         val vc = String(Files.readAllBytes(file.toPath()))
 
-        assertFalse( SdJwtVerifier(fixedClock).verify(vc))
+        assertFalse(SdJwtVerifier().verify(vc))
     }
 
     @Test
