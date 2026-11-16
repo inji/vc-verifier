@@ -76,18 +76,20 @@ internal object MdlEdgeCaseTestDataGenerator {
         /** COSE alg value; placed in the protected header unless [algInUnprotectedHeader]. */
         alg: Long = -7,
         /** Replaces [alg] with any CBOR item, e.g. an unsigned value that does not fit a Long. */
-        algItemOverride: DataItem? = null,
+        algOverride: DataItem? = null,
         algInUnprotectedHeader: Boolean = false,
         /** Sends a zero-length protected header, so alg is in neither header. */
         emptyProtectedHeader: Boolean = false,
+        /** Sends this item as issuerAuth[0] in place of the protected header bstr (signature unchanged). */
+        protectedHeaderItem: DataItem? = null,
         /** Replaces (or, with null, removes) validityInfo entries, e.g. "validFrom" to an untagged date. */
         validityInfoOverrides: Map<String, DataItem?> = emptyMap(),
         /** Extra mDL items (digestID, elementIdentifier, value) sent first and never digested in the MSO. */
         forgedItems: List<Triple<Long, String, DataItem>> = emptyList(),
         /** Flips one byte of the COSE signature after signing. */
         corruptSignature: Boolean = false,
-        /** Shape C only: also writes a top-level docType next to "documents". */
-        documentsOuterDocType: String? = null,
+        /** Shape C only: writes a top-level docType beside "documents" (documents[0] keeps [topLevelDocType]). */
+        docTypeBesideDocuments: String? = null,
     ): String {
         val privateKey = loadPrivateKey()
         val dsCertificate = certificate ?: loadCertificate(includeKeyUsage)
@@ -149,12 +151,12 @@ internal object MdlEdgeCaseTestDataGenerator {
         }
         val payload = if (untaggedMso) encode(ByteString(encode(mso)))
         else encode(ByteString(encode(mso)).apply { setTag(24) })
-        val algItem: DataItem = algItemOverride ?: if (alg < 0) NegativeInteger(alg) else UnsignedInteger(alg)
+        val algItem: DataItem = algOverride ?: if (alg < 0) NegativeInteger(alg) else UnsignedInteger(alg)
         val protectedHeader = if (emptyProtectedHeader) ByteArray(0) else encode(
             CborMap().apply { if (!algInUnprotectedHeader) put(UnsignedInteger(1), algItem) }
         )
         val issuerAuth = CborArray().apply {
-            add(ByteString(protectedHeader))
+            add(protectedHeaderItem ?: ByteString(protectedHeader))
             add(
                 CborMap().apply {
                     if (algInUnprotectedHeader && !emptyProtectedHeader) put(UnsignedInteger(1), algItem)
@@ -168,7 +170,7 @@ internal object MdlEdgeCaseTestDataGenerator {
         }
 
         val credential =
-            assembleCredential(shape, topLevelDocType, documentsOuterDocType, encode(issuerAuth), disclosedItems)
+            assembleCredential(shape, topLevelDocType, docTypeBesideDocuments, encode(issuerAuth), disclosedItems)
         return Base64.getUrlEncoder().withoutPadding().encodeToString(credential)
     }
 
@@ -294,7 +296,7 @@ internal object MdlEdgeCaseTestDataGenerator {
     private fun assembleCredential(
         shape: Shape,
         topLevelDocType: String?,
-        documentsOuterDocType: String?,
+        docTypeBesideDocuments: String?,
         issuerAuthBytes: ByteArray,
         namespaces: Map<String, List<ByteArray>>,
     ): ByteArray {
@@ -322,8 +324,8 @@ internal object MdlEdgeCaseTestDataGenerator {
                 out.write(issuerSigned)
             }
             Shape.DOCUMENTS -> {
-                out.write(header(5, if (documentsOuterDocType == null) 1 else 2))
-                documentsOuterDocType?.let { out.write(text("docType") + text(it)) }
+                out.write(header(5, if (docTypeBesideDocuments == null) 1 else 2))
+                docTypeBesideDocuments?.let { out.write(text("docType") + text(it)) }
                 out.write(text("documents"))
                 out.write(header(4, 1))
                 out.write(header(5, docTypeCount + 1))

@@ -11,6 +11,7 @@ import co.nstant.`in`.cbor.model.UnsignedInteger
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_ALG
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DIGEST_ID
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DIGEST_SALT
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DOC_TYPE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DS_CERT_VALIDITY
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_ISSUER_SIGNED_ITEM
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO
@@ -20,6 +21,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_VALUE_DIGESTS
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING_ALG
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_DIGEST_ID_OUT_OF_RANGE
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_DOC_TYPE_MISMATCH
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_DUPLICATE_ELEMENT_IDENTIFIER
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_DIGEST_ID
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_DIGEST_SALT
@@ -32,6 +34,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_VALUE_DIGESTS_STRUCTURE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MALFORMED_PROTECTED_HEADER
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MISSING_ALG
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MISSING_DOC_TYPE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MISSING_SIGNED_MSO
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.COSE_ALG_HEADER_LABEL
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DIGEST_ID_MAX_EXCLUSIVE
@@ -51,7 +54,6 @@ import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.VALUE_DIGEST
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.X5C
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.get
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.requireSupportedDigestAlgorithm
-import io.mosip.vercred.vcverifier.exception.InvalidPropertyException
 import io.mosip.vercred.vcverifier.exception.LikelyTamperedException
 import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.UnknownException
@@ -120,7 +122,6 @@ internal class MsoMdocVerifier(
             when (exception) {
                 is SignatureVerificationException,
                 is LikelyTamperedException,
-                is InvalidPropertyException,
                 is ValidationException
                     -> throw exception
 
@@ -239,12 +240,12 @@ internal class MsoMdocVerifier(
             ((decodedCredential[DOCUMENTS] as Array)[0] as Map).getOrNull(DOC_TYPE)
         } else {
             decodedCredential.getOrNull(DOC_TYPE)
-        } ?: throw InvalidPropertyException("Property docType not found in the credential")
+        } ?: throw ValidationException(ERROR_MESSAGE_MISSING_DOC_TYPE, ERROR_CODE_INVALID_DOC_TYPE)
         if (docTypeInMso == docTypeInDocument) {
             return true
         }
         logger.severe("Error while doing docType property verification - Property mismatch with docType in the credential")
-        throw InvalidPropertyException("Property mismatch with docType in the credential")
+        throw ValidationException(ERROR_MESSAGE_DOC_TYPE_MISMATCH, ERROR_CODE_INVALID_DOC_TYPE)
     }
 
     private fun verificationOfCoseSignature(

@@ -166,6 +166,10 @@ object CredentialValidatorConstants {
     const val ERROR_MESSAGE_INVALID_MDL_AGE =
         "age_over_NN / age_in_years is inconsistent with birth_date"
 
+    const val ERROR_CODE_INVALID_DOC_TYPE = "${ERROR_CODE_INVALID}DOC_TYPE"
+    const val ERROR_MESSAGE_MISSING_DOC_TYPE = "docType is missing from the credential"
+    const val ERROR_MESSAGE_DOC_TYPE_MISMATCH = "docType does not match the docType in the MSO"
+
     const val ERROR_CODE_INVALID_ISSUE_DATE = "${ERROR_CODE_INVALID}ISSUE_DATE"
     const val ERROR_MESSAGE_INVALID_ISSUE_DATE =
         "issue_date must not be after validFrom"

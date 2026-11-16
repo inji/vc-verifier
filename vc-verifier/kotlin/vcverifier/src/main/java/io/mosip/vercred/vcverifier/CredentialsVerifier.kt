@@ -11,9 +11,7 @@ import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerif
 import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.CredentialVerificationSummary
 import io.mosip.vercred.vcverifier.data.VerificationResult
-import io.mosip.vercred.vcverifier.exception.InvalidPropertyException
 import io.mosip.vercred.vcverifier.exception.LikelyTamperedException
-import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import java.util.logging.Logger
 
@@ -92,14 +90,10 @@ class CredentialsVerifier {
             // Must not fall into the generic catch, which would reuse the validation code
             // (e.g. an expired + tampered mDL would otherwise report ERR_VC_EXPIRED).
             VerificationResult(false, e.errorMessage, e.errorCode)
-        } catch (e: SignatureVerificationException) {
-            // A failed verification must not inherit the validation code either
-            // (e.g. an expired mDL with a bad signature would otherwise report ERR_VC_EXPIRED).
-            VerificationResult(false, "$EXCEPTION_DURING_VERIFICATION${e.message}", ERROR_CODE_VERIFICATION_FAILED)
-        } catch (e: InvalidPropertyException) {
-            VerificationResult(false, "$EXCEPTION_DURING_VERIFICATION${e.message}", ERROR_CODE_VERIFICATION_FAILED)
         } catch (e: Exception) {
-            val errorCode = validationStatus.validationErrorCode.takeIf { !it.isNullOrEmpty() }
+            // mso_mdoc: an expired mDL that fails verification must not report ERR_VC_EXPIRED.
+            val errorCode = validationStatus.validationErrorCode
+                .takeIf { !it.isNullOrEmpty() && credentialFormat != CredentialFormat.MSO_MDOC }
                 ?: ERROR_CODE_VERIFICATION_FAILED
             VerificationResult(false, "$EXCEPTION_DURING_VERIFICATION${e.message}", errorCode)
         }

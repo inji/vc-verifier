@@ -11,6 +11,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialFormat.VC_SD_JWT
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.JWT_VC_JSON
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.CONTEXT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_GENERIC
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DOC_TYPE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DS_CERT_VALIDITY
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_LIKELY_TAMPERED
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MDL_ELEMENT
@@ -24,6 +25,7 @@ import io.mosip.vercred.vcverifier.utils.LocalDocumentLoader
 import io.mosip.vercred.vcverifier.utils.DateUtils
 import io.mosip.vercred.vcverifier.utils.Util
 import testutils.MdlEdgeCaseTestDataGenerator
+import org.json.JSONObject
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -220,7 +222,7 @@ class CredentialsVerifierTest {
 
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
-    fun `should return the verification failed code, not ERR_VC_EXPIRED, for an expired mDL with a mismatched docType`() {
+    fun `should return the docType code, not ERR_VC_EXPIRED, for an expired mDL with a mismatched docType`() {
         val credential = expiredMdl(
             shape = MdlEdgeCaseTestDataGenerator.Shape.ISSUER_SIGNED,
             topLevelDocType = "org.iso.18013.5.5.mDL",
@@ -229,7 +231,41 @@ class CredentialsVerifierTest {
         val result = CredentialsVerifier().verify(credential, MSO_MDOC)
 
         assertFalse(result.verificationStatus)
-        assertEquals(ERROR_CODE_VERIFICATION_FAILED, result.verificationErrorCode)
+        assertEquals(ERROR_CODE_INVALID_DOC_TYPE, result.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS)
+    fun `should return ERR_INVALID_DOC_TYPE for a shape B mDL without the outer docType`() {
+        val credential = MdlEdgeCaseTestDataGenerator.create(
+            shape = MdlEdgeCaseTestDataGenerator.Shape.ISSUER_SIGNED,
+            topLevelDocType = null,
+        )
+
+        val result = CredentialsVerifier().verify(credential, MSO_MDOC)
+
+        assertFalse(result.verificationStatus)
+        assertEquals(ERROR_CODE_INVALID_DOC_TYPE, result.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS)
+    fun `should still return ERR_VC_EXPIRED for an expired ldp_vc whose proof fails verification with an exception`() {
+        // Only mso_mdoc drops the validation code when verification throws; other formats keep it.
+        mockHttpResponse(
+            "https://api.released.mosip.net/identity-service/02b073b8-aacd-472e-b63f-265bb7ccdd9f/did.json",
+            readClasspathFile("ldp_vc/public_key/didMosipKey.json"),
+        )
+        val vc = JSONObject(readClasspathFile("ldp_vc/Ed25519Signature2020SignedSunbirdVC.json"))
+        val proof = vc.getJSONObject("proof")
+        val proofValue = proof.getString("proofValue")
+        // "0OIl" are not base58 characters, so decoding the proof throws.
+        proof.put("proofValue", proofValue.substring(0, 5) + "0OIl" + proofValue.substring(9))
+
+        val result = CredentialsVerifier().verify(vc.toString(), LDP_VC)
+
+        assertFalse(result.verificationStatus)
+        assertEquals(ERROR_CODE_VC_EXPIRED, result.verificationErrorCode)
     }
 
     @Test

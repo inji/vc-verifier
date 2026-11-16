@@ -124,8 +124,8 @@ refer to the implementation classes for complete rules.
   critical KeyUsage `digitalSignature`, `issuing_country` / optional `issuing_jurisdiction` vs the DS certificate
 * For shapes B and C the outer `docType` is read from where `issuerSigned` was taken (`documents[0]`
   for shape C) and must match the MSO `docType`
-* A COSE signature failure or `docType` mismatch returns `false` with `ERR_SIGNATURE_VERIFICATION_FAILED`,
-  also when the credential is expired
+* A COSE signature failure returns `false` with `ERR_SIGNATURE_VERIFICATION_FAILED`, and a missing or
+  mismatched outer `docType` returns `false` with `ERR_INVALID_DOC_TYPE`, also when the credential is expired
 * Details: [`doc/mso-mdoc-verification-support.md`](../../doc/mso-mdoc-verification-support.md)
 
 ### 3.3 SD-JWT VC Validation
@@ -968,7 +968,8 @@ For other unknown exceptions, error code will be `ERR_GENERIC`
 | salt (`random`) &lt; 16 bytes           | ERR_INVALID_DIGEST_SALT         |
 | mDL field type/structure/mandatory/age | ERR_INVALID_MDL_ELEMENT        |
 | issue_date more than one day after validFrom (UTC date) / invalid date | ERR_INVALID_ISSUE_DATE |
-| COSE signature invalid / outer docType missing or mismatched | ERR_SIGNATURE_VERIFICATION_FAILED |
+| COSE signature invalid                 | ERR_SIGNATURE_VERIFICATION_FAILED |
+| outer docType missing or mismatched (shapes B, C) | ERR_INVALID_DOC_TYPE  |
 
 For other unknown exceptions, error code will be `ERR_GENERIC`
 

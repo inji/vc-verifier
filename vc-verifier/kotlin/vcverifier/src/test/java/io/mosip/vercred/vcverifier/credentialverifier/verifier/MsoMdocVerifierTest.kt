@@ -57,10 +57,11 @@ import co.nstant.`in`.cbor.model.DataItem
 import java.security.MessageDigest
 import testutils.MdlEdgeCaseTestDataGenerator
 import java.math.BigInteger
-import io.mosip.vercred.vcverifier.exception.InvalidPropertyException
 import io.mosip.vercred.vcverifier.CredentialsVerifier
 import io.mosip.vercred.vcverifier.constants.CredentialFormat
-import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_CODE_VERIFICATION_FAILED
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DOC_TYPE
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_DOC_TYPE_MISMATCH
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MISSING_DOC_TYPE
 import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.utils.BuildConfig
@@ -250,8 +251,9 @@ class MsoMdocVerifierTest {
             method.invoke(verifier, decodedCredential, mso, false)
         }
 
-        assertTrue(invocationException.targetException is InvalidPropertyException)
-        assertEquals("Property mismatch with docType in the credential", invocationException.targetException.message)
+        val exception = invocationException.targetException as ValidationException
+        assertEquals(ERROR_MESSAGE_DOC_TYPE_MISMATCH, exception.errorMessage)
+        assertEquals(ERROR_CODE_INVALID_DOC_TYPE, exception.errorCode)
     }
 
     @Test
@@ -270,11 +272,12 @@ class MsoMdocVerifierTest {
             topLevelDocType = null,
         )
 
-        val exception = assertThrows(InvalidPropertyException::class.java) {
+        val exception = assertThrows(ValidationException::class.java) {
             MsoMdocVerifier().verify(credential)
         }
 
-        assertEquals("Property docType not found in the credential", exception.message)
+        assertEquals(ERROR_MESSAGE_MISSING_DOC_TYPE, exception.errorMessage)
+        assertEquals(ERROR_CODE_INVALID_DOC_TYPE, exception.errorCode)
     }
 
     @Test
@@ -284,11 +287,12 @@ class MsoMdocVerifierTest {
             topLevelDocType = "org.iso.18013.5.5.mDL",
         )
 
-        val exception = assertThrows(InvalidPropertyException::class.java) {
+        val exception = assertThrows(ValidationException::class.java) {
             MsoMdocVerifier().verify(credential)
         }
 
-        assertEquals("Property mismatch with docType in the credential", exception.message)
+        assertEquals(ERROR_MESSAGE_DOC_TYPE_MISMATCH, exception.errorMessage)
+        assertEquals(ERROR_CODE_INVALID_DOC_TYPE, exception.errorCode)
     }
 
     @Test
@@ -297,17 +301,17 @@ class MsoMdocVerifierTest {
         val credential = MdlEdgeCaseTestDataGenerator.create(
             shape = Shape.DOCUMENTS,
             topLevelDocType = "org.iso.18013.5.5.mDL",
-            documentsOuterDocType = MdlEdgeCaseTestDataGenerator.MDL_DOC_TYPE,
+            docTypeBesideDocuments = MdlEdgeCaseTestDataGenerator.MDL_DOC_TYPE,
         )
 
-        val exception = assertThrows(InvalidPropertyException::class.java) {
+        val exception = assertThrows(ValidationException::class.java) {
             MsoMdocVerifier().verify(credential)
         }
-        assertEquals("Property mismatch with docType in the credential", exception.message)
+        assertEquals(ERROR_MESSAGE_DOC_TYPE_MISMATCH, exception.errorMessage)
 
         val result = CredentialsVerifier().verify(credential, CredentialFormat.MSO_MDOC)
         assertFalse(result.verificationStatus)
-        assertEquals(ERROR_CODE_VERIFICATION_FAILED, result.verificationErrorCode)
+        assertEquals(ERROR_CODE_INVALID_DOC_TYPE, result.verificationErrorCode)
     }
 
     @Test
@@ -348,7 +352,7 @@ class MsoMdocVerifierTest {
         // 2^64 - 7 == 18446744073709551609; toLong() would narrow this to -7.
         val wrapAroundAlg = UnsignedInteger(java.math.BigInteger("18446744073709551609"))
         val exception = assertThrows(ValidationException::class.java) {
-            MsoMdocVerifier().verify(factory.create(algItemOverride = wrapAroundAlg))
+            MsoMdocVerifier().verify(factory.create(algOverride = wrapAroundAlg))
         }
         assertEquals(ERROR_MESSAGE_INVALID_MSO_ALG, exception.errorMessage)
         assertEquals(ERROR_CODE_INVALID_ALG, exception.errorCode)
@@ -1000,19 +1004,8 @@ class MsoMdocVerifierTest {
                 ByteString(encodeItem(CborArray().apply { add(UnsignedInteger(1)) })),
                 CborMap(),
             ).forEach { protectedHeader ->
-                val issuerAuth = CborArray().apply {
-                    add(protectedHeader)
-                    add(CborMap())
-                    add(ByteString(ByteArray(0)))
-                    add(ByteString(ByteArray(4)))
-                }
-                val verifier = MsoMdocVerifier()
-                val method = verifier.javaClass.getDeclaredMethod("verifyProtectedHeaderAlg", CborArray::class.java)
-                method.isAccessible = true
-                val invocationException = assertThrows(InvocationTargetException::class.java) {
-                    method.invoke(verifier, issuerAuth)
-                }
-                val exception = invocationException.targetException as ValidationException
+                val credential = factory.create(protectedHeaderItem = protectedHeader)
+                val exception = assertThrows(ValidationException::class.java) { MsoMdocVerifier().verify(credential) }
                 assertEquals(ERROR_MESSAGE_MALFORMED_PROTECTED_HEADER, exception.errorMessage)
                 assertEquals(ERROR_CODE_INVALID_PROTECTED_HEADER, exception.errorCode)
             }
