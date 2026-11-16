@@ -19,7 +19,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DIGEST_ALGORITHM
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DS_CERT_EKU
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DS_CERT_KEY_USAGE
-import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DS_CERT_VALIDITY
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_X5C_CERT_VALIDITY
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_ISSUE_DATE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_ISSUER_SIGNED_ITEM
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_ISSUING_COUNTRY
@@ -144,7 +144,7 @@ class MsoMdocVerifierTest {
     }
 
     @Test
-    fun `should throw ERR_INVALID_DS_CERT_VALIDITY when fixture DS certificate is expired`() {
+    fun `should throw ERR_INVALID_X5C_CERT_VALIDITY when fixture DS certificate is expired`() {
         // Public verify() hits DS validity before signature/digest checks on this expired fixture.
         val verificationException = assertThrows(ValidationException::class.java) {
             MsoMdocVerifier().verify(
@@ -152,7 +152,7 @@ class MsoMdocVerifierTest {
             )
         }
 
-        assertEquals(ERROR_CODE_INVALID_DS_CERT_VALIDITY, verificationException.errorCode)
+        assertEquals(ERROR_CODE_INVALID_X5C_CERT_VALIDITY, verificationException.errorCode)
     }
 
     @Test
@@ -199,7 +199,7 @@ class MsoMdocVerifierTest {
             )
         }
 
-        assertEquals(ERROR_CODE_INVALID_DS_CERT_VALIDITY, verificationException.errorCode)
+        assertEquals(ERROR_CODE_INVALID_X5C_CERT_VALIDITY, verificationException.errorCode)
     }
 
     @Test
@@ -210,7 +210,7 @@ class MsoMdocVerifierTest {
             )
         }
 
-        assertEquals(ERROR_CODE_INVALID_DS_CERT_VALIDITY, verificationException.errorCode)
+        assertEquals(ERROR_CODE_INVALID_X5C_CERT_VALIDITY, verificationException.errorCode)
     }
 
     @Test
@@ -670,7 +670,7 @@ class MsoMdocVerifierTest {
         fun `should fail not-yet-valid DS certificate just outside the tolerance`() {
             val now = notBefore.minusMillis(MDOC_CLOCK_SKEW_TOLERANCE_MS + 1)
             assertVerifyFails(
-                ERROR_CODE_INVALID_DS_CERT_VALIDITY,
+                ERROR_CODE_INVALID_X5C_CERT_VALIDITY,
                 verifierAt(now),
                 credentialAt(notBefore, signed = notBefore),
             )
@@ -686,7 +686,7 @@ class MsoMdocVerifierTest {
         fun `should fail expired DS certificate just outside the tolerance`() {
             val now = notAfter.plusMillis(MDOC_CLOCK_SKEW_TOLERANCE_MS + 1)
             assertVerifyFails(
-                ERROR_CODE_INVALID_DS_CERT_VALIDITY,
+                ERROR_CODE_INVALID_X5C_CERT_VALIDITY,
                 verifierAt(now),
                 credentialAt(notAfter, signed = notAfter.minusSeconds(60)),
             )

@@ -40,16 +40,12 @@ All checks run for every shape.
 |---|---|---|
 | Mandatory elements | All 11 present, when the whole mDL namespace is shared | |
 | `driving_privileges` | ISO structure | |
-| Text elements | Latin-1, at most 150 characters | |
-| Control characters | Not allowed in those text elements | Yes |
-| Age claims | Agree with `birth_date`, with one day of slack | |
-| `issue_date` | Not more than one day after the UTC date of `validFrom` | |
+| Text elements | Printable Latin-1 (no control characters), at most 150 characters | |
+| Age claims | Agree with `birth_date` at `signed` or `validFrom` | |
+| `issue_date` | Not after the UTC date of `validFrom` | |
 | Element types | ISO Table 5 | Yes |
 | DS certificate profile | Critical KeyUsage `digitalSignature` and EKU `1.0.18013.5.1.2` | Yes |
 | Issuer | `issuing_country` = certificate `C`; `issuing_jurisdiction` = `ST` when both exist | |
-
-The one day of slack covers issuers that write their local date, which can differ from
-the UTC date of the MSO timestamps.
 
 ## Result
 
@@ -66,7 +62,7 @@ Time comparisons against "now" allow 3 seconds of clock difference.
 
 ## Strict mode
 
-`CredentialsVerifier.verify(..., mdocStrictProfile = false)` turns off the three checks
+`CredentialsVerifier.verify(..., mdocStrictProfile = false)` turns off the two checks
 marked "Strict only" above. Everything else always runs. The flag defaults to `true` and
 is temporary, until Inji Certify issues conformant mDLs.
 

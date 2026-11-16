@@ -43,8 +43,7 @@ class CredentialsVerifier {
 
     /**
      * @param mdocStrictProfile when [credentialFormat] is mso_mdoc, relaxes only the mDL DS
-     * KeyUsage/EKU check, the mDL element type checks and the rejection of control characters in
-     * mDL Latin-1 text when false; all other mDL checks always run.
+     * KeyUsage/EKU check and the mDL element type checks when false; all other mDL checks always run.
      * Defaults to true. Temporary, for issuers whose mDLs don't yet meet these requirements.
      */
     @JvmOverloads

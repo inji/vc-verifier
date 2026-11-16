@@ -12,7 +12,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialFormat.JWT_VC_JSON
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.CONTEXT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_GENERIC
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DOC_TYPE
-import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DS_CERT_VALIDITY
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_X5C_CERT_VALIDITY
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_LIKELY_TAMPERED
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MDL_ELEMENT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING
@@ -388,7 +388,7 @@ class CredentialsVerifierTest {
         val verificationResult = CredentialsVerifier().verify(vc, MSO_MDOC)
 
         assertFalse(verificationResult.verificationStatus)
-        assertEquals(ERROR_CODE_INVALID_DS_CERT_VALIDITY, verificationResult.verificationErrorCode)
+        assertEquals(ERROR_CODE_INVALID_X5C_CERT_VALIDITY, verificationResult.verificationErrorCode)
     }
 
     @Test

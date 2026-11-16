@@ -112,9 +112,8 @@ refer to the implementation classes for complete rules.
     * `validUntil > validFrom` must hold
     * `signed` required; `validFrom` must not be before `signed` (all shapes)
 * **mDL field checks (`MdlValidator`)**, before the signature: mandatory elements, element types,
-  `driving_privileges`, Latin-1 text (control characters rejected in strict mode only), age claims,
-  `issue_date` vs `validFrom`. `issue_date` and the age claims allow one calendar day of slack against
-  the UTC dates of `signed` / `validFrom`, for an issuer that writes its local date
+  `driving_privileges`, printable Latin-1 text (no control characters), age claims,
+  `issue_date` not after `validFrom`
 * Field access uses a CBOR helper operator `DataItem["validFrom"]`
 * Exceptions thrown for any date inconsistencies
 * **Validation class:** `MsoMdocValidator`
@@ -424,7 +423,9 @@ fun verifyAndGetCredentialStatus(
 ```kotlin
 fun verify(
     credential: String,
-    credentialFormat: CredentialFormat
+    credentialFormat: CredentialFormat,
+    validateKeyBindingJwt: Boolean = false,
+    mdocStrictProfile: Boolean = true
 ): VerificationResult
 ```
 
@@ -438,11 +439,23 @@ fun verify(
       `MSO_MDOC`,
       `CWT_VC`,
       `JWT_VC_JSON`
+    * `mdocStrictProfile`: `mso_mdoc` only. `false` skips the mDL DS certificate KeyUsage/EKU check
+      and the mDL element type checks; every other check still runs. Defaults to `true`
 * **Returns:** `VerificationResult` with:
     * `verificationStatus`: `true` if valid; otherwise `false`
     * `verificationMessage`: details of validation/syntax errors
     * `verificationErrorCode`: standardized error code (e.g., `VC_EXPIRED`, `SIGNATURE_INVALID`,
       etc.)
+* **Error codes from the verification step (changed in 1.11.0):**
+    * A `ValidationException` or `LikelyTamperedException` thrown while verifying now returns its
+      own error code (for example `ERR_LIKELY_TAMPERED`, `ERR_INVALID_X5C_CERT_VALIDITY`) for
+      **every format**. Before, it returned the validation step's code if there was one (such as
+      `ERR_VC_EXPIRED`), otherwise `ERR_VERIFICATION_FAILED`. Today only `mso_mdoc` throws these
+      during verification.
+    * Any other exception while verifying still returns the validation step's code if there was
+      one, otherwise `ERR_VERIFICATION_FAILED`, except for `mso_mdoc`, which always returns
+      `ERR_VERIFICATION_FAILED`, so an expired mDL that fails verification never reports
+      `ERR_VC_EXPIRED`.
 
 ---
 
@@ -947,7 +960,7 @@ For other unknown exceptions, error code will be `ERR_GENERIC`
 | MSO version                           | ERR_INVALID_MSO_VERSION         |
 | digestAlgorithm                       | ERR_INVALID_DIGEST_ALGORITHM    |
 | MSO / issuerAuth payload              | ERR_INVALID_MSO                 |
-| DS certificate validity               | ERR_INVALID_DS_CERT_VALIDITY    |
+| DS certificate validity               | ERR_INVALID_X5C_CERT_VALIDITY    |
 | DS certificate EKU                    | ERR_INVALID_DS_CERT_EKU         |
 | DS certificate KeyUsage               | ERR_INVALID_DS_CERT_KEY_USAGE   |
 | MSO signed outside DS cert            | ERR_INVALID_SIGNED_OUTSIDE_DS_CERT |
@@ -967,7 +980,7 @@ For other unknown exceptions, error code will be `ERR_GENERIC`
 | digestID ≥ 2^31 or missing            | ERR_INVALID_DIGEST_ID           |
 | salt (`random`) &lt; 16 bytes           | ERR_INVALID_DIGEST_SALT         |
 | mDL field type/structure/mandatory/age | ERR_INVALID_MDL_ELEMENT        |
-| issue_date more than one day after validFrom (UTC date) / invalid date | ERR_INVALID_ISSUE_DATE |
+| issue_date after validFrom (UTC date) / invalid date | ERR_INVALID_ISSUE_DATE |
 | COSE signature invalid                 | ERR_SIGNATURE_VERIFICATION_FAILED |
 | outer docType missing or mismatched (shapes B, C) | ERR_INVALID_DOC_TYPE  |
 

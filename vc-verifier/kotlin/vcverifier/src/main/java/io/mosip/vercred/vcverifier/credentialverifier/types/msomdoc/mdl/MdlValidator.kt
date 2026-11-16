@@ -42,23 +42,15 @@ import java.util.logging.Logger
  *
  * Runs only for docType org.iso.18013.5.1.mDL (chosen by MdocDocTypes).
  *
- * The strict flag relaxes only the element type checks and the control-character part of the
- * Latin-1 text check. driving_privileges structure, the Latin-1 range and length of text, mandatory
- * elements, age consistency and issue_date always run; in relaxed mode a value of the wrong type is
- * skipped by them rather than reported, since reporting it is the type check's job.
+ * The strict flag relaxes only the element type checks. driving_privileges structure, Latin-1 text,
+ * mandatory elements, age consistency and issue_date always run; in relaxed mode a value of the
+ * wrong type is skipped by them rather than reported, since reporting it is the type check's job.
  */
 internal object MdlValidator : MdocDocTypeValidator {
 
     private val logger = Logger.getLogger(MdlValidator::class.java.name)
 
     private const val MAX_LATIN1_LENGTH = 150
-
-    /**
-     * Days of slack on the issuer's calendar dates (issue_date, birthdays) against the UTC date of
-     * the MSO timestamps: an issuer east or west of UTC may write its local date, which can differ
-     * from the UTC date by one day.
-     */
-    private const val ISSUER_LOCAL_DATE_TOLERANCE_DAYS = 1L
     private val AGE_OVER_PATTERN = Regex("""^age_over_(\d{2})$""")
     private val COUNTRY_CODE_PATTERN = Regex("""^[A-Z]{2}$""")
     private val UN_DISTINGUISHING_SIGN_PATTERN = Regex("""^[A-Z]{1,3}$""")
@@ -161,11 +153,8 @@ internal object MdlValidator : MdocDocTypeValidator {
                 // driving_privileges structure
                 identifier == "driving_privileges" -> validateDrivingPrivileges(value)
                 // Latin-1 text; a non-text value is a type error, reported only when types are checked.
-                // Control characters are rejected only in strict mode.
                 identifier in LATIN1_TEXT_ELEMENTS ->
-                    if (checkElementTypes || value is UnicodeString) {
-                        requireLatin1Text(identifier, value, rejectControlCharacters = checkElementTypes)
-                    }
+                    if (checkElementTypes || value is UnicodeString) requireLatin1Text(identifier, value)
                 // element types
                 checkElementTypes -> validateElementType(identifier, value)
             }
@@ -183,10 +172,9 @@ internal object MdlValidator : MdocDocTypeValidator {
     ) = validate(items = items, mso = mso, checkElementTypes = options.strictMdlProfile)
 
     /**
-     * issue_date must not be after the UTC date of the MSO validFrom, plus
-     * [ISSUER_LOCAL_DATE_TOLERANCE_DAYS] for an issuer that writes its local date. ISO 18013-5
-     * Table 5 allows issue_date as full-date or tdate; a tdate is compared by its UTC date. The CBOR
-     * tag (1004 / 0) is not checked here.
+     * issue_date must not be after the MSO validFrom (UTC date). ISO 18013-5 Table 5 allows
+     * issue_date as full-date or tdate; a tdate is compared by its UTC date. The CBOR tag
+     * (1004 / 0) is not checked here.
      */
     private fun validateIssueDate(mso: Map, items: List<DecodedIssuerSignedItem>) {
         val issueDateItem = items.firstOrNull { it.elementIdentifier == ISSUE_DATE }?.elementValue ?: return
@@ -203,7 +191,7 @@ internal object MdlValidator : MdocDocTypeValidator {
                 ERROR_MESSAGE_INVALID_VALID_FROM_MSO,
                 ERROR_CODE_INVALID_VALID_FROM_MSO
             )
-        if (issueLocalDate.isAfter(validFromUtcDate.plusDays(ISSUER_LOCAL_DATE_TOLERANCE_DAYS))) {
+        if (issueLocalDate.isAfter(validFromUtcDate)) {
             throw ValidationException(
                 ERROR_MESSAGE_INVALID_ISSUE_DATE,
                 ERROR_CODE_INVALID_ISSUE_DATE
@@ -307,9 +295,7 @@ internal object MdlValidator : MdocDocTypeValidator {
      * - age_over_NN = true needs age at validFrom >= NN
      * - age_over_NN = false needs age at signed < NN
      * - age_in_years must lie between the age at signed and the age at validFrom
-     * When `signed` is absent it is taken to equal `validFrom`. The window is widened by
-     * [ISSUER_LOCAL_DATE_TOLERANCE_DAYS] at each end, since ages are computed here on UTC dates and
-     * the issuer may have used its local date.
+     * When `signed` is absent or equals `validFrom`, this is the plain check at validFrom.
      */
     private fun validateAgeConsistency(
         records: kotlin.collections.Map<String, DataItem>,
@@ -320,10 +306,8 @@ internal object MdlValidator : MdocDocTypeValidator {
         val validityInfo = mso.getOrNull(VALIDITY_INFO) as? Map ?: return
         val validFrom = utcDateOf(validityInfo.getOrNull(VALID_FROM)) ?: return
         val signed = utcDateOf(validityInfo.getOrNull(SIGNED)) ?: validFrom
-        val earliest = (if (signed.isBefore(validFrom)) signed else validFrom)
-            .minusDays(ISSUER_LOCAL_DATE_TOLERANCE_DAYS)
-        val latest = (if (signed.isBefore(validFrom)) validFrom else signed)
-            .plusDays(ISSUER_LOCAL_DATE_TOLERANCE_DAYS)
+        val earliest = if (signed.isBefore(validFrom)) signed else validFrom
+        val latest = if (signed.isBefore(validFrom)) validFrom else signed
 
         if (birthDate.isAfter(latest)) {
             logger.severe("birth_date is after validFrom")
@@ -366,22 +350,16 @@ internal object MdlValidator : MdocDocTypeValidator {
         return Instant.ofEpochMilli(date.time).atZone(ZoneOffset.UTC).toLocalDate()
     }
 
-    /**
-     * Latin-1 (code points up to 0xFF), at most 150 characters. With [rejectControlCharacters],
-     * printable Latin-1 only (0x20–0x7E, 0xA0–0xFF).
-     */
-    private fun requireLatin1Text(identifier: String, value: DataItem, rejectControlCharacters: Boolean) {
+    /** Printable Latin-1 only (0x20–0x7E, 0xA0–0xFF), at most 150 characters. */
+    private fun requireLatin1Text(identifier: String, value: DataItem) {
         val text = requireText(identifier, value)
-        val allowed: (Char) -> Boolean = if (rejectControlCharacters) ::isPrintableLatin1 else ::isLatin1
-        if (text.length > MAX_LATIN1_LENGTH || !text.all(allowed)) {
+        if (text.length > MAX_LATIN1_LENGTH || !text.all { isPrintableLatin1(it) }) {
             throw ValidationException(
                 "$ERROR_MESSAGE_INVALID_MDL_ELEMENT_TEXT ($identifier)",
                 ERROR_CODE_INVALID_MDL_ELEMENT
             )
         }
     }
-
-    private fun isLatin1(char: Char): Boolean = char.code <= 0xFF
 
     private fun isPrintableLatin1(char: Char): Boolean =
         char.code in 0x20..0x7E || char.code in 0xA0..0xFF
