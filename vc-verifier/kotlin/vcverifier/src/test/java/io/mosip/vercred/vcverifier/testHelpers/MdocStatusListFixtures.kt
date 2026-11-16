@@ -57,12 +57,28 @@ object MdocStatusListFixtures {
         return StatusListKeyMaterial(keyPair, selfSignedCertificate(keyPair))
     }
 
+    fun keyMaterialIssuedBy(issuer: StatusListKeyMaterial = this.keyMaterial): StatusListKeyMaterial {
+        val keyGen = KeyPairGenerator.getInstance("EC")
+        keyGen.initialize(ECGenParameterSpec("secp256r1"))
+        val subject = keyGen.generateKeyPair()
+        return StatusListKeyMaterial(
+            subject,
+            signedCertificate(
+                subjectKeyPair = subject,
+                issuerKeyPair = issuer.keyPair,
+                subjectName = X500Name("CN=mDoc Status Signer"),
+                issuerName = X500Name("CN=mDoc Status List Test")
+            )
+        )
+    }
+
     fun statusListCwt(
         bits: Int,
         valuesAtIndex: IntArray,
         uri: String = STATUS_URI,
         exp: Long = VALID_EXP,
         includeX5chain: Boolean = true,
+        x5chainInProtectedHeader: Boolean = false,
         corruptSignature: Boolean = false,
         keyMaterial: StatusListKeyMaterial = this.keyMaterial,
         ttlSeconds: Long? = TTL_SECONDS,
@@ -87,6 +103,7 @@ object MdocStatusListFixtures {
             claims,
             keyMaterial,
             includeX5chain = includeX5chain,
+            x5chainInProtectedHeader = x5chainInProtectedHeader,
             corruptSignature = corruptSignature,
             typ = typ,
             includeTyp = includeTyp
@@ -199,22 +216,27 @@ object MdocStatusListFixtures {
         claims: Map,
         keyMaterial: StatusListKeyMaterial = this.keyMaterial,
         includeX5chain: Boolean = true,
+        x5chainInProtectedHeader: Boolean = false,
         corruptSignature: Boolean = false,
         typ: String = "application/statuslist+cwt",
         includeTyp: Boolean = true,
         tag: Long = 18L
     ): ByteArray {
+        val x5chainItem = ByteString(keyMaterial.certificate.encoded)
         val protectedMap = Map().apply {
             put(UnsignedInteger(1), NegativeInteger(-7))
             if (includeTyp) {
                 put(UnsignedInteger(16), UnicodeString(typ))
             }
+            if (includeX5chain && x5chainInProtectedHeader) {
+                put(UnsignedInteger(33), x5chainItem)
+            }
         }
         val protectedBytes = encode(protectedMap)
         val payload = encode(claims)
         val unprotected = Map().apply {
-            if (includeX5chain) {
-                put(UnsignedInteger(33), ByteString(keyMaterial.certificate.encoded))
+            if (includeX5chain && !x5chainInProtectedHeader) {
+                put(UnsignedInteger(33), x5chainItem)
             }
         }
         val toBeSigned = Array().apply {
@@ -249,21 +271,30 @@ object MdocStatusListFixtures {
         ByteArrayOutputStream().also { CborEncoder(it).encode(dataItem) }.toByteArray()
 
     private fun selfSignedCertificate(keyPair: KeyPair): X509Certificate {
+        val name = X500Name("CN=mDoc Status List Test")
+        return signedCertificate(keyPair, keyPair, name, name)
+    }
+
+    private fun signedCertificate(
+        subjectKeyPair: KeyPair,
+        issuerKeyPair: KeyPair,
+        subjectName: X500Name,
+        issuerName: X500Name
+    ): X509Certificate {
         val now = Date()
         val notAfter = Date(now.time + 20L * 365 * 24 * 60 * 60 * 1000)
-        val name = X500Name("CN=mDoc Status List Test")
         val signatureAlgorithm = AlgorithmIdentifier(X9ObjectIdentifiers.ecdsa_with_SHA256)
         val tbs = V3TBSCertificateGenerator().apply {
             setSerialNumber(ASN1Integer(BigInteger.ONE))
             setSignature(signatureAlgorithm)
-            setIssuer(name)
+            setIssuer(issuerName)
             setStartDate(Time(now))
             setEndDate(Time(notAfter))
-            setSubject(name)
-            setSubjectPublicKeyInfo(SubjectPublicKeyInfo.getInstance(keyPair.public.encoded))
+            setSubject(subjectName)
+            setSubjectPublicKeyInfo(SubjectPublicKeyInfo.getInstance(subjectKeyPair.public.encoded))
         }.generateTBSCertificate()
         val signer = Signature.getInstance("SHA256withECDSA")
-        signer.initSign(keyPair.private)
+        signer.initSign(issuerKeyPair.private)
         signer.update(tbs.encoded)
         val vector = ASN1EncodableVector().apply {
             add(tbs)

@@ -71,6 +71,30 @@ class MdocStatusBitReaderTest {
         assertEquals(STATUS_LIST_DECOMPRESSION_FAILED, exception.errorCode)
     }
 
+    @Test
+    fun `inflate stops at maxOutputBytes and does not retain the full stream`() {
+        val compressed = MdocStatusListFixtures.zlibCompress(ByteArray(100) { 0xFF.toByte() })
+        val inflated = reader.inflate(compressed, maxOutputBytes = 8)
+        assertEquals(8, inflated.size)
+        assertEquals(0xFF.toByte(), inflated[0])
+    }
+
+    @Test
+    fun `index zero does not require inflating the entire list`() {
+        val compressed = MdocStatusListFixtures.zlibCompress(ByteArray(64) { 0 })
+        val limitedReader = MdocStatusBitReader(maxInflatedBytes = 16)
+        assertEquals(MdocCredentialStatus.VALID, limitedReader.readStatus(compressed, 1, 0))
+    }
+
+    @Test
+    fun `index that would require more than max inflated bytes is out of bounds`() {
+        val limitedReader = MdocStatusBitReader(maxInflatedBytes = 8)
+        val exception = assertThrows(MdocStatusCheckException::class.java) {
+            limitedReader.readStatus(MdocStatusListFixtures.zlibCompress(ByteArray(8)), 1, 64)
+        }
+        assertEquals(STATUS_LIST_INDEX_OUT_OF_BOUNDS, exception.errorCode)
+    }
+
     private fun read(bits: Int, values: IntArray): MdocCredentialStatus {
         val compressed = MdocStatusListFixtures.zlibCompress(MdocStatusListFixtures.packBits(bits, values))
         return reader.readStatus(compressed, bits, 0)

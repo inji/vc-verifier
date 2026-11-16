@@ -117,6 +117,30 @@ class CredentialsVerifierMdocStatusTest {
     }
 
     @Test
+    fun `http status uri is rejected before fetch`() {
+        mockHttpBytesResponse(STATUS_URI, validCwt())
+        val result = verifier.verifyAndGetCredentialStatus(
+            MdocStatusListFixtures.mdocWithStatus(uri = "http://example.com/statuslists/1"),
+            MSO_MDOC
+        )
+
+        assertStatusError(result, StatusCheckErrorCode.STATUS_REFERENCE_MALFORMED)
+        verify(exactly = 0) { NetworkManagerClient.sendHTTPRequestBytes(any(), any(), any()) }
+    }
+
+    @Test
+    fun `loopback status uri is rejected before fetch`() {
+        mockHttpBytesResponse(STATUS_URI, validCwt())
+        val result = verifier.verifyAndGetCredentialStatus(
+            MdocStatusListFixtures.mdocWithStatus(uri = "https://127.0.0.1/statuslists/1"),
+            MSO_MDOC
+        )
+
+        assertStatusError(result, StatusCheckErrorCode.STATUS_REFERENCE_MALFORMED)
+        verify(exactly = 0) { NetworkManagerClient.sendHTTPRequestBytes(any(), any(), any()) }
+    }
+
+    @Test
     fun `no status_list skips status check and never fetches status list`() {
         mockHttpBytesResponse(STATUS_URI, validCwt())
 
@@ -188,6 +212,20 @@ class CredentialsVerifierMdocStatusTest {
                 bits = 1,
                 valuesAtIndex = intArrayOf(0),
                 includeX5chain = false
+            )
+        )
+
+        assertStatusError(result, StatusCheckErrorCode.STATUS_LIST_UNTRUSTED_ISSUER)
+    }
+
+    @Test
+    fun `CWT signed by an unrelated key is untrusted`() {
+        val attacker = MdocStatusListFixtures.generateKeyMaterial()
+        val result = verifyWith(
+            MdocStatusListFixtures.statusListCwt(
+                bits = 1,
+                valuesAtIndex = intArrayOf(0),
+                keyMaterial = attacker
             )
         )
 

@@ -122,7 +122,10 @@ class MsoMdocVerifiableCredential(
     ): kotlin.collections.Map<String, CredentialStatusResult> {
         return try {
             val (_, credentialData, _) = parse(credential)
-            MdocStatusListChecker().getStatuses(credentialData.mso)
+            MdocStatusListChecker().getStatuses(
+                credentialData.mso,
+                credentialData.issuerSigned.issuerAuth
+            )
         } catch (exception: Exception) {
             logger.warning("mDoc status check failed")
             mapOf(

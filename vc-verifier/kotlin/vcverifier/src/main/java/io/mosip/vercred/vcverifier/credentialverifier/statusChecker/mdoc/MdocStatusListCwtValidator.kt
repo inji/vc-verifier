@@ -40,14 +40,21 @@ data class ValidatedStatusListCwt(
 
 /**
  * Validates a Token Status List CWT (tagged COSE_Sign1).
- * Phase 1 accepts any x5chain that can verify the signature; no IACA trust-store.
+ *
+ * Certificates in the CWT `x5chain` are untrusted input (RFC 9360). The signer is
+ * authorized only against the verified mDoc issuer certificate, then the COSE
+ * signature is checked with that already-authorized key.
  */
 class MdocStatusListCwtValidator(
     private val signatureVerifier: SignatureVerifier = CoseSignatureVerifierImpl(),
     private val nowSeconds: () -> Long = { System.currentTimeMillis() / 1000 }
 ) {
 
-    fun validate(cwtBytes: ByteArray, expectedUri: String): ValidatedStatusListCwt {
+    fun validate(
+        cwtBytes: ByteArray,
+        expectedUri: String,
+        issuerCertificate: X509Certificate
+    ): ValidatedStatusListCwt {
         val coseSign1 = decodeCoseSign1(cwtBytes)
         val protectedHeader = decodeProtectedHeader(coseSign1)
         requireTyp(protectedHeader)
@@ -82,13 +89,32 @@ class MdocStatusListCwtValidator(
         if (lstItem !is ByteString) {
             throw MdocStatusCheckException(STATUS_LIST_MALFORMED, "Status list lst must be a byte string")
         }
-        val certificate = extractCertificate(coseSign1)
+        val certificateChain = extractCertificateChain(protectedHeader, coseSign1.dataItems[1])
+        val certificate = certificateChain.firstOrNull()
             ?: throw MdocStatusCheckException(
                 STATUS_LIST_UNTRUSTED_ISSUER,
                 "Status list CWT x5chain (33) is missing or unusable"
             )
+        requireAuthorizedSigner(certificate, certificateChain, issuerCertificate)
         verifySignature(cwtBytes, certificate)
         return ValidatedStatusListCwt(bits, lstItem.bytes, ttlSeconds)
+    }
+
+    fun issuerCertificateFrom(issuerAuth: Array): X509Certificate? {
+        return try {
+            if (issuerAuth.dataItems.size < 2) {
+                null
+            } else {
+                val protectedHeader = try {
+                    decodeProtectedHeader(issuerAuth)
+                } catch (_: Exception) {
+                    null
+                }
+                extractCertificateChain(protectedHeader, issuerAuth.dataItems[1]).firstOrNull()
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun decodeCoseSign1(cwtBytes: ByteArray): Array {
@@ -192,24 +218,92 @@ class MdocStatusListCwtValidator(
         return item.value.toLong()
     }
 
-    private fun extractCertificate(coseSign1: Array): X509Certificate? {
-        val unprotected = coseSign1.dataItems[1]
-        if (unprotected !is Map) {
-            return null
+    private fun extractCertificateChain(
+        protectedHeader: Map?,
+        unprotectedHeader: DataItem?
+    ): List<X509Certificate> {
+        val fromProtected = certificatesFromX5Chain(protectedHeader?.getByUnsignedKey(COSE_HEADER_X5CHAIN))
+        if (fromProtected.isNotEmpty()) {
+            return fromProtected
         }
-        val x5Chain = unprotected.getByUnsignedKey(COSE_HEADER_X5CHAIN) ?: return null
-        val certificateItem: DataItem? = when (x5Chain.majorType) {
-            MajorType.BYTE_STRING -> x5Chain
-            MajorType.ARRAY -> (x5Chain as Array).dataItems.firstOrNull()
-            else -> null
+        val unprotected = unprotectedHeader as? Map ?: return emptyList()
+        return certificatesFromX5Chain(unprotected.getByUnsignedKey(COSE_HEADER_X5CHAIN))
+    }
+
+    private fun certificatesFromX5Chain(x5Chain: DataItem?): List<X509Certificate> {
+        if (x5Chain == null) {
+            return emptyList()
         }
-        if (certificateItem !is ByteString) {
-            return null
+        val certificateItems: List<DataItem> = when (x5Chain.majorType) {
+            MajorType.BYTE_STRING -> listOf(x5Chain)
+            MajorType.ARRAY -> (x5Chain as Array).dataItems
+            else -> return emptyList()
         }
+        return certificateItems.mapNotNull { item ->
+            if (item !is ByteString) {
+                null
+            } else {
+                try {
+                    Util.toX509Certificate(item.bytes)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        }
+    }
+
+    private fun requireAuthorizedSigner(
+        cwtSigner: X509Certificate,
+        cwtChain: List<X509Certificate>,
+        issuerCertificate: X509Certificate
+    ) {
+        if (isIssuerBound(cwtSigner, cwtChain, issuerCertificate)) {
+            return
+        }
+        throw MdocStatusCheckException(
+            STATUS_LIST_UNTRUSTED_ISSUER,
+            "Status list CWT signer is not bound to the mDoc issuer"
+        )
+    }
+
+    private fun isIssuerBound(
+        cwtSigner: X509Certificate,
+        cwtChain: List<X509Certificate>,
+        issuerCertificate: X509Certificate
+    ): Boolean {
+        if (isSameSigner(cwtSigner, issuerCertificate) || isSignedBy(cwtSigner, issuerCertificate)) {
+            return true
+        }
+        var current = cwtSigner
+        for (chainCertificate in cwtChain.drop(1)) {
+            if (!isSignedBy(current, chainCertificate)) {
+                return false
+            }
+            if (isSameSigner(chainCertificate, issuerCertificate) || isSignedBy(chainCertificate, issuerCertificate)) {
+                return true
+            }
+            current = chainCertificate
+        }
+        return false
+    }
+
+    private fun isSameSigner(
+        statusListCertificate: X509Certificate,
+        issuerCertificate: X509Certificate
+    ): Boolean {
+        return statusListCertificate == issuerCertificate ||
+            statusListCertificate.publicKey.encoded.contentEquals(issuerCertificate.publicKey.encoded)
+    }
+
+    private fun isSignedBy(
+        signedCertificate: X509Certificate,
+        signingCertificate: X509Certificate
+    ): Boolean {
         return try {
-            Util.toX509Certificate(certificateItem.bytes)
+            signedCertificate.verify(signingCertificate.publicKey)
+            true
         } catch (_: Exception) {
-            null
+            false
         }
     }
 
@@ -239,9 +333,9 @@ class MdocStatusListCwtValidator(
 }
 
 internal fun Map.getByUnsignedKey(key: Long): DataItem? {
-    keys.forEach { candidate ->
-        if (candidate is UnsignedInteger && candidate.value.toLong() == key) {
-            return get(candidate)
+    keys.forEach { mapKey ->
+        if (mapKey is UnsignedInteger && mapKey.value.toLong() == key) {
+            return get(mapKey)
         }
     }
     return get(UnsignedInteger(key))

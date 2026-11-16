@@ -1,13 +1,16 @@
 package io.mosip.vercred.vcverifier.networkManager
 
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.MAX_STATUS_LIST_BYTES
 import io.mosip.vercred.vcverifier.exception.NetworkManagerClientExceptions
 import io.mosip.vercred.vcverifier.utils.Util
+import okhttp3.Dns
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.ResponseBody
+import java.io.ByteArrayOutputStream
 import java.io.InterruptedIOException
-
 
 class NetworkManagerClient {
     companion object {
@@ -34,16 +37,61 @@ class NetworkManagerClient {
         fun sendHTTPRequestBytes(
             url: String,
             method: HttpMethod,
-            headers: Map<String, String>? = null
+            headers: Map<String, String>? = null,
+            maxBytes: Int = MAX_STATUS_LIST_BYTES,
+            restrictDestinations: Boolean = true
         ): ByteArray {
             try {
-                val response = executeRequest(url, method, headers = headers)
-                return response.body?.bytes()
-                    ?: throw Exception("Empty response body")
+                executeRequest(
+                    url,
+                    method,
+                    headers = headers,
+                    followRedirects = false,
+                    dns = if (restrictDestinations) PublicHttpsDns else Dns.SYSTEM
+                ).use { response ->
+                    val body = response.body
+                        ?: throw Exception("Empty response body")
+                    return readBounded(body, maxBytes)
+                }
             } catch (exception: InterruptedIOException) {
                 throw NetworkManagerClientExceptions.NetworkRequestTimeout()
+            } catch (exception: OutOfMemoryError) {
+                throw NetworkManagerClientExceptions.NetworkRequestFailed(
+                    "Response exceeded available memory"
+                )
             } catch (exception: Exception) {
                 throw NetworkManagerClientExceptions.NetworkRequestFailed(exception.message!!)
+            }
+        }
+
+        private fun readBounded(body: ResponseBody, maxBytes: Int): ByteArray {
+            require(maxBytes > 0) { "maxBytes must be positive" }
+            val contentLength = body.contentLength()
+            if (contentLength > maxBytes) {
+                throw Exception("Response body exceeds $maxBytes bytes")
+            }
+            body.source().use { source ->
+                val output = ByteArrayOutputStream(
+                    if (contentLength > 0) contentLength.toInt() else minOf(maxBytes, 1024)
+                )
+                val buffer = ByteArray(8192)
+                var total = 0
+                while (!source.exhausted()) {
+                    val remaining = maxBytes - total
+                    if (remaining <= 0) {
+                        throw Exception("Response body exceeds $maxBytes bytes")
+                    }
+                    val count = source.read(buffer, 0, minOf(buffer.size, remaining))
+                    if (count == -1) {
+                        break
+                    }
+                    output.write(buffer, 0, count)
+                    total += count
+                }
+                if (total == 0) {
+                    throw Exception("Empty response body")
+                }
+                return output.toByteArray()
             }
         }
 
@@ -51,9 +99,15 @@ class NetworkManagerClient {
             url: String,
             method: HttpMethod,
             bodyParams: Map<String, String>? = null,
-            headers: Map<String, String>? = null
+            headers: Map<String, String>? = null,
+            followRedirects: Boolean = true,
+            dns: Dns = Dns.SYSTEM
         ): Response {
-            val client = OkHttpClient.Builder().build()
+            val client = OkHttpClient.Builder()
+                .followRedirects(followRedirects)
+                .followSslRedirects(followRedirects)
+                .dns(dns)
+                .build()
             val request: Request
             when (method) {
                 HttpMethod.POST -> {

@@ -1,7 +1,6 @@
 package io.mosip.vercred.vcverifier.constants
 
 object MdocStatusConstants {
-    const val STATUS_REFERENCE_ABSENT = "STATUS_REFERENCE_ABSENT"
     const val STATUS_REFERENCE_MALFORMED = "STATUS_REFERENCE_MALFORMED"
     const val STATUS_LIST_FETCH_FAILED = "STATUS_LIST_FETCH_FAILED"
     const val STATUS_LIST_INVALID_SIGNATURE = "STATUS_LIST_INVALID_SIGNATURE"
@@ -35,6 +34,12 @@ object MdocStatusConstants {
     const val STATUS_VALUE_INVALID = 1
     const val STATUS_VALUE_SUSPENDED = 2
     const val STATUS_VALUE_UNUSED = 3
+
+    /**
+     * Shared 16 MB cap for a status-list CWT body and for the decompressed `lst`
+     * (~67 million 2-bit statuses).
+     */
+    const val MAX_STATUS_LIST_BYTES = 16 * 1024 * 1024
 
     const val STATUS_PURPOSE_VALID = "valid"
     const val STATUS_PURPOSE_REVOCATION = "revocation"
