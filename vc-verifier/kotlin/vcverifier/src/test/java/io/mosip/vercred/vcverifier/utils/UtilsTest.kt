@@ -6,7 +6,6 @@ import io.mosip.vercred.vcverifier.data.VerificationResult
 import io.mosip.vercred.vcverifier.data.VerificationStatus
 import io.mosip.vercred.vcverifier.utils.Util.isValidHttpsUri
 import org.json.JSONArray
-import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -14,7 +13,6 @@ import org.junit.jupiter.api.Test
 import org.threeten.bp.OffsetDateTime
 import org.threeten.bp.ZoneOffset
 import org.threeten.bp.format.DateTimeFormatter
-import java.io.ByteArrayOutputStream
 import java.util.Date
 
 
@@ -92,52 +90,6 @@ class UtilsTest {
     fun `invalid date`() {
         val result = dateUtils.isFutureDateWithTolerance("12345")
         assertFalse(result)
-    }
-
-    @Test
-    fun `test calculation of message digest`() {
-        val byteArrayOutputStream = ByteArrayOutputStream()
-        byteArrayOutputStream.write("hello".toByteArray())
-
-
-        val digest: ByteArray = Util.calculateDigest("SHA-256", byteArrayOutputStream)
-
-        assertArrayEquals(
-            byteArrayOf(
-                44,
-                -14,
-                77,
-                -70,
-                95,
-                -80,
-                -93,
-                14,
-                38,
-                -24,
-                59,
-                42,
-                -59,
-                -71,
-                -30,
-                -98,
-                27,
-                22,
-                30,
-                92,
-                31,
-                -89,
-                66,
-                94,
-                115,
-                4,
-                51,
-                98,
-                -109,
-                -117,
-                -104,
-                36
-            ), (digest)
-        )
     }
 
     @Test

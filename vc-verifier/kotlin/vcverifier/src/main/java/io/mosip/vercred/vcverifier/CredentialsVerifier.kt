@@ -7,9 +7,12 @@ import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_C
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_MESSAGE_VERIFICATION_FAILED
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.EXCEPTION_DURING_VERIFICATION
 import io.mosip.vercred.vcverifier.credentialverifier.CredentialVerifierFactory
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerificationOptions
 import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.CredentialVerificationSummary
 import io.mosip.vercred.vcverifier.data.VerificationResult
+import io.mosip.vercred.vcverifier.exception.LikelyTamperedException
+import io.mosip.vercred.vcverifier.exception.ValidationException
 import java.util.logging.Logger
 
 
@@ -38,9 +41,22 @@ class CredentialsVerifier {
         return true
     }
 
+    /**
+     * @param mdocStrictProfile when [credentialFormat] is mso_mdoc, relaxes only the mDL DS
+     * KeyUsage/EKU check and the mDL element type checks when false; all other mDL checks always run.
+     * Defaults to true. Temporary, for issuers whose mDLs don't yet meet these requirements.
+     */
     @JvmOverloads
-    fun verify(credential: String, credentialFormat: CredentialFormat, validateKeyBindingJwt: Boolean = false): VerificationResult {
-        val credentialVerifier = credentialVerifierFactory.get(credentialFormat)
+    fun verify(
+        credential: String,
+        credentialFormat: CredentialFormat,
+        validateKeyBindingJwt: Boolean = false,
+        mdocStrictProfile: Boolean = true,
+    ): VerificationResult {
+        val credentialVerifier = credentialVerifierFactory.get(
+            credentialFormat,
+            MsoMdocVerificationOptions(strictMdlProfile = mdocStrictProfile),
+        )
         val validationStatus = credentialVerifier.validate(credential, validateKeyBindingJwt)
         if (validationStatus.validationMessage.isNotEmpty() && !validationStatus.validationErrorCode.contentEquals(
                 ERROR_CODE_VC_EXPIRED
@@ -67,8 +83,16 @@ class CredentialsVerifier {
                 ERROR_CODE_VERIFICATION_FAILED
             )
 
+        } catch (e: ValidationException) {
+            VerificationResult(false, e.errorMessage, e.errorCode)
+        } catch (e: LikelyTamperedException) {
+            // Must not fall into the generic catch, which would reuse the validation code
+            // (e.g. an expired + tampered mDL would otherwise report ERR_VC_EXPIRED).
+            VerificationResult(false, e.errorMessage, e.errorCode)
         } catch (e: Exception) {
-            val errorCode = validationStatus.validationErrorCode.takeIf { !it.isNullOrEmpty() }
+            // mso_mdoc: an expired mDL that fails verification must not report ERR_VC_EXPIRED.
+            val errorCode = validationStatus.validationErrorCode
+                .takeIf { !it.isNullOrEmpty() && credentialFormat != CredentialFormat.MSO_MDOC }
                 ?: ERROR_CODE_VERIFICATION_FAILED
             VerificationResult(false, "$EXCEPTION_DURING_VERIFICATION${e.message}", errorCode)
         }
@@ -96,9 +120,15 @@ class CredentialsVerifier {
         credential: String,
         credentialFormat: CredentialFormat,
         statusPurposeList: List<String> = emptyList(),
-        validateKeyBindingJwt: Boolean = false
+        validateKeyBindingJwt: Boolean = false,
+        mdocStrictProfile: Boolean = true,
     ): CredentialVerificationSummary {
-        val verificationResult = verify(credential, credentialFormat, validateKeyBindingJwt)
+        val verificationResult = verify(
+            credential,
+            credentialFormat,
+            validateKeyBindingJwt,
+            mdocStrictProfile,
+        )
         if (verificationResult.verificationStatus) {
             val statusResults = getCredentialStatus(credential, credentialFormat, statusPurposeList)
             return CredentialVerificationSummary(verificationResult, statusResults)

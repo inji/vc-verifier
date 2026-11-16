@@ -96,14 +96,36 @@ refer to the implementation classes for complete rules.
 
 ### 3.2 MSO MDOC Validation
 
-* Parses CBOR MSO structure using `MsoMdocVerifiableCredential().parse(...)`
+* Input must be **base64url**-encoded CBOR (Base45 / QR transport is not accepted)
+* Parses CBOR using `MsoMdocVerifiableCredential().parse(...)` for shapes:
+    * **A (latest / OpenID4VCI 1.0):** `{ issuerAuth, nameSpaces }`
+    * **B (legacy):** `{ docType, issuerSigned: { issuerAuth, nameSpaces } }`
+    * **C (legacy):** `{ documents: [ { docType, issuerSigned } ] }` (uses `documents[0]`)
+* **MSO structure:**
+    * `version` must be `1.<minor>` (e.g. `"1.0"`, `"1.1"`)
+    * `digestAlgorithm` must be `SHA-256`, `SHA-384`, or `SHA-512`
+    * MSO payload must be wrapped in CBOR tag 24 (all shapes)
 * **Validates the `validityInfo` block:**
-    * `validFrom` should not be in future
-    * `validUntil` should not be in past
+    * Dates must have no fractional seconds and end in `Z`
+    * `validFrom` should not be in the future (3s skew)
+    * `validUntil` in the past → `ERR_VC_EXPIRED` (soft fail; reported after the mDL field checks)
     * `validUntil > validFrom` must hold
+    * `signed` required; `validFrom` must not be before `signed` (all shapes)
+* **mDL field checks (`MdlValidator`)**, before the signature: mandatory elements, element types,
+  `driving_privileges`, printable Latin-1 text (no control characters), age claims,
+  `issue_date` not after `validFrom`
 * Field access uses a CBOR helper operator `DataItem["validFrom"]`
 * Exceptions thrown for any date inconsistencies
 * **Validation class:** `MsoMdocValidator`
+* **Verification (`MsoMdocVerifier`)** adds ISO 18013-5 checks: COSE `alg`, DS cert validity,
+  MSO `signed` within DS validity, the COSE signature and IssuerSignedItemBytes digests (tag-24
+  records, selective disclosure allowed). Then **`MdlVerifier`**: mDL EKU `1.0.18013.5.1.2` /
+  critical KeyUsage `digitalSignature`, `issuing_country` / optional `issuing_jurisdiction` vs the DS certificate
+* For shapes B and C the outer `docType` is read from where `issuerSigned` was taken (`documents[0]`
+  for shape C) and must match the MSO `docType`
+* A COSE signature failure returns `false` with `ERR_SIGNATURE_VERIFICATION_FAILED`, and a missing or
+  mismatched outer `docType` returns `false` with `ERR_INVALID_DOC_TYPE`, also when the credential is expired
+* Details: [`doc/mso-mdoc-verification-support.md`](../../doc/mso-mdoc-verification-support.md)
 
 ### 3.3 SD-JWT VC Validation
 
@@ -401,7 +423,9 @@ fun verifyAndGetCredentialStatus(
 ```kotlin
 fun verify(
     credential: String,
-    credentialFormat: CredentialFormat
+    credentialFormat: CredentialFormat,
+    validateKeyBindingJwt: Boolean = false,
+    mdocStrictProfile: Boolean = true
 ): VerificationResult
 ```
 
@@ -415,11 +439,23 @@ fun verify(
       `MSO_MDOC`,
       `CWT_VC`,
       `JWT_VC_JSON`
+    * `mdocStrictProfile`: `mso_mdoc` only. `false` skips the mDL DS certificate KeyUsage/EKU check
+      and the mDL element type checks; every other check still runs. Defaults to `true`
 * **Returns:** `VerificationResult` with:
     * `verificationStatus`: `true` if valid; otherwise `false`
     * `verificationMessage`: details of validation/syntax errors
     * `verificationErrorCode`: standardized error code (e.g., `VC_EXPIRED`, `SIGNATURE_INVALID`,
       etc.)
+* **Error codes from the verification step (changed in 1.11.0):**
+    * A `ValidationException` or `LikelyTamperedException` thrown while verifying now returns its
+      own error code (for example `ERR_LIKELY_TAMPERED`, `ERR_INVALID_X5C_CERT_VALIDITY`) for
+      **every format**. Before, it returned the validation step's code if there was one (such as
+      `ERR_VC_EXPIRED`), otherwise `ERR_VERIFICATION_FAILED`. Today only `mso_mdoc` throws these
+      during verification.
+    * Any other exception while verifying still returns the validation step's code if there was
+      one, otherwise `ERR_VERIFICATION_FAILED`, except for `mso_mdoc`, which always returns
+      `ERR_VERIFICATION_FAILED`, so an expired mDL that fails verification never reports
+      `ERR_VC_EXPIRED`.
 
 ---
 
@@ -913,10 +949,40 @@ For other unknown exceptions, error code will be `ERR_GENERIC`
 
 **mso_mdoc Format VC Error Codes**
 
-| Field      | Error Code           |
-|------------|----------------------|
-| validFrom  | ERR_INVALID_DATE_MSO |
-| validUntil | ERR_INVALID_DATE_MSO |
+| Field / check                         | Error Code                      |
+|---------------------------------------|---------------------------------|
+| validFrom / validUntil structural     | ERR_INVALID_DATE_MSO            |
+| validFrom invalid                     | ERR_INVALID_VALID_FROM_MSO      |
+| validUntil invalid                    | ERR_INVALID_VALID_UNTIL_MSO     |
+| validityInfo dates format (no frac / Z) | ERR_INVALID_MSO_DATE_FORMAT   |
+| validFrom in the future               | ERR_VALID_FROM_IS_FUTURE_DATE   |
+| validUntil in the past (expired)      | ERR_VC_EXPIRED                  |
+| MSO version                           | ERR_INVALID_MSO_VERSION         |
+| digestAlgorithm                       | ERR_INVALID_DIGEST_ALGORITHM    |
+| MSO / issuerAuth payload              | ERR_INVALID_MSO                 |
+| DS certificate validity               | ERR_INVALID_X5C_CERT_VALIDITY    |
+| DS certificate EKU                    | ERR_INVALID_DS_CERT_EKU         |
+| DS certificate KeyUsage               | ERR_INVALID_DS_CERT_KEY_USAGE   |
+| MSO signed outside DS cert            | ERR_INVALID_SIGNED_OUTSIDE_DS_CERT |
+| issuing_country                       | ERR_INVALID_ISSUING_COUNTRY     |
+| issuing_jurisdiction                  | ERR_INVALID_ISSUING_JURISDICTION |
+| valueDigests structure (not ISO layout) | ERR_INVALID_MSO               |
+| nameSpaces bytes unavailable           | ERR_INVALID_VALUE_DIGESTS       |
+| digest mismatch / namespace or digestID not in MSO | ERR_LIKELY_TAMPERED |
+| duplicate elementIdentifier / undecodable nameSpaces | ERR_INVALID_ISSUER_SIGNED_ITEM |
+| DS certificate subject unparseable    | ERR_INVALID_DS_CERT_SUBJECT     |
+| MSO signed missing / invalid / future | ERR_INVALID_VALIDITY_INFO_MSO   |
+| duplicate digestID                    | ERR_INVALID_DIGEST_ID           |
+| nameSpaces record not tag-24          | ERR_INVALID_ISSUER_SIGNED_ITEM  |
+| COSE protected `alg` missing          | ERR_MISSING_ALG                 |
+| COSE protected header malformed       | ERR_INVALID_PROTECTED_HEADER    |
+| COSE protected `alg` not ES256 / DS key not P-256 | ERR_INVALID_ALG     |
+| digestID ≥ 2^31 or missing            | ERR_INVALID_DIGEST_ID           |
+| salt (`random`) &lt; 16 bytes           | ERR_INVALID_DIGEST_SALT         |
+| mDL field type/structure/mandatory/age | ERR_INVALID_MDL_ELEMENT        |
+| issue_date after validFrom (UTC date) / invalid date | ERR_INVALID_ISSUE_DATE |
+| COSE signature invalid                 | ERR_SIGNATURE_VERIFICATION_FAILED |
+| outer docType missing or mismatched (shapes B, C) | ERR_INVALID_DOC_TYPE  |
 
 For other unknown exceptions, error code will be `ERR_GENERIC`
 

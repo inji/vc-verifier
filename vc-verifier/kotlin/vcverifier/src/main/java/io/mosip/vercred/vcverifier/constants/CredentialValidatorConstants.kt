@@ -80,13 +80,123 @@ object CredentialValidatorConstants {
 
     const val ERROR_MESSAGE_INVALID_VALID_FROM_MSO = "invalid validFrom in the MSO of the credential"
     const val ERROR_CODE_INVALID_VALID_FROM_MSO = "${ERROR_CODE_INVALID}VALID_FROM_MSO"
+    const val ERROR_MESSAGE_VALID_FROM_BEFORE_SIGNED_MSO = "validFrom must not be earlier than signed"
 
-    const val ERROR_MESSAGE_INVALID_VALID_UNTIL_MSO = "invalid validUntil in the MSO of the credential"
+    const val ERROR_MESSAGE_INVALID_VALID_UNTIL_MSO = "validUntil in the MSO is not a valid date"
     const val ERROR_CODE_INVALID_VALID_UNTIL_MSO = "${ERROR_CODE_INVALID}VALID_UNTIL_MSO"
 
     const val ERROR_MESSAGE_INVALID_DATE_MSO = "invalid validUntil / validFrom in the MSO of the credential"
     const val ERROR_CODE_INVALID_DATE_MSO = "${ERROR_CODE_INVALID}DATE_MSO"
     const val ERROR_CODE_INVALID_VALIDITY_INFO = "${ERROR_CODE_INVALID}VALIDITY_INFO"
+
+    const val ERROR_CODE_INVALID_X5C_CERT_VALIDITY = "${ERROR_CODE_INVALID}X5C_CERT_VALIDITY"
+    const val ERROR_MESSAGE_INVALID_DS_CERT_VALIDITY =
+        "DS certificate is outside its validity period"
+
+    const val ERROR_CODE_INVALID_DS_CERT_EKU = "${ERROR_CODE_INVALID}DS_CERT_EKU"
+    const val ERROR_MESSAGE_INVALID_DS_CERT_EKU =
+        "DS certificate is missing the required mDL extended key usage"
+
+    const val ERROR_CODE_INVALID_DS_CERT_KEY_USAGE = "${ERROR_CODE_INVALID}DS_CERT_KEY_USAGE"
+    const val ERROR_MESSAGE_INVALID_DS_CERT_KEY_USAGE =
+        "DS certificate key usage must include digitalSignature"
+
+    const val ERROR_CODE_INVALID_SIGNED_OUTSIDE_DS_CERT = "${ERROR_CODE_INVALID}SIGNED_OUTSIDE_DS_CERT"
+    const val ERROR_MESSAGE_INVALID_SIGNED_OUTSIDE_DS_CERT =
+        "MSO signed date is outside the DS certificate validity period"
+
+    const val ERROR_CODE_INVALID_ISSUING_COUNTRY = "${ERROR_CODE_INVALID}ISSUING_COUNTRY"
+    const val ERROR_MESSAGE_INVALID_ISSUING_COUNTRY =
+        "issuing_country does not match the DS certificate countryName"
+
+    const val ERROR_CODE_INVALID_ISSUING_JURISDICTION = "${ERROR_CODE_INVALID}ISSUING_JURISDICTION"
+    const val ERROR_MESSAGE_INVALID_ISSUING_JURISDICTION =
+        "issuing_jurisdiction does not match the DS certificate stateOrProvinceName"
+
+    const val ERROR_CODE_INVALID_VALUE_DIGESTS = "${ERROR_CODE_INVALID}VALUE_DIGESTS"
+    const val ERROR_MESSAGE_INVALID_VALUE_DIGESTS =
+        "valueDigests verification failed - mismatch or missing digest for a received record"
+
+    const val ERROR_CODE_LIKELY_TAMPERED = "ERR_LIKELY_TAMPERED"
+    const val ERROR_MESSAGE_LIKELY_TAMPERED =
+        "Credential data does not match the issuer-signed digests and is likely tampered"
+
+    const val ERROR_CODE_INVALID_DS_CERT_SUBJECT = "${ERROR_CODE_INVALID}DS_CERT_SUBJECT"
+    const val ERROR_MESSAGE_INVALID_DS_CERT_SUBJECT =
+        "DS certificate subject could not be parsed"
+
+    const val ERROR_CODE_INVALID_DIGEST_ID = "${ERROR_CODE_INVALID}DIGEST_ID"
+    const val ERROR_MESSAGE_INVALID_DIGEST_ID =
+        "Duplicate digestID found in a namespace"
+    const val ERROR_MESSAGE_DIGEST_ID_OUT_OF_RANGE =
+        "digestID must be an unsigned integer less than 2^31"
+    const val ERROR_MESSAGE_MISSING_DIGEST_ID =
+        "digestID is missing or not an unsigned integer"
+
+    const val ERROR_CODE_INVALID_DIGEST_SALT = "${ERROR_CODE_INVALID}DIGEST_SALT"
+    const val ERROR_MESSAGE_INVALID_DIGEST_SALT =
+        "IssuerSignedItem random (salt) must be a byte string of at least 16 bytes"
+
+    const val ERROR_CODE_INVALID_DIGEST_ALGORITHM = "${ERROR_CODE_INVALID}DIGEST_ALGORITHM"
+    const val ERROR_MESSAGE_INVALID_DIGEST_ALGORITHM =
+        "digestAlgorithm must be SHA-256, SHA-384 or SHA-512"
+
+    const val ERROR_CODE_INVALID_MSO_VERSION = "${ERROR_CODE_INVALID}MSO_VERSION"
+    const val ERROR_MESSAGE_INVALID_MSO_VERSION = "MSO version major number must be 1"
+
+    const val ERROR_CODE_MISSING_ALG = "${ERROR_CODE_MISSING}ALG"
+    const val ERROR_MESSAGE_MISSING_ALG = "alg is missing from the COSE protected header"
+    const val ERROR_CODE_INVALID_PROTECTED_HEADER = "${ERROR_CODE_INVALID}PROTECTED_HEADER"
+    const val ERROR_MESSAGE_MALFORMED_PROTECTED_HEADER = "COSE protected header is malformed"
+
+    const val ERROR_CODE_INVALID_ALG = "${ERROR_CODE_INVALID}ALG"
+    const val ERROR_MESSAGE_INVALID_MSO_ALG = "alg must be ES256 (-7)"
+    const val ERROR_MESSAGE_INVALID_DS_CERT_KEY_FOR_ALG =
+        "DS certificate key must be an EC P-256 key for ES256"
+
+    const val ERROR_CODE_INVALID_MDL_ELEMENT = "${ERROR_CODE_INVALID}MDL_ELEMENT"
+    const val ERROR_MESSAGE_INVALID_MDL_ELEMENT_TYPE =
+        "mDL data element has an invalid type"
+    const val ERROR_MESSAGE_INVALID_MDL_ELEMENT_TEXT =
+        "mDL text element must be printable Latin-1 and at most 150 characters"
+    const val ERROR_MESSAGE_INVALID_DRIVING_PRIVILEGES =
+        "driving_privileges structure is invalid"
+    const val ERROR_MESSAGE_MISSING_MDL_MANDATORY_ELEMENT =
+        "Mandatory mDL data element is missing"
+    const val ERROR_MESSAGE_INVALID_MDL_AGE =
+        "age_over_NN / age_in_years is inconsistent with birth_date"
+
+    const val ERROR_CODE_INVALID_DOC_TYPE = "${ERROR_CODE_INVALID}DOC_TYPE"
+    const val ERROR_MESSAGE_MISSING_DOC_TYPE = "docType is missing from the credential"
+    const val ERROR_MESSAGE_DOC_TYPE_MISMATCH = "docType does not match the docType in the MSO"
+
+    const val ERROR_CODE_INVALID_ISSUE_DATE = "${ERROR_CODE_INVALID}ISSUE_DATE"
+    const val ERROR_MESSAGE_INVALID_ISSUE_DATE =
+        "issue_date must not be after validFrom"
+    const val ERROR_MESSAGE_INVALID_ISSUE_DATE_FORMAT =
+        "issue_date must be a valid full-date (YYYY-MM-DD) or tdate (YYYY-MM-DDThh:mm:ssZ)"
+
+    const val ERROR_CODE_INVALID_ISSUER_SIGNED_ITEM = "${ERROR_CODE_INVALID}ISSUER_SIGNED_ITEM"
+    const val ERROR_MESSAGE_INVALID_ISSUER_SIGNED_ITEM =
+        "Each nameSpaces record must be a tag-24 byte string"
+    const val ERROR_MESSAGE_INVALID_ISSUER_SIGNED_ITEM_CONTENT =
+        "IssuerSignedItem must be a map with a text elementIdentifier and an elementValue"
+    const val ERROR_MESSAGE_DUPLICATE_ELEMENT_IDENTIFIER =
+        "Duplicate elementIdentifier found in a namespace"
+    const val ERROR_MESSAGE_INVALID_NAME_SPACES_ENCODING =
+        "Failed to capture as-received IssuerSignedItemBytes"
+
+    const val ERROR_MESSAGE_INVALID_VALUE_DIGESTS_STRUCTURE =
+        "valueDigests must map each namespace to a map of digestID (uint) to digest (bstr)"
+    const val ERROR_MESSAGE_MSO_NOT_TAGGED =
+        "MSO payload must be tag-24 encoded MobileSecurityObjectBytes"
+    const val ERROR_MESSAGE_INVALID_MSO_DIGEST_ID =
+        "valueDigests digestID keys must be less than 2^31"
+    const val ERROR_MESSAGE_MISSING_SIGNED_MSO = "validityInfo->signed is missing in the MSO of the credential"
+
+    const val ERROR_CODE_INVALID_MSO_DATE_FORMAT = "${ERROR_CODE_INVALID}MSO_DATE_FORMAT"
+    const val ERROR_MESSAGE_INVALID_MSO_DATE_FORMAT =
+        "validityInfo dates must have no fractional seconds and end in Z"
 
     const val ERROR_CODE_INVALID_JWT_FORMAT = "${ERROR_CODE_INVALID}JWT_FORMAT"
     const val ERROR_MESSAGE_INVALID_JWT_FORMAT = "${VALIDATION_ERROR}Invalid JWT format"

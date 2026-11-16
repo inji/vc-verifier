@@ -16,10 +16,12 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.VALID_
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import org.json.JSONObject
 import org.threeten.bp.Instant
+import org.threeten.bp.LocalDate
 import org.threeten.bp.LocalDateTime
 import org.threeten.bp.OffsetDateTime
 import org.threeten.bp.ZoneOffset
 import org.threeten.bp.format.DateTimeFormatter
+import org.threeten.bp.format.DateTimeParseException
 import java.util.Date
 import java.util.logging.Logger
 
@@ -116,5 +118,44 @@ object DateUtils {
         val odt = OffsetDateTime.ofInstant(Instant.ofEpochSecond(epochSeconds), ZoneOffset.UTC)
         return odt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
     }
+
+    /**
+     * ISO 18013-5 tdate values in validityInfo must be full-date-times in UTC with no
+     * fractional seconds, e.g. `2024-10-23T07:01:17Z`.
+     *
+     * Intentionally does not rely on [parseDate] alone: it falls back to ISO_LOCAL_DATE_TIME,
+     * which accepts a date-time with no zone and assumes UTC. The regex is what blocks that.
+     */
+    fun isIsoMsoDateTime(dateString: String): Boolean {
+        return MSO_DATE_TIME_PATTERN.matches(dateString) && parseDate(dateString) != null
+    }
+
+    fun isIsoFullDate(dateString: String): Boolean {
+        return FULL_DATE_PATTERN.matches(dateString)
+    }
+
+    /** Parses an ISO full-date (`YYYY-MM-DD`), or returns null for any other shape or an impossible date. */
+    fun parseFullDateOrNull(dateString: String): LocalDate? {
+        if (!isIsoFullDate(dateString)) return null
+        return try {
+            LocalDate.parse(dateString)
+        } catch (_: DateTimeParseException) {
+            null
+        }
+    }
+
+    /**
+     * Parses an ISO 18013-5 date that may be either a full-date (`YYYY-MM-DD`) or a tdate
+     * (`YYYY-MM-DDThh:mm:ssZ`, taken as its UTC date). Returns null for anything else.
+     */
+    fun parseFullDateOrTdateOrNull(dateString: String): LocalDate? {
+        parseFullDateOrNull(dateString)?.let { return it }
+        if (!isIsoMsoDateTime(dateString)) return null
+        val date = parseDate(dateString) ?: return null
+        return Instant.ofEpochMilli(date.time).atZone(ZoneOffset.UTC).toLocalDate()
+    }
+
+    private val MSO_DATE_TIME_PATTERN = Regex("""^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$""")
+    private val FULL_DATE_PATTERN = Regex("""^\d{4}-\d{2}-\d{2}$""")
 
 }

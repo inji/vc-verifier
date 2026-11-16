@@ -11,36 +11,84 @@ import co.nstant.`in`.cbor.model.UnicodeString
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_GENERIC
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_ISSUER_SIGNED_ITEM
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DIGEST_ALGORITHM
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_DIGEST_ALGORITHM
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_NAME_SPACES_ENCODING
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MSO_NOT_TAGGED
 import io.mosip.vercred.vcverifier.credentialverifier.VerifiableCredential
 import io.mosip.vercred.vcverifier.credentialverifier.validator.MsoMdocValidator
 import io.mosip.vercred.vcverifier.credentialverifier.verifier.MsoMdocVerifier
 import io.mosip.vercred.vcverifier.data.ValidationStatus
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
+import io.mosip.vercred.vcverifier.utils.CborDataItemUtils.getOrNull
+import org.bouncycastle.asn1.x509.Extension
 import java.io.ByteArrayInputStream
+import java.math.BigInteger
 import java.util.logging.Logger
 
 internal const val DOCUMENTS = "documents"
-internal const val ISSUING_COUNTRY = "issuing_country"
 internal const val X5C = 33L
+internal const val COSE_ALG_HEADER_LABEL = 1L
+/** COSE algorithm identifier for ES256 (RFC 9053). */
+internal const val COSE_ALG_ES256 = -7L
+/**
+ * ES256 only: the COSE signature is checked by identity-credential's coseSign1CheckSignature,
+ * which supports ES256 only. ES384 / ES512 / EdDSA are not supported yet.
+ */
+internal val SUPPORTED_COSE_ALGS = setOf(BigInteger.valueOf(COSE_ALG_ES256))
 internal const val DOC_TYPE = "docType"
+internal const val VERSION = "version"
 internal const val DIGEST_ALGORITHM = "digestAlgorithm"
 internal const val DIGEST_ID = "digestID"
+internal const val RANDOM = "random"
+internal const val ELEMENT_IDENTIFIER = "elementIdentifier"
+internal const val ELEMENT_VALUE = "elementValue"
 internal const val VALUE_DIGESTS = "valueDigests"
 internal const val NAME_SPACES = "nameSpaces"
+internal val KEY_USAGE_OID: String = Extension.keyUsage.id
+internal val EXTENDED_KEY_USAGE_OID: String = Extension.extendedKeyUsage.id
+/** Index of the digitalSignature bit in [java.security.cert.X509Certificate.getKeyUsage]. */
+internal const val KEY_USAGE_DIGITAL_SIGNATURE = 0
+internal const val VALIDITY_INFO = "validityInfo"
+internal const val SIGNED = "signed"
+internal const val EXPECTED_UPDATE = "expectedUpdate"
+/** ISO 18013-5: digestID values must be less than 2^31. */
+internal val DIGEST_ID_MAX_EXCLUSIVE: BigInteger = BigInteger.valueOf(1L shl 31)
+internal const val MIN_DIGEST_SALT_BYTES = 16
+/** MSO version: major 1, any minor (e.g. "1.0", "1.1"). */
+internal val MSO_VERSION_PATTERN = Regex("""^1\.\d+$""")
+internal val SUPPORTED_DIGEST_ALGORITHMS = setOf("SHA-256", "SHA-384", "SHA-512")
+internal const val TAG_ENCODED_CBOR = 24L
 private const val ISSUER_SIGNED = "issuerSigned"
-
-
 private const val ISSUER_AUTH = "issuerAuth"
 
-class MsoMdocVerifiableCredential : VerifiableCredential {
+/**
+ * Returns the MSO digestAlgorithm, or throws when it is missing or not SHA-256 / SHA-384 / SHA-512.
+ * Shared by validation and verification, since verify() is public and can run without validate().
+ */
+internal fun requireSupportedDigestAlgorithm(mso: Map): String {
+    val digestAlgorithm = (mso.getOrNull(DIGEST_ALGORITHM) as? UnicodeString)?.string
+    if (digestAlgorithm == null || digestAlgorithm !in SUPPORTED_DIGEST_ALGORITHMS) {
+        throw ValidationException(
+            ERROR_MESSAGE_INVALID_DIGEST_ALGORITHM,
+            ERROR_CODE_INVALID_DIGEST_ALGORITHM
+        )
+    }
+    return digestAlgorithm
+}
+
+class MsoMdocVerifiableCredential(
+    private val options: MsoMdocVerificationOptions = MsoMdocVerificationOptions(),
+) : VerifiableCredential {
 
     private val logger = Logger.getLogger(MsoMdocVerifiableCredential::class.java.name)
 
 
     override fun validate(credential: String): ValidationStatus {
         try {
-            MsoMdocValidator().validate(credential)
+            MsoMdocValidator(options).validate(credential)
             return ValidationStatus("", "")
         } catch (exception: Exception) {
             return when (exception) {
@@ -60,7 +108,7 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
     }
 
     override fun verify(credential: String): Boolean {
-        return MsoMdocVerifier().verify(credential)
+        return MsoMdocVerifier(options).verify(credential)
     }
 
     /**
@@ -105,8 +153,15 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
      *     "nameSpaces": {...}
      *   }
      * ```
+     *
+     * @param captureRawNameSpaces when true (verification), also captures the as-received
+     * IssuerSignedItemBytes used for digest checks. Validation does not need them, so it skips
+     * the extra byte scan.
      */
-    fun parse(credential: String): Triple<Map, MsoMdocCredentialData, Boolean> {
+    fun parse(
+        credential: String,
+        captureRawNameSpaces: Boolean = true,
+    ): Triple<Map, MsoMdocCredentialData, Boolean> {
         val decodedData: ByteArray = try {
             Base64Decoder().decodeFromBase64Url(credential)
         } catch (exception: Exception) {
@@ -124,10 +179,18 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
         }
         val decodedCredential = cbors[0] as Map
         val (issuerAuth, issuerSignedNamespaces, isLatest) = getIssuerSignedData(decodedCredential)
-        validateMsoPayload(issuerAuth, isLatest)
+        validateMsoPayload(issuerAuth)
         val mso = issuerAuth.extractMso()
         val docType = mso.get(UnicodeString(DOC_TYPE))
-
+        val encodedNameSpaceItems = if (!captureRawNameSpaces) emptyMap() else try {
+            MsoMdocNameSpacesRawBytes.extract(decodedData)
+        } catch (exception: Exception) {
+            logger.severe("Failed to capture as-received nameSpaces item bytes: ${exception.message}")
+            throw ValidationException(
+                ERROR_MESSAGE_INVALID_NAME_SPACES_ENCODING,
+                ERROR_CODE_INVALID_ISSUER_SIGNED_ITEM
+            )
+        }
 
         return Triple(
             decodedCredential,
@@ -135,7 +198,8 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
                 docType,
                 issuerSigned = MsoMdocCredentialData.IssuerSigned(
                     issuerAuth,
-                    issuerSignedNamespaces
+                    issuerSignedNamespaces,
+                    encodedNameSpaceItems,
                 ),
                 mso
             ),
@@ -180,11 +244,12 @@ class MsoMdocVerifiableCredential : VerifiableCredential {
         throw RuntimeException("Invalid issuerSigned structure in mDoc")
     }
 
-    private fun validateMsoPayload(issuerAuth: Array, isLatest: Boolean) {
+    /** ISO 18013-5 §9.1.2.4: the payload is #6.24(bstr .cbor MobileSecurityObject) for every shape. */
+    private fun validateMsoPayload(issuerAuth: Array) {
         try {
             val payload = CborDecoder.decode((issuerAuth[2] as ByteString).bytes)[0]
-            if (isLatest && (payload.majorType != MajorType.BYTE_STRING || payload.tag != Tag(24))) {
-                throw ValidationException("mso is not tagged", ERROR_CODE_INVALID_MSO)
+            if (payload.majorType != MajorType.BYTE_STRING || payload.tag != Tag(TAG_ENCODED_CBOR)) {
+                throw ValidationException(ERROR_MESSAGE_MSO_NOT_TAGGED, ERROR_CODE_INVALID_MSO)
             }
 
         } catch (exception: ValidationException) {

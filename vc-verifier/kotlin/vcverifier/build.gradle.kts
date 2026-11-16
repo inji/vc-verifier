@@ -33,6 +33,11 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
+    testOptions {
+        unitTests.all {
+            it.useJUnitPlatform()
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -74,6 +79,7 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.junitJupiter)
     testImplementation(libs.mockWebServer)
+    testImplementation(libs.bouncyCastlePkix)
 
 }
 
