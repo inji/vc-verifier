@@ -1,5 +1,7 @@
 package io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc
 
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.mdl.MDL_DOCTYPE
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.mdl.MDL_NAMESPACE
 import co.nstant.`in`.cbor.CborDecoder
 import co.nstant.`in`.cbor.CborEncoder
 import co.nstant.`in`.cbor.model.Array
@@ -15,7 +17,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import testutils.MsoMdocTestCredentialFactory
+import testutils.MdlEdgeCaseTestDataGenerator
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.EOFException
@@ -109,7 +111,7 @@ class MsoMdocNameSpacesRawBytesTest {
     fun `should map scanner failure to ERR_INVALID_ISSUER_SIGNED_ITEM in parse`() {
         // A real signed credential whose nameSpaces array is re-written with indefinite length:
         // cbor-java accepts it, the raw-bytes scanner deliberately does not.
-        val definite = Base64.getUrlDecoder().decode(MsoMdocTestCredentialFactory.create(discloseOnly = setOf("family_name")))
+        val definite = Base64.getUrlDecoder().decode(MdlEdgeCaseTestDataGenerator.create(discloseOnly = setOf("family_name")))
         val namespaceKey = encode(UnicodeString(MDL_NAMESPACE))
         // Last occurrence: the same text also appears as a valueDigests key inside the MSO.
         val keyIndex = lastIndexOf(definite, namespaceKey)

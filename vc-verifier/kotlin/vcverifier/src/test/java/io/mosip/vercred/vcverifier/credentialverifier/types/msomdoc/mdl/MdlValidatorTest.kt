@@ -1,5 +1,9 @@
-package io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc
+package io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.mdl
 
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DecodedIssuerSignedItem
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.SIGNED
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.VALIDITY_INFO
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.VALUE_DIGESTS
 import co.nstant.`in`.cbor.model.Array as CborArray
 import co.nstant.`in`.cbor.model.ByteString
 import co.nstant.`in`.cbor.model.DataItem
@@ -9,7 +13,10 @@ import co.nstant.`in`.cbor.model.SimpleValue
 import co.nstant.`in`.cbor.model.SimpleValueType
 import co.nstant.`in`.cbor.model.UnicodeString
 import co.nstant.`in`.cbor.model.UnsignedInteger
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_ISSUE_DATE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MDL_ELEMENT
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_ISSUE_DATE
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_ISSUE_DATE_FORMAT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_DRIVING_PRIVILEGES
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_MDL_AGE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MISSING_MDL_MANDATORY_ELEMENT
@@ -24,9 +31,9 @@ import org.junit.jupiter.params.provider.MethodSource
 import org.junit.jupiter.params.provider.ValueSource
 import java.math.BigInteger
 
-class MdlDataElementValidatorTest {
+class MdlValidatorTest {
 
-    // ---- S3-1 element types ----
+    // ---- element types ----
 
     @ParameterizedTest(name = "{0} = {1}")
     @MethodSource("wrongTypes")
@@ -42,10 +49,13 @@ class MdlDataElementValidatorTest {
 
     @Test
     fun `should not check element types when checkElementTypes is false`() {
+        // issue_date is left out: a text issue_date that is not a date is still reported by the
+        // always-on issue_date check (see the issue_date tests).
         val elements = wrongTypes().map { it.get()[0] as String to it.get()[1] as DataItem }
+            .filterNot { it.first == "issue_date" }
             .distinctBy { it.first }
         assertDoesNotThrow {
-            MdlDataElementValidator.validate(
+            MdlValidator.validate(
                 items = itemsOf(*elements.toTypedArray()),
                 mso = CborMap(),
                 checkElementTypes = false,
@@ -57,11 +67,11 @@ class MdlDataElementValidatorTest {
     fun `should ignore elements of other namespaces`() {
         val item = DecodedIssuerSignedItem("org.example", BigInteger.ZERO, "portrait", UnicodeString("text"))
         assertDoesNotThrow {
-            MdlDataElementValidator.validate(listOf(item), msoWithDigests(0), checkElementTypes = true)
+            MdlValidator.validate(listOf(item), msoWithDigests(0), checkElementTypes = true)
         }
     }
 
-    // ---- relaxed mode (mdocStrictProfile = false): only §3.1 is skipped ----
+    // ---- relaxed mode (mdocStrictProfile = false): only element types are skipped ----
 
     @Test
     fun `should still check driving_privileges structure when element types are relaxed`() {
@@ -100,7 +110,7 @@ class MdlDataElementValidatorTest {
         }
     }
 
-    // ---- S3-2 driving_privileges ----
+    // ---- driving_privileges structure ----
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("invalidDrivingPrivileges")
@@ -132,7 +142,7 @@ class MdlDataElementValidatorTest {
         assertDoesNotThrow { validateStrict("driving_privileges" to CborArray()) }
     }
 
-    // ---- S3-3 Latin-1 text ----
+    // ---- Latin-1 text ----
 
     @ParameterizedTest
     @ValueSource(strings = ["Müller", "José", "O'Brien-Smith", "ÿ"])
@@ -167,12 +177,12 @@ class MdlDataElementValidatorTest {
         assertDoesNotThrow { validateStrict("family_name_national_character" to UnicodeString("山田")) }
     }
 
-    // ---- S3-4 mandatory elements ----
+    // ---- mandatory elements ----
 
     @Test
     fun `should reject missing mandatory elements for a fully disclosed mDL namespace`() {
         val exception = assertInvalid {
-            MdlDataElementValidator.validate(
+            MdlValidator.validate(
                 items = itemsOf("family_name" to UnicodeString("Doe")),
                 mso = msoWithDigests(0),
                 checkElementTypes = false,
@@ -184,9 +194,9 @@ class MdlDataElementValidatorTest {
 
     @Test
     fun `should skip mandatory elements under selective disclosure`() {
-        // MSO still has digest 1 undisclosed, so the mDL namespace is not fully disclosed (§3.4).
+        // MSO still has digest 1 undisclosed, so the mDL namespace is not fully disclosed.
         assertDoesNotThrow {
-            MdlDataElementValidator.validate(
+            MdlValidator.validate(
                 items = itemsOf("family_name" to UnicodeString("Doe")),
                 mso = msoWithDigests(0, 1),
                 checkElementTypes = false,
@@ -197,7 +207,7 @@ class MdlDataElementValidatorTest {
     @Test
     fun `should allow an empty disclosure when the MSO has undisclosed mDL digests`() {
         assertDoesNotThrow {
-            MdlDataElementValidator.validate(
+            MdlValidator.validate(
                 items = emptyList(),
                 mso = msoWithDigests(0),
                 checkElementTypes = false,
@@ -208,7 +218,7 @@ class MdlDataElementValidatorTest {
     @Test
     fun `should reject an empty disclosure when the MSO has no mDL digests`() {
         assertInvalid {
-            MdlDataElementValidator.validate(
+            MdlValidator.validate(
                 items = emptyList(),
                 mso = CborMap(),
                 checkElementTypes = false,
@@ -232,7 +242,7 @@ class MdlDataElementValidatorTest {
             "un_distinguishing_sign" to UnicodeString("IND"),
         )
         assertDoesNotThrow {
-            MdlDataElementValidator.validate(
+            MdlValidator.validate(
                 items = itemsOf(*requiredElements.toTypedArray()),
                 mso = msoWithDigests(*requiredElements.indices.map { it.toLong() }.toLongArray()),
                 checkElementTypes = true,
@@ -240,7 +250,7 @@ class MdlDataElementValidatorTest {
         }
     }
 
-    // ---- S3-5 age consistency ----
+    // ---- age consistency ----
 
     @Test
     fun `should reject age_over inconsistent with birth_date`() {
@@ -339,6 +349,49 @@ class MdlDataElementValidatorTest {
         }
     }
 
+    // ---- issue_date vs validFrom ----
+
+    @Test
+    fun `should pass when issue_date is the same day as validFrom`() {
+        assertDoesNotThrow { validateIssueDate("2025-06-01", validFrom = "2025-06-01T10:00:00Z") }
+    }
+
+    @Test
+    fun `should pass when issue_date is the day before validFrom`() {
+        assertDoesNotThrow { validateIssueDate("2025-05-31", validFrom = "2025-06-01T00:00:00Z") }
+    }
+
+    @Test
+    fun `should fail when issue_date is after validFrom`() {
+        val exception = assertIssueDateInvalid { validateIssueDate("2025-06-02", validFrom = "2025-06-01T23:59:59Z") }
+        assertEquals(ERROR_MESSAGE_INVALID_ISSUE_DATE, exception.errorMessage)
+    }
+
+    @Test
+    fun `should skip the issue_date check when issue_date is not disclosed`() {
+        assertDoesNotThrow {
+            validateRelaxed("family_name" to UnicodeString("Doe"), mso = msoWithValidity("2025-06-01T00:00:00Z"))
+        }
+    }
+
+    @Test
+    fun `should accept a tdate issue_date by its UTC date`() {
+        assertDoesNotThrow { validateIssueDate("2025-06-01T23:00:00Z", validFrom = "2025-06-01T00:00:00Z") }
+    }
+
+    @Test
+    fun `should fail a tdate issue_date after validFrom`() {
+        assertIssueDateInvalid { validateIssueDate("2025-06-02T00:00:00Z", validFrom = "2025-06-01T00:00:00Z") }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["2024-13-45", "2024-02-30", "2025-06-01T25:00:00Z", "01/06/2025"])
+    fun `should fail an issue_date that is not a valid full-date or tdate`(issueDate: String) {
+        // Relaxed mode, so the issue_date check reports it rather than the element type check.
+        val exception = assertIssueDateInvalid { validateIssueDate(issueDate, validFrom = "2025-06-01T00:00:00Z") }
+        assertEquals(ERROR_MESSAGE_INVALID_ISSUE_DATE_FORMAT, exception.errorMessage)
+    }
+
     // ---- helpers ----
 
     private fun validateAgeInYears(age: Long) = validateStrict(
@@ -347,15 +400,24 @@ class MdlDataElementValidatorTest {
         mso = msoWithValidity(validFrom = "2024-01-01T00:00:00Z"),
     )
 
-    private fun validateStrict(vararg elements: Pair<String, DataItem>, mso: CborMap = CborMap()) =
-        MdlDataElementValidator.validate(
+    private fun validateStrict(vararg elements: Pair<String, DataItem>, mso: CborMap = DEFAULT_MSO) =
+        MdlValidator.validate(
             items = itemsOf(*elements),
             mso = mso,
             checkElementTypes = true,
         )
 
-    private fun validateRelaxed(vararg elements: Pair<String, DataItem>, mso: CborMap = CborMap()) =
-        MdlDataElementValidator.validate(items = itemsOf(*elements), mso = mso, checkElementTypes = false)
+    private fun validateRelaxed(vararg elements: Pair<String, DataItem>, mso: CborMap = DEFAULT_MSO) =
+        MdlValidator.validate(items = itemsOf(*elements), mso = mso, checkElementTypes = false)
+
+    private fun validateIssueDate(issueDate: String, validFrom: String) =
+        validateRelaxed("issue_date" to UnicodeString(issueDate), mso = msoWithValidity(validFrom))
+
+    private fun assertIssueDateInvalid(block: () -> Unit): ValidationException {
+        val exception = assertThrows(ValidationException::class.java) { block() }
+        assertEquals(ERROR_CODE_INVALID_ISSUE_DATE, exception.errorCode)
+        return exception
+    }
 
     private fun assertInvalid(block: () -> Unit): ValidationException {
         val exception = assertThrows(ValidationException::class.java) { block() }
@@ -372,7 +434,7 @@ class MdlDataElementValidatorTest {
         val digestMap = CborMap().apply {
             digestIds.forEach { id -> put(UnsignedInteger(id), ByteString(ByteArray(32))) }
         }
-        return CborMap().apply {
+        return msoWithValidity(validFrom = DEFAULT_VALID_FROM).apply {
             put(UnicodeString(VALUE_DIGESTS), CborMap().apply { put(UnicodeString(MDL_NAMESPACE), digestMap) })
         }
     }
@@ -389,6 +451,17 @@ class MdlDataElementValidatorTest {
         }
 
     companion object {
+        private const val DEFAULT_VALID_FROM = "2030-01-01T00:00:00Z"
+        private val DEFAULT_MSO: CborMap
+            get() = CborMap().apply {
+                put(
+                    UnicodeString(VALIDITY_INFO),
+                    CborMap().apply {
+                        put(UnicodeString(SIGNED), UnicodeString(DEFAULT_VALID_FROM).apply { setTag(0) })
+                        put(UnicodeString("validFrom"), UnicodeString(DEFAULT_VALID_FROM).apply { setTag(0) })
+                    }
+                )
+            }
         private val TRUE = SimpleValue(SimpleValueType.TRUE)
         private val FALSE = SimpleValue(SimpleValueType.FALSE)
 
@@ -405,7 +478,7 @@ class MdlDataElementValidatorTest {
 
         @JvmStatic
         fun wrongTypes() = listOf(
-            args("portrait", UnicodeString("base64-portrait")), // today's Certify output, inji-certify#1147 item 6
+            args("portrait", UnicodeString("base64-portrait")), // Certify issues portrait as text
             args("birth_date", UnicodeString("15/06/1990")),
             args("birth_date", UnicodeString("2024-02-30")),
             args("birth_date", UnicodeString("1990-06-15T00:00:00Z")),

@@ -42,7 +42,7 @@ import java.util.Date
  * Builds signed mso_mdoc credentials (and DS certificates) for tests, so verification can be
  * exercised through the public API with any validity window, certificate profile or tampering.
  */
-internal object MsoMdocTestCredentialFactory {
+internal object MdlEdgeCaseTestDataGenerator {
     const val MDL_DOC_TYPE = "org.iso.18013.5.1.mDL"
     const val MDL_NAMESPACE = "org.iso.18013.5.1"
     const val MDL_DS_EKU = "1.0.18013.5.1.2"
@@ -356,7 +356,7 @@ internal object MsoMdocTestCredentialFactory {
             ) as X509Certificate
 
     private fun readFixture(name: String): String =
-        MsoMdocTestCredentialFactory::class.java.getResourceAsStream("/mso_mdoc/$name")
+        MdlEdgeCaseTestDataGenerator::class.java.getResourceAsStream("/mso_mdoc/$name")
             ?.bufferedReader()
             ?.use { it.readText() }
             ?: error("Missing mDL test fixture: $name")

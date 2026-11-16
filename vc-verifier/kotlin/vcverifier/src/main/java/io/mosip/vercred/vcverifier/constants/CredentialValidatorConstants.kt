@@ -146,6 +146,7 @@ object CredentialValidatorConstants {
 
     const val ERROR_CODE_MISSING_ALG = "${ERROR_CODE_MISSING}ALG"
     const val ERROR_MESSAGE_MISSING_ALG = "alg is missing from the COSE protected header"
+    const val ERROR_CODE_INVALID_PROTECTED_HEADER = "${ERROR_CODE_INVALID}PROTECTED_HEADER"
     const val ERROR_MESSAGE_MALFORMED_PROTECTED_HEADER = "COSE protected header is malformed"
 
     const val ERROR_CODE_INVALID_ALG = "${ERROR_CODE_INVALID}ALG"

@@ -37,6 +37,8 @@ import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.requireSuppo
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DOC_TYPE
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.EXPECTED_UPDATE
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MdocClock
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MdocDocTypes
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.decodeIssuerSignedItems
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerifiableCredential
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerificationOptions
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.SIGNED
@@ -67,7 +69,17 @@ class MsoMdocValidator(
             val mso = credentialData.mso
 
             validateMsoStructure(mso)
-            validateValidityInfo(mso)
+            val isExpired = validateValidityInfo(mso)
+            // docType-specific checks (e.g. mDL) run before the soft-expiry result, so an expired
+            // credential still gets them.
+            MdocDocTypes.validatorFor(mso)?.validate(
+                decodeIssuerSignedItems(credentialData.issuerSigned.namespaces),
+                mso,
+                options,
+            )
+            if (isExpired) {
+                throw ValidationException(ERROR_MESSAGE_VC_EXPIRED, ERROR_CODE_VC_EXPIRED)
+            }
             return true
         } catch (exception: Exception) {
             if (exception is ValidationException) throw exception
@@ -146,10 +158,12 @@ class MsoMdocValidator(
         }
     }
 
-    private fun validateValidityInfo(mso: Map) {
-        /**
-        a) The elements in the ValidityInfo structure are verified against the current time stamp
-         */
+    /**
+     * The elements in the ValidityInfo structure are verified against the current time stamp.
+     * Returns true when the MSO has expired (validUntil in the past). Expiry is a soft failure,
+     * reported by the caller after the remaining checks; every other problem throws here.
+     */
+    private fun validateValidityInfo(mso: Map): Boolean {
 
         val validityInfo: Map = mso.getOrNull(VALIDITY_INFO) as Map
         val validFrom: DataItem? = validityInfo.getOrNull(VALID_FROM)
@@ -243,13 +257,11 @@ class MsoMdocValidator(
         }
 
         // Expired only once validUntil is more than the tolerance in the past.
-        if (MdocClock.isBeforeNow(validUntilMillis, now)) {
+        val isExpired = MdocClock.isBeforeNow(validUntilMillis, now)
+        if (isExpired) {
             logger.severe("Error while doing validity verification - MSO validUntil is in the past")
-            throw ValidationException(
-                ERROR_MESSAGE_VC_EXPIRED,
-                ERROR_CODE_VC_EXPIRED
-            )
         }
+        return isExpired
     }
 
     private fun requireIsoMsoDateFormat(dateString: String, fieldName: String) {

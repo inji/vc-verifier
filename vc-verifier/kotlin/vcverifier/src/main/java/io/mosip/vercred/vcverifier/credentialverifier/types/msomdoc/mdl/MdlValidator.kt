@@ -1,4 +1,4 @@
-package io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc
+package io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.mdl
 
 import co.nstant.`in`.cbor.model.Array
 import co.nstant.`in`.cbor.model.ByteString
@@ -8,13 +8,24 @@ import co.nstant.`in`.cbor.model.SimpleValue
 import co.nstant.`in`.cbor.model.SimpleValueType
 import co.nstant.`in`.cbor.model.UnicodeString
 import co.nstant.`in`.cbor.model.UnsignedInteger
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_ISSUE_DATE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MDL_ELEMENT
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_VALID_FROM_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_DRIVING_PRIVILEGES
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_ISSUE_DATE
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_ISSUE_DATE_FORMAT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_MDL_AGE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_MDL_ELEMENT_TEXT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_MDL_ELEMENT_TYPE
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_VALID_FROM_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MISSING_MDL_MANDATORY_ELEMENT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.VALID_FROM
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.DecodedIssuerSignedItem
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MdocDocTypeValidator
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerificationOptions
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.SIGNED
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.VALIDITY_INFO
+import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.VALUE_DIGESTS
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.utils.CborDataItemUtils.getOrNull
 import io.mosip.vercred.vcverifier.utils.DateUtils
@@ -26,18 +37,18 @@ import java.math.BigInteger
 import java.util.logging.Logger
 
 /**
- * ISO/IEC 18013-5 Table 5 / 7.2.4 / 7.2.5 checks for the elements of namespace org.iso.18013.5.1.
+ * mDL checks that run during validation, before the signature: ISO/IEC 18013-5 Table 5 / 7.2.4 /
+ * 7.2.5 checks for the elements of namespace org.iso.18013.5.1, and issue_date vs validFrom.
  *
- * Runs only for docType org.iso.18013.5.1.mDL (MsoMdocVerifier skips it for other docTypes).
+ * Runs only for docType org.iso.18013.5.1.mDL (chosen by MdocDocTypes).
  *
- * Issue #300 §3: the temporary strict flag relaxes only §3.1 (element types, which Certify fails until
- * inji-certify#1147). §3.2 driving_privileges structure, §3.3 Latin-1 text, §3.4 mandatory elements
- * and §3.5 age consistency always run; in relaxed mode a value of the wrong type is skipped by them
- * rather than reported, since reporting it is §3.1's job.
+ * The strict flag relaxes only the element type checks. driving_privileges structure, Latin-1 text,
+ * mandatory elements, age consistency and issue_date always run; in relaxed mode a value of the
+ * wrong type is skipped by them rather than reported, since reporting it is the type check's job.
  */
-internal object MdlDataElementValidator {
+internal object MdlValidator : MdocDocTypeValidator {
 
-    private val logger = Logger.getLogger(MdlDataElementValidator::class.java.name)
+    private val logger = Logger.getLogger(MdlValidator::class.java.name)
 
     private const val MAX_LATIN1_LENGTH = 150
     private val AGE_OVER_PATTERN = Regex("""^age_over_(\d{2})$""")
@@ -105,8 +116,8 @@ internal object MdlDataElementValidator {
     )
 
     /**
-     * @param items every received IssuerSignedItem, already decoded by MsoMdocVerifier.verifyValueDigests;
-     *   only those in [MDL_NAMESPACE] are checked.
+     * @param items every received IssuerSignedItem (see decodeIssuerSignedItems); only those in
+     *   [MDL_NAMESPACE] are checked.
      *
      * Mandatory presence is enforced only when every MSO digest for [MDL_NAMESPACE] was received
      * (see [isMdlNamespaceFullyDisclosed]), so selective disclosure keeps working. The verifier cannot
@@ -114,7 +125,8 @@ internal object MdlDataElementValidator {
      * mandatory element out of the MSO entirely still passes whenever the holder hides at least one
      * other element. This is not full coverage of the mandatory-element rule.
      *
-     * @param checkElementTypes enables §3.1 (strict mDL profile); every other §3 check always runs.
+     * @param checkElementTypes enables the element type checks (strict mDL profile); every other
+     *   check always runs.
      */
     fun validate(
         items: List<DecodedIssuerSignedItem>,
@@ -123,7 +135,7 @@ internal object MdlDataElementValidator {
     ) {
         val mdlItems = items.filter { it.namespace == MDL_NAMESPACE }
 
-        // §3.4
+        // mandatory elements
         if (isMdlNamespaceFullyDisclosed(mdlItems, mso, emptyMeansFull = true)) {
             val missing = MANDATORY_ELEMENTS - mdlItems.map { it.elementIdentifier }.toSet()
             if (missing.isNotEmpty()) {
@@ -138,18 +150,53 @@ internal object MdlDataElementValidator {
         val records = mdlItems.associate { it.elementIdentifier to it.elementValue }
         records.forEach { (identifier, value) ->
             when {
-                // §3.2
+                // driving_privileges structure
                 identifier == "driving_privileges" -> validateDrivingPrivileges(value)
-                // §3.3; a non-text value is a §3.1 type error, reported only when types are checked.
+                // Latin-1 text; a non-text value is a type error, reported only when types are checked.
                 identifier in LATIN1_TEXT_ELEMENTS ->
                     if (checkElementTypes || value is UnicodeString) requireLatin1Text(identifier, value)
-                // §3.1
+                // element types
                 checkElementTypes -> validateElementType(identifier, value)
             }
         }
 
-        // §3.5
+        // age consistency
         validateAgeConsistency(records, mso)
+        validateIssueDate(mso, mdlItems)
+    }
+
+    override fun validate(
+        items: List<DecodedIssuerSignedItem>,
+        mso: Map,
+        options: MsoMdocVerificationOptions,
+    ) = validate(items = items, mso = mso, checkElementTypes = options.strictMdlProfile)
+
+    /**
+     * issue_date must not be after the MSO validFrom (UTC date). ISO 18013-5 Table 5 allows
+     * issue_date as full-date or tdate; a tdate is compared by its UTC date. The CBOR tag
+     * (1004 / 0) is not checked here.
+     */
+    private fun validateIssueDate(mso: Map, items: List<DecodedIssuerSignedItem>) {
+        val issueDateItem = items.firstOrNull { it.elementIdentifier == ISSUE_DATE }?.elementValue ?: return
+        // A non-text value is a type error, reported by the element type check in strict mode.
+        val issueDate = (issueDateItem as? UnicodeString)?.string ?: return
+        // Also rejects impossible calendar dates (e.g. 2024-13-45).
+        val issueLocalDate = DateUtils.parseFullDateOrTdateOrNull(issueDate)
+            ?: throw ValidationException(
+                ERROR_MESSAGE_INVALID_ISSUE_DATE_FORMAT,
+                ERROR_CODE_INVALID_ISSUE_DATE
+            )
+        val validFromUtcDate = utcDateOf((mso.getOrNull(VALIDITY_INFO) as? Map)?.getOrNull(VALID_FROM))
+            ?: throw ValidationException(
+                ERROR_MESSAGE_INVALID_VALID_FROM_MSO,
+                ERROR_CODE_INVALID_VALID_FROM_MSO
+            )
+        if (issueLocalDate.isAfter(validFromUtcDate)) {
+            throw ValidationException(
+                ERROR_MESSAGE_INVALID_ISSUE_DATE,
+                ERROR_CODE_INVALID_ISSUE_DATE
+            )
+        }
     }
 
     /**
@@ -182,7 +229,7 @@ internal object MdlDataElementValidator {
         }.toSet()
     }
 
-    /** §3.1 types of every element except driving_privileges and the Latin-1 text fields (checked above). */
+    /** Types of every element except driving_privileges and the Latin-1 text fields (checked above). */
     private fun validateElementType(identifier: String, value: DataItem) {
         when {
             identifier in TEXT_ELEMENTS -> requireText(identifier, value)
@@ -270,7 +317,7 @@ internal object MdlDataElementValidator {
         val maxAge = ageAt(birthDate, latest)
 
         records["age_in_years"]?.let { ageItem ->
-            // A wrong type is §3.1's error (strict only); compared as BigInteger so large values cannot wrap.
+            // A wrong type is the type check's error (strict only); compared as BigInteger so large values cannot wrap.
             val declared = (ageItem as? UnsignedInteger)?.value ?: return@let
             if (declared < BigInteger.valueOf(minAge.toLong()) || declared > BigInteger.valueOf(maxAge.toLong())) {
                 logger.severe("age_in_years is outside $minAge..$maxAge")
@@ -284,7 +331,7 @@ internal object MdlDataElementValidator {
             val isOver = when ((value as? SimpleValue)?.simpleValueType) {
                 SimpleValueType.TRUE -> true
                 SimpleValueType.FALSE -> false
-                else -> return@forEach // not a boolean: §3.1's error, reported only in strict mode
+                else -> return@forEach // not a boolean: a type error, reported only in strict mode
             }
             val consistent = if (isOver) maxAge >= threshold else minAge < threshold
             if (!consistent) {

@@ -23,7 +23,7 @@ import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
 import io.mosip.vercred.vcverifier.utils.LocalDocumentLoader
 import io.mosip.vercred.vcverifier.utils.DateUtils
 import io.mosip.vercred.vcverifier.utils.Util
-import testutils.MsoMdocTestCredentialFactory
+import testutils.MdlEdgeCaseTestDataGenerator
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -150,7 +150,7 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should verify currently valid ISO conformant mDL through public API`() {
-        val credential = MsoMdocTestCredentialFactory.create()
+        val credential = MdlEdgeCaseTestDataGenerator.create()
         val result = CredentialsVerifier().verify(credential, MSO_MDOC)
 
         assertEquals("", result.verificationMessage)
@@ -159,7 +159,7 @@ class CredentialsVerifierTest {
     }
 
     @Test
-    @Disabled("Needs a fresh Certify sample whose DS certificate has the mDL EKU (inji-certify#1132)")
+    @Disabled("Needs a real Certify mDL with all mandatory elements and a DS certificate with the mDL EKU (1.0.18013.5.1.2).")
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should return true for valid credential validation success of msomdoc`() {
         val vc =
@@ -210,7 +210,7 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should verify a selectively disclosed mDL whose MSO digests every mandatory element`() {
-        val credential = MsoMdocTestCredentialFactory.create(discloseOnly = setOf("family_name", "birth_date"))
+        val credential = MdlEdgeCaseTestDataGenerator.create(discloseOnly = setOf("family_name", "birth_date"))
 
         val result = CredentialsVerifier().verify(credential, MSO_MDOC)
 
@@ -221,7 +221,7 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should verify the same mDL when every element is disclosed`() {
-        val result = CredentialsVerifier().verify(MsoMdocTestCredentialFactory.create(), MSO_MDOC)
+        val result = CredentialsVerifier().verify(MdlEdgeCaseTestDataGenerator.create(), MSO_MDOC)
 
         assertTrue(result.verificationStatus)
         assertEquals("", result.verificationErrorCode)
@@ -231,8 +231,8 @@ class CredentialsVerifierTest {
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should reject a fully disclosed mDL whose MSO never included a mandatory element`() {
         // portrait is absent from both the MSO and nameSpaces, so the mDL namespace is fully disclosed.
-        val credential = MsoMdocTestCredentialFactory.create(
-            records = MsoMdocTestCredentialFactory.recordsWithout("portrait")
+        val credential = MdlEdgeCaseTestDataGenerator.create(
+            records = MdlEdgeCaseTestDataGenerator.recordsWithout("portrait")
         )
 
         val result = CredentialsVerifier().verify(credential, MSO_MDOC)
@@ -244,9 +244,9 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should skip mDL element type checks when mdocStrictProfile is false`() {
-        // Text portrait, as Certify issues it until inji-certify#1147 item 6.
-        val credential = MsoMdocTestCredentialFactory.create(
-            records = MsoMdocTestCredentialFactory.recordsWith("portrait", UnicodeString("base64-portrait"))
+        // Text portrait, as Certify issues it.
+        val credential = MdlEdgeCaseTestDataGenerator.create(
+            records = MdlEdgeCaseTestDataGenerator.recordsWith("portrait", UnicodeString("base64-portrait"))
         )
 
         assertEquals(
@@ -261,12 +261,12 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should still enforce mDL mandatory elements and Latin-1 text when mdocStrictProfile is false`() {
-        // The flag relaxes only issue #300 §1.2 and §3.1.
-        val missingPortrait = MsoMdocTestCredentialFactory.create(
-            records = MsoMdocTestCredentialFactory.recordsWithout("portrait")
+        // The flag relaxes only the DS KeyUsage/EKU and element type checks.
+        val missingPortrait = MdlEdgeCaseTestDataGenerator.create(
+            records = MdlEdgeCaseTestDataGenerator.recordsWithout("portrait")
         )
-        val nonLatin1Name = MsoMdocTestCredentialFactory.create(
-            records = MsoMdocTestCredentialFactory.recordsWith("family_name", UnicodeString("日本"))
+        val nonLatin1Name = MdlEdgeCaseTestDataGenerator.create(
+            records = MdlEdgeCaseTestDataGenerator.recordsWith("family_name", UnicodeString("日本"))
         )
 
         listOf(missingPortrait, nonLatin1Name).forEach { credential ->
@@ -279,8 +279,8 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should verify signed mDLs of shapes A, B and C through the public API`() {
-        MsoMdocTestCredentialFactory.Shape.values().forEach { shape ->
-            val result = CredentialsVerifier().verify(MsoMdocTestCredentialFactory.create(shape = shape), MSO_MDOC)
+        MdlEdgeCaseTestDataGenerator.Shape.values().forEach { shape ->
+            val result = CredentialsVerifier().verify(MdlEdgeCaseTestDataGenerator.create(shape = shape), MSO_MDOC)
             assertTrue(result.verificationStatus, "shape $shape")
             assertEquals("", result.verificationErrorCode, "shape $shape")
         }
@@ -289,11 +289,11 @@ class CredentialsVerifierTest {
     private fun expiredMdl(tamperedElement: Pair<String, UnicodeString>? = null): String {
         val now = java.time.Instant.now()
         val validFrom = now.minusSeconds(2 * 86400)
-        return MsoMdocTestCredentialFactory.create(
+        return MdlEdgeCaseTestDataGenerator.create(
             signed = now.minusSeconds(3 * 86400),
             validFrom = validFrom,
             validUntil = now.minusSeconds(86400),
-            records = MsoMdocTestCredentialFactory.mandatoryRecords(validFrom),
+            records = MdlEdgeCaseTestDataGenerator.mandatoryRecords(validFrom),
             tamperedElement = tamperedElement,
         )
     }
@@ -301,18 +301,59 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should soft-continue past mso_mdoc ERR_VC_EXPIRED into cryptographic verify`() {
-        // Fixture MSO validUntil (2026-10-23) and DS cert (2025-10-22) are both in the past.
-        // Soft-expiry must not short-circuit — verify proceeds and surfaces DS validity instead.
-        run {
-            val vc =
-                "omdkb2NUeXBldW9yZy5pc28uMTgwMTMuNS4xLm1ETGxpc3N1ZXJTaWduZWSiamlzc3VlckF1dGiEQ6EBJqEYIVkBxDCCAcAwggFloAMCAQICFH6lICTsAhkMivItOT9v6JeZubwmMAoGCCqGSM49BAMCME4xCzAJBgNVBAYTAk1LMQ4wDAYDVQQIDAVNSy1LQTERMA8GA1UEBwwITW9ja0NpdHkxDTALBgNVBAoMBE1vY2sxDTALBgNVBAsMBE1vY2swHhcNMjQxMDIyMDcwMjUwWhcNMjUxMDIyMDcwMjUwWjBOMQswCQYDVQQGEwJNSzEOMAwGA1UECAwFTUstS0ExETAPBgNVBAcMCE1vY2tDaXR5MQ0wCwYDVQQKDARNb2NrMQ0wCwYDVQQLDARNb2NrMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEjtRcOXgIyR_xqGB-M6d0qkrjQWOBGGdlPgfIfb2xW0egZAVEz_55IXCofWaprRGxX7qQTlNAZyByniay2jzhR6MhMB8wHQYDVR0OBBYEFNqAHypQYcwWoeUfmMv4SbztomFvMAoGCCqGSM49BAMCA0kAMEYCIQDsgsz9wCa56ukpfyvq9371b5GhkSZb38G7xFofWgFtJwIhAKxACllIOtcleKETDFGa3araADjKd2isahQtXZwQmPr1WQJR2BhZAkymZ3ZlcnNpb25jMS4wb2RpZ2VzdEFsZ29yaXRobWdTSEEtMjU2Z2RvY1R5cGV1b3JnLmlzby4xODAxMy41LjEubURMbHZhbHVlRGlnZXN0c6Fxb3JnLmlzby4xODAxMy41LjGoAlggd4bqGFzNwBXyzdGmeipRMfjTQKQuzs6nvM7Z1AXsFBQGWCCaGHxiAeoHvfCNpkG3XpGTTQ787Fg9f3R9UTvKGa0mqwNYICnPRqwtKq9fYqI0sR96Ha3151joEQb24VAzTK4jw8puAVggHp8Y6cV73O670tvfMiyCZoxGczcYyfOh43Q8ahKpxxcEWCC75BhZBjDE1I4S5NLZAsaUmBERMZM9rMgZPkAzl45VeABYIIlDF4uT1D3MLGPsLL-kVBP0SHyxAYcAVf9SLYLUJUUgB1ggFuI0cmV1WwSJGv5VxI5a7Dsm6fIqr2MeIDBmYjIlZ0oFWCA88kOo8KNGtCpl2XH5CXMcgoE6D_fag9xjmPoLUcpgpG1kZXZpY2VLZXlJbmZvoWlkZXZpY2VLZXmkAQIgASFYIOMdpjABg7S1sJBCgdC4D6V237Jk_oGhMl_LInX0CFnGIlggPdyNKVXrSZb4CYQmoK6lX7Zux0DIBcnhJ9-_a7ZlYtdsdmFsaWRpdHlJbmZvo2ZzaWduZWTAdDIwMjQtMTAtMjNUMDc6MDE6MTdaaXZhbGlkRnJvbcB0MjAyNC0xMC0yM1QwNzowMToxN1pqdmFsaWRVbnRpbMB0MjAyNi0xMC0yM1QwNzowMToxN1pYQOkgtaSchZRTPO01AjYgnKBT9mgXG4NUWsp_W5pCxz5eyB6SIpL9lVYg3tPOkTfYggsVSgPO8ostvTXn7DsBRl5qbmFtZVNwYWNlc6Fxb3JnLmlzby4xODAxMy41LjGI2BhYWKRoZGlnZXN0SUQCZnJhbmRvbVBthSy1vmphqpoMYRe9Z0PncWVsZW1lbnRJZGVudGlmaWVyamlzc3VlX2RhdGVsZWxlbWVudFZhbHVlajIwMjQtMTAtMjPYGFhZpGhkaWdlc3RJRAZmcmFuZG9tUNyXhXOZjmheiFyzYfhsl0ZxZWxlbWVudElkZW50aWZpZXJrZXhwaXJ5X2RhdGVsZWxlbWVudFZhbHVlajIwMjktMTAtMjPYGFifpGhkaWdlc3RJRANmcmFuZG9tUCC-v7ARALJ2VFcYww9AbMhxZWxlbWVudElkZW50aWZpZXJyZHJpdmluZ19wcml2aWxlZ2VzbGVsZW1lbnRWYWx1ZXhIe2lzc3VlX2RhdGU9MjAyNC0xMC0yMywgdmVoaWNsZV9jYXRlZ29yeV9jb2RlPUEsIGV4cGlyeV9kYXRlPTIwMjktMTAtMjN92BhYV6RoZGlnZXN0SUQBZnJhbmRvbVDjoYj_8RBZ62-85iZV371vcWVsZW1lbnRJZGVudGlmaWVyb2RvY3VtZW50X251bWJlcmxlbGVtZW50VmFsdWVkMTIzM9gYWFWkaGRpZ2VzdElEBGZyYW5kb21Qg7iWcNbZ-b9S2D3u3Av2YnFlbGVtZW50SWRlbnRpZmllcm9pc3N1aW5nX2NvdW50cnlsZWxlbWVudFZhbHVlYk1L2BhYWKRoZGlnZXN0SUQAZnJhbmRvbVAFg1zMFq1oLYxHiib0UCeYcWVsZW1lbnRJZGVudGlmaWVyamJpcnRoX2RhdGVsZWxlbWVudFZhbHVlajE5OTQtMTEtMDbYGFhUpGhkaWdlc3RJRAdmcmFuZG9tUElZm1bdU7M1GlcrQPJ_ctNxZWxlbWVudElkZW50aWZpZXJqZ2l2ZW5fbmFtZWxlbGVtZW50VmFsdWVmSm9zZXBo2BhYVaRoZGlnZXN0SUQFZnJhbmRvbVB_NHtdmXkWLPqVnSgypGGWcWVsZW1lbnRJZGVudGlmaWVya2ZhbWlseV9uYW1lbGVsZW1lbnRWYWx1ZWZBZ2F0aGE="
+        // Both the MSO validUntil and the DS certificate are in the past. Soft expiry must not
+        // short-circuit: verify() still runs and reports the DS certificate validity instead.
+        val validFrom = java.time.Instant.parse("2024-06-01T00:00:00Z")
+        val vc = MdlEdgeCaseTestDataGenerator.create(
+            certificate = MdlEdgeCaseTestDataGenerator.generateCertificate(
+                notBefore = java.time.Instant.parse("2024-01-01T00:00:00Z"),
+                notAfter = java.time.Instant.parse("2025-06-01T00:00:00Z"),
+            ),
+            now = validFrom,
+            signed = validFrom,
+            validFrom = validFrom,
+            validUntil = java.time.Instant.parse("2025-01-01T00:00:00Z"),
+        )
 
-            val verificationResult = CredentialsVerifier().verify(vc, MSO_MDOC)
+        val verificationResult = CredentialsVerifier().verify(vc, MSO_MDOC)
 
-            assertFalse(verificationResult.verificationStatus)
-            assertEquals(ERROR_CODE_INVALID_DS_CERT_VALIDITY, verificationResult.verificationErrorCode)
-            assertTrue(verificationResult.verificationErrorCode != ERROR_CODE_VC_EXPIRED)
+        assertFalse(verificationResult.verificationStatus)
+        assertEquals(ERROR_CODE_INVALID_DS_CERT_VALIDITY, verificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS)
+    fun `should report an mDL element of the wrong type before tampering`() {
+        // mDL field checks run in validation, before the signature and digests, so a tampered
+        // element of the wrong type is reported as ERR_INVALID_MDL_ELEMENT (as for LDP).
+        val wrongTypeTampered = MdlEdgeCaseTestDataGenerator.create(
+            tamperedElement = "portrait" to UnicodeString("base64-portrait"),
+        )
+        val result = CredentialsVerifier().verify(wrongTypeTampered, MSO_MDOC)
+        assertFalse(result.verificationStatus)
+        assertEquals(ERROR_CODE_INVALID_MDL_ELEMENT, result.verificationErrorCode)
+
+        val rightTypeTampered = MdlEdgeCaseTestDataGenerator.create(
+            tamperedElement = "family_name" to UnicodeString("Smith"),
+        )
+        assertEquals(
+            ERROR_CODE_LIKELY_TAMPERED,
+            CredentialsVerifier().verify(rightTypeTampered, MSO_MDOC).verificationErrorCode,
+        )
+    }
+
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS)
+    fun `should verify the static mDL samples through the public API`() {
+        listOf("mdl-valid", "mdl-shape-b", "mdl-shape-c").forEach { sample ->
+            val result = CredentialsVerifier().verify(readClasspathFile("mso_mdoc/$sample.b64url").trim(), MSO_MDOC)
+            assertTrue(result.verificationStatus, sample)
+            assertEquals("", result.verificationErrorCode, sample)
         }
+        val expired = CredentialsVerifier().verify(readClasspathFile("mso_mdoc/mdl-expired.b64url").trim(), MSO_MDOC)
+        assertTrue(expired.verificationStatus)
+        assertEquals(ERROR_CODE_VC_EXPIRED, expired.verificationErrorCode)
+
     }
 
     @Test

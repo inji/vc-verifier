@@ -108,16 +108,18 @@ refer to the implementation classes for complete rules.
 * **Validates the `validityInfo` block:**
     * Dates must have no fractional seconds and end in `Z`
     * `validFrom` should not be in the future (3s skew)
-    * `validUntil` in the past → `ERR_VC_EXPIRED` (soft fail; same pattern as other formats)
+    * `validUntil` in the past → `ERR_VC_EXPIRED` (soft fail; reported after the mDL field checks)
     * `validUntil > validFrom` must hold
-    * Shape A: `signed` required; `validFrom` must not be before `signed`
+    * `signed` required; `validFrom` must not be before `signed` (all shapes)
+* **mDL field checks (`MdlValidator`)**, before the signature: mandatory elements, element types,
+  `driving_privileges`, Latin-1 text, age claims, `issue_date` vs `validFrom`
 * Field access uses a CBOR helper operator `DataItem["validFrom"]`
 * Exceptions thrown for any date inconsistencies
 * **Validation class:** `MsoMdocValidator`
-* **Verification (`MsoMdocVerifier`)** adds ISO 18013-5 checks: DS cert validity / mDL EKU
-  `1.0.18013.5.1.2` / critical KeyUsage `digitalSignature`, MSO `signed` within DS validity,
-  COSE `alg`, IssuerSignedItemBytes digests (tag-24 records, selective disclosure allowed),
-  and mDL `issuing_country` / optional `issuing_jurisdiction` / `issue_date` vs `validFrom`
+* **Verification (`MsoMdocVerifier`)** adds ISO 18013-5 checks: COSE `alg`, DS cert validity,
+  MSO `signed` within DS validity, the COSE signature and IssuerSignedItemBytes digests (tag-24
+  records, selective disclosure allowed). Then **`MdlVerifier`**: mDL EKU `1.0.18013.5.1.2` /
+  critical KeyUsage `digitalSignature`, `issuing_country` / optional `issuing_jurisdiction` vs the DS certificate
 * Details: [`doc/mso-mdoc-verification-support.md`](../../doc/mso-mdoc-verification-support.md)
 
 ### 3.3 SD-JWT VC Validation
@@ -265,7 +267,7 @@ and [IETF SD-JWT](https://datatracker.ietf.org/doc/draft-ietf-oauth-selective-di
 | VC format     | Issuer Signature Mechanism                                             | Verification Algorithms                      | Signature Suites / Proof Types                                                            |
 |---------------|------------------------------------------------------------------------|----------------------------------------------|-------------------------------------------------------------------------------------------|
 | `ldp_vc`      | Linked Data Proof                                                      | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | RsaSignature2018, Ed25519Signature2018, Ed25519Signature2020, EcdsaSecp256k1Signature2019 |
-| `mso_mdoc`    | COSE (CBOR Object Signing and Encryption)                              | ES256, ES384, ES512                          | Uses COSE_Sign1                                                                           |
+| `mso_mdoc`    | COSE (CBOR Object Signing and Encryption)                              | ES256                                        | Uses COSE_Sign1                                                                           |
 | `vc+sd-jwt`   | X.509 Certificate, JWT VC Issuer Metadata/JWKS, DID `kid` | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | -                                                                                         |
 | `dc+sd-jwt`   | X.509 Certificate, JWT VC Issuer Metadata/JWKS, DID `kid` | PS256, RS256, EdDSA (Ed25519), ES256, ES256K | -                                                                                         |
 | `cwt_vc`      | COSE_Sign1 (CBOR Web Token – RFC 8392)                                 | ES256, EdDSA (COSE alg based)                | COSE_Sign1                                                                                |
@@ -954,6 +956,7 @@ For other unknown exceptions, error code will be `ERR_GENERIC`
 | duplicate digestID                    | ERR_INVALID_DIGEST_ID           |
 | nameSpaces record not tag-24          | ERR_INVALID_ISSUER_SIGNED_ITEM  |
 | COSE protected `alg` missing          | ERR_MISSING_ALG                 |
+| COSE protected header malformed       | ERR_INVALID_PROTECTED_HEADER    |
 | COSE protected `alg` not ES256 / DS key not P-256 | ERR_INVALID_ALG     |
 | digestID ≥ 2^31 or missing            | ERR_INVALID_DIGEST_ID           |
 | salt (`random`) &lt; 16 bytes           | ERR_INVALID_DIGEST_SALT         |

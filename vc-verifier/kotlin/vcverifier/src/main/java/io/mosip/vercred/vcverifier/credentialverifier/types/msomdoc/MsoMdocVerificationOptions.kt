@@ -3,10 +3,9 @@ package io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc
 /**
  * Options for mso_mdoc / mDL verification.
  *
- * [strictMdlProfile] (default true) enforces issue #300 §1.2 (mDL DS KeyUsage/EKU) and §3.1 (mDL
- * element types). It relaxes nothing else: §3.2–§3.5 always run. Set false temporarily for
- * non-conformant Certify credentials until inji-certify#1132 (DS EKU) and inji-certify#1147
- * (element types, e.g. `portrait` as bytes) are closed; then remove the flag.
+ * [strictMdlProfile] (default true): false relaxes only the mDL DS KeyUsage/EKU check and the mDL
+ * element type checks; all other mDL checks always run. Temporary, for issuers whose mDLs don't yet
+ * meet these requirements.
  *
  * [currentTimeMillis] supplies "now" for every mdoc time check (DS certificate validity,
  * validFrom / signed not in the future, validUntil expiry). Injectable so tests can pin the clock.

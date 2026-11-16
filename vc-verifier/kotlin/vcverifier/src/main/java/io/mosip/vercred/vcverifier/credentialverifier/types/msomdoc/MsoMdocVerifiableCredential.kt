@@ -29,16 +29,13 @@ import java.math.BigInteger
 import java.util.logging.Logger
 
 internal const val DOCUMENTS = "documents"
-internal const val ISSUING_COUNTRY = "issuing_country"
-internal const val ISSUING_JURISDICTION = "issuing_jurisdiction"
-internal const val ISSUE_DATE = "issue_date"
 internal const val X5C = 33L
 internal const val COSE_ALG_HEADER_LABEL = 1L
 /** COSE algorithm identifier for ES256 (RFC 9053). */
 internal const val COSE_ALG_ES256 = -7L
 /**
  * ES256 only: the COSE signature is checked by identity-credential's coseSign1CheckSignature,
- * which supports ES256 only. ES384 / ES512 / EdDSA are tracked in vc-verifier#302.
+ * which supports ES256 only. ES384 / ES512 / EdDSA are not supported yet.
  */
 internal val SUPPORTED_COSE_ALGS = setOf(BigInteger.valueOf(COSE_ALG_ES256))
 internal const val DOC_TYPE = "docType"
@@ -50,9 +47,6 @@ internal const val ELEMENT_IDENTIFIER = "elementIdentifier"
 internal const val ELEMENT_VALUE = "elementValue"
 internal const val VALUE_DIGESTS = "valueDigests"
 internal const val NAME_SPACES = "nameSpaces"
-internal const val MDL_DOCTYPE = "org.iso.18013.5.1.mDL"
-internal const val MDL_NAMESPACE = "org.iso.18013.5.1"
-internal const val MDL_DS_EKU = "1.0.18013.5.1.2"
 internal val KEY_USAGE_OID: String = Extension.keyUsage.id
 internal val EXTENDED_KEY_USAGE_OID: String = Extension.extendedKeyUsage.id
 /** Index of the digitalSignature bit in [java.security.cert.X509Certificate.getKeyUsage]. */
