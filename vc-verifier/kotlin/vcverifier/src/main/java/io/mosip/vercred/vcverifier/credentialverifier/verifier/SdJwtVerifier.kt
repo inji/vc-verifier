@@ -5,12 +5,14 @@ import io.mosip.vercred.vcverifier.constants.DidMethod
 import io.mosip.vercred.vcverifier.keyResolver.types.did.DidPublicKeyResolver
 import io.mosip.vercred.vcverifier.keyResolver.types.jwks.SdJwtVcIssuerMetadataResolver
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
+import io.mosip.vercred.vcverifier.utils.DateUtils
 import io.mosip.vercred.vcverifier.utils.Util
 import io.mosip.vercred.vcverifier.utils.Util.verifyJwt
 import java.security.PublicKey
 
 private const val DID_SCHEME = "did:"
 private const val HTTPS_SCHEME = "https://"
+private const val MAX_X5C_CHAIN_LENGTH = 10
 /**
  * DID methods accepted for the *issuer* key.
  *
@@ -42,9 +44,9 @@ class SdJwtVerifier {
 
         val jwsObject = JWSObject.parse(jwt)
         val header = jwsObject.header
-        val certBase64 = header.x509CertChain?.firstOrNull()?.toString()
-        val publicKey = if (certBase64 != null) {
-            getPublicKeyFromCertificate(certBase64)
+        val x5cChain = header.x509CertChain.orEmpty()
+        val publicKey = if (x5cChain.isNotEmpty()) {
+            getPublicKeyFromX5cChain(x5cChain.map { it.toString() })
         } else {
             resolvePublicKeyFromIssuer(
                 issuerClaim(jwsObject),
@@ -98,10 +100,18 @@ class SdJwtVerifier {
         return DidPublicKeyResolver().resolve(verificationMethod)
     }
 
-    private fun getPublicKeyFromCertificate(certBase64: String): PublicKey {
-        val certificateBytes = Base64Decoder().decodeFromBase64(certBase64)
-        val x509Certificate = Util.toX509Certificate(certificateBytes)
-        val publicKey = x509Certificate.publicKey
-        return publicKey
+    /**
+     * Returns the leaf certificate's key after checking that every certificate in the chain is
+     * within its validity period, so an expired intermediate is rejected as well as an expired leaf.
+     */
+    private fun getPublicKeyFromX5cChain(x5cChain: List<String>): PublicKey {
+        require(x5cChain.size <= MAX_X5C_CHAIN_LENGTH) {
+            "JWT 'x5c' chain must not contain more than $MAX_X5C_CHAIN_LENGTH certificates"
+        }
+        val certificates = x5cChain.map {
+            Util.toX509Certificate(Base64Decoder().decodeFromBase64(it))
+        }
+        certificates.forEach(DateUtils::validateCertificateValidity)
+        return certificates.first().publicKey
     }
 }

@@ -3,10 +3,12 @@ package io.mosip.vercred.vcverifier.utils
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_CURRENT_DATE_BEFORE_ISSUANCE_DATE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_CURRENT_DATE_BEFORE_VALID_FROM
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_X5C_CERT_VALIDITY
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CURRENT_DATE_BEFORE_ISSUANCE_DATE
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CURRENT_DATE_BEFORE_VALID_FROM
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_EXPIRATION_DATE_INVALID
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_ISSUANCE_DATE_INVALID
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_X5C_CERT_VALIDITY
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_VALID_FROM_INVALID
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_VALID_UNTIL_INVALID
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.EXPIRATION_DATE
@@ -20,6 +22,9 @@ import org.threeten.bp.LocalDateTime
 import org.threeten.bp.OffsetDateTime
 import org.threeten.bp.ZoneOffset
 import org.threeten.bp.format.DateTimeFormatter
+import java.security.cert.CertificateExpiredException
+import java.security.cert.CertificateNotYetValidException
+import java.security.cert.X509Certificate
 import java.util.Date
 import java.util.logging.Logger
 
@@ -111,6 +116,41 @@ object DateUtils {
         val upperBound = currentTime + toleranceInMilliSeconds
         return inputDateTime > upperBound
     }
+
+    /**
+     * The clock for certificate validity checks ([validateCertificateValidity]), so tests can pin
+     * it with `mockkObject(DateUtils)`.
+     */
+    fun currentDate(): Date = Date()
+
+    /**
+     * Throws a [ValidationException] when [certificate] is expired or not yet valid at [currentDate].
+     */
+    fun validateCertificateValidity(certificate: X509Certificate) {
+        val now = currentDate()
+        val reason = try {
+            certificate.checkValidity(now)
+            return
+        } catch (_: CertificateExpiredException) {
+            "expired"
+        } catch (_: CertificateNotYetValidException) {
+            "not yet valid"
+        }
+        logger.warning(
+            "x5c certificate is $reason: subject=${sanitizeForLog(certificate.subjectX500Principal.name)}, " +
+                    "notBefore=${toIsoUtc(certificate.notBefore)}, " +
+                    "notAfter=${toIsoUtc(certificate.notAfter)}, now=${toIsoUtc(now)}"
+        )
+        throw ValidationException(
+            ERROR_MESSAGE_INVALID_X5C_CERT_VALIDITY,
+            ERROR_CODE_INVALID_X5C_CERT_VALIDITY
+        )
+    }
+
+    /** Replaces control characters, so an attacker-supplied value cannot forge log lines. */
+    internal fun sanitizeForLog(value: String): String = value.replace(Regex("\\p{Cntrl}"), " ")
+
+    private fun toIsoUtc(date: Date): String = formatEpochSecondsToIsoUtc(date.time / 1000)
 
     fun formatEpochSecondsToIsoUtc(epochSeconds: Long): String {
         val odt = OffsetDateTime.ofInstant(Instant.ofEpochSecond(epochSeconds), ZoneOffset.UTC)

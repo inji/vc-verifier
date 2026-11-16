@@ -10,6 +10,11 @@ import io.mosip.vercred.vcverifier.constants.CredentialFormat.VC_SD_JWT
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.JWT_VC_JSON
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.CONTEXT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_GENERIC
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_X5C_CERT_VALIDITY
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_X5C_CERT_VALIDITY
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_VC_EXPIRED
+import io.mosip.vercred.vcverifier.credentialverifier.types.SdJwtVerifiableCredential
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.EXCEPTION_DURING_VERIFICATION
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING_KB_JWT
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_CODE_VERIFICATION_FAILED
@@ -30,7 +35,20 @@ import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.Timeout
 import testutils.mockHttpResponse
 import testutils.readClasspathFile
+import java.time.Instant
+import java.util.Date
 import java.util.concurrent.TimeUnit
+
+/**
+ * Inside the x5c validity window of every SD-JWT fixture verified in this class, except
+ * sdJwtWithKbJwtES256.txt, which uses [FUNKE_FIXTURE_VALID_AT]. The tightest windows are
+ * sdJwtWithRs256IssuerAndKbJwtEdDSA.txt (from 2026-10-30T13:44:57Z) and
+ * sdJwtVcResolvableByX5cAndKid.txt (until 2027-02-20T15:36:02Z).
+ */
+private val SD_JWT_FIXTURES_VALID_AT: Instant = Instant.parse("2026-11-01T00:00:00Z")
+
+/** sdJwtWithKbJwtES256.txt (funke.animo.id): leaf certificate valid 2025-04-12 to 2026-05-02. */
+private val FUNKE_FIXTURE_VALID_AT: Instant = Instant.parse("2026-01-01T00:00:00Z")
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class CredentialsVerifierTest {
@@ -49,14 +67,24 @@ class CredentialsVerifierTest {
     }
 
     /**
-     * The published SD-JWT fixture is signed by an external issuer (funke.animo.id) and its
-     * exp has since passed, so it cannot be re-issued locally. These tests cover SD-JWT and
-     * Key Binding JWT verification rather than expiry, so the expiry check is held open for
-     * their duration; expiry itself is covered by DateUtils' own tests.
+     * Runs [block] with [DateUtils.currentDate] pinned to [now], so x5c certificate validity
+     * checks do not depend on the wall clock (the same approach #308 took for mDoc).
+     *
+     * Credentials captured from external issuers cannot be re-issued locally, and their `exp`
+     * passes over time. Tests that cover signature, key binding or key resolution rather than
+     * expiry pass [ignoreCredentialExpiry] to hold the expiry check open; expiry itself is
+     * covered by DateUtils' own tests.
      */
-    private fun <T> ignoringCredentialExpiry(block: () -> T): T {
+    private fun <T> atTime(
+        now: Instant = SD_JWT_FIXTURES_VALID_AT,
+        ignoreCredentialExpiry: Boolean = false,
+        block: () -> T
+    ): T {
         mockkObject(DateUtils)
-        every { DateUtils.isVCExpired(any()) } returns false
+        every { DateUtils.currentDate() } returns Date(now.toEpochMilli())
+        if (ignoreCredentialExpiry) {
+            every { DateUtils.isVCExpired(any()) } returns false
+        }
         try {
             return block()
         } finally {
@@ -170,7 +198,9 @@ class CredentialsVerifierTest {
     fun `should return true for valid sd-jwt with sha 384 algo credential validation success `() {
         val vc = readClasspathFile("sd-jwt_vc/sdJwtSha384Alg.txt")
 
-        val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
+        val verificationResult = atTime {
+            CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
+        }
 
         assertEquals("", verificationResult.verificationMessage)
         assertTrue(verificationResult.verificationStatus)
@@ -182,11 +212,50 @@ class CredentialsVerifierTest {
     fun `should return true for valid sd-jwt with sha 512 algo credential validation success `() {
         val vc = readClasspathFile("sd-jwt_vc/sdJwtSha512Alg.txt")
 
-        val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
+        val verificationResult = atTime {
+            CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
+        }
 
         assertEquals("", verificationResult.verificationMessage)
         assertTrue(verificationResult.verificationStatus)
         assertEquals("", verificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    fun `should return x5c cert validity error code when sd-jwt x5c certificate is expired`() {
+        // sdJwtWithExpiredX5c.txt: x5c notAfter is 2025-10-30, before the pinned time.
+        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithExpiredX5c.txt").trim()
+
+        val verificationResult = atTime {
+            CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
+        }
+
+        assertFalse(verificationResult.verificationStatus)
+        assertEquals(
+            "$EXCEPTION_DURING_VERIFICATION$ERROR_MESSAGE_INVALID_X5C_CERT_VALIDITY",
+            verificationResult.verificationMessage
+        )
+        assertEquals(ERROR_CODE_INVALID_X5C_CERT_VALIDITY, verificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    fun `should report invalid x5c cert validity rather than expired when both exp and x5c certificate have passed`() {
+        // sdJwtWithKbJwtES256.txt: leaf x5c notAfter is 2026-05-02, before the pinned time, and it
+        // carries an `exp` (sdJwtWithExpiredX5c.txt has none, so its expiry check never runs).
+        // isVCExpired is stubbed so the expired `exp` does not depend on the wall clock.
+        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtES256.txt")
+
+        val (validationErrorCode, verificationResult) = atTime {
+            every { DateUtils.isVCExpired(any()) } returns true
+            SdJwtVerifiableCredential().validate(vc).validationErrorCode to
+                    CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
+        }
+
+        assertEquals(ERROR_CODE_VC_EXPIRED, validationErrorCode)
+        assertFalse(verificationResult.verificationStatus)
+        assertEquals(ERROR_CODE_INVALID_X5C_CERT_VALIDITY, verificationResult.verificationErrorCode)
     }
 
     @Test
@@ -267,7 +336,9 @@ class CredentialsVerifierTest {
     fun `should verify plain SD-JWT when holder binding is not required`() {
         val vc = readClasspathFile("sd-jwt_vc/sdJwtWithRootLevelSdNestedPayload.txt")
 
-        val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
+        val verificationResult = atTime {
+            CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
+        }
 
         assertTrue(verificationResult.verificationStatus)
         assertEquals("", verificationResult.verificationMessage)
@@ -288,10 +359,10 @@ class CredentialsVerifierTest {
 
     @Test
     @Timeout(value = 10, unit = TimeUnit.SECONDS)
-    fun `should verify SD-JWT with KB JWT when holder binding is not required`() {
+    fun `should verify SD-JWT with ES256 KB JWT when holder binding is not required`() {
         val vc = readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtES256.txt")
 
-        val verificationResult = ignoringCredentialExpiry {
+        val verificationResult = atTime(FUNKE_FIXTURE_VALID_AT, ignoreCredentialExpiry = true) {
             CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
         }
 
@@ -302,15 +373,39 @@ class CredentialsVerifierTest {
 
     @Test
     @Timeout(value = 10, unit = TimeUnit.SECONDS)
-    fun `should verify SD-JWT with KB JWT via verifyAndGetCredentialStatus when holder binding is required`() {
+    fun `should verify SD-JWT with ES256 KB JWT via verifyAndGetCredentialStatus when holder binding is required`() {
         val vc = readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtES256.txt")
 
-        val result = ignoringCredentialExpiry {
-            CredentialsVerifier().verifyAndGetCredentialStatus(
-                vc,
-                VC_SD_JWT,
-                validateKeyBindingJwt = true
-            )
+        val result = atTime(FUNKE_FIXTURE_VALID_AT, ignoreCredentialExpiry = true) {
+            CredentialsVerifier().verifyAndGetCredentialStatus(vc, VC_SD_JWT, validateKeyBindingJwt = true)
+        }
+
+        assertTrue(result.verificationResult.verificationStatus)
+        assertEquals("", result.verificationResult.verificationMessage)
+        assertEquals("", result.verificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    fun `should verify RS256 SD-JWT with EdDSA KB JWT when holder binding is not required`() {
+        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithRs256IssuerAndKbJwtEdDSA.txt")
+
+        val verificationResult = atTime {
+            CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
+        }
+
+        assertTrue(verificationResult.verificationStatus)
+        assertEquals("", verificationResult.verificationMessage)
+        assertEquals("", verificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    fun `should verify RS256 SD-JWT with EdDSA KB JWT via verifyAndGetCredentialStatus when holder binding is required`() {
+        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithRs256IssuerAndKbJwtEdDSA.txt")
+
+        val result = atTime {
+            CredentialsVerifier().verifyAndGetCredentialStatus(vc, VC_SD_JWT, validateKeyBindingJwt = true)
         }
 
         assertTrue(result.verificationResult.verificationStatus)
@@ -335,7 +430,7 @@ class CredentialsVerifierTest {
     fun `verify SD-JWT without flag defaults to false and succeeds without KB-JWT`() {
         val vc = readClasspathFile("sd-jwt_vc/sdJwtWithRootLevelSdNestedPayload.txt")
 
-        val verificationResult = CredentialsVerifier().verify(vc, VC_SD_JWT)
+        val verificationResult = atTime { CredentialsVerifier().verify(vc, VC_SD_JWT) }
 
         assertTrue(verificationResult.verificationStatus)
         assertEquals("", verificationResult.verificationMessage)
@@ -347,7 +442,7 @@ class CredentialsVerifierTest {
     fun `verifyAndGetCredentialStatus SD-JWT without flag defaults to false and succeeds without KB-JWT`() {
         val vc = readClasspathFile("sd-jwt_vc/sdJwtWithRootLevelSdNestedPayload.txt")
 
-        val result = CredentialsVerifier().verifyAndGetCredentialStatus(vc, VC_SD_JWT)
+        val result = atTime { CredentialsVerifier().verifyAndGetCredentialStatus(vc, VC_SD_JWT) }
 
         assertTrue(result.verificationResult.verificationStatus)
         assertEquals("", result.verificationResult.verificationMessage)
@@ -360,9 +455,9 @@ class CredentialsVerifierTest {
      * certificate across four certificate shapes, and a `kid` resolved against a DID in `iss`.
      * None requires a network call: the key is either embedded in the certificate or derived from
      * the self-certifying DID. Their `exp` passes over time and these tests cover key resolution,
-     * not expiry, so expiry is held open.
+     * not expiry, so expiry is held open and the clock is pinned inside their certificates' validity.
      */
-    private fun verifyRealCredential(name: String) = ignoringCredentialExpiry {
+    private fun verifyRealCredential(name: String) = atTime(ignoreCredentialExpiry = true) {
         CredentialsVerifier().verify(readClasspathFile("sd-jwt_vc/$name").trim(), DC_SD_JWT)
     }
 

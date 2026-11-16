@@ -138,13 +138,20 @@ sequenceDiagram
       SdJwtVerifier->>SdJwtVerifier: Parse JWT
       SdJwtVerifier->>SdJwtVerifier: Extract JWT Header
       SdJwtVerifier->>SdJwtVerifier: Extract x5c Certificate
-      SdJwtVerifier->>SdJwtVerifier: Extract Algorithm
-      SdJwtVerifier->>SdJwtVerifier: Extract Public Key
-      SdJwtVerifier->>SdJwtVerifier: Verify Signature
-      alt Signature Invalid
-         SdJwtVerifier-->>SdJwtVerifiableCredential: Return Verification Result as False with error
-      else Signature Valid
-         SdJwtVerifier-->>SdJwtVerifiableCredential: Return Verification Result as True
+      SdJwtVerifier->>SdJwtVerifier: Check every certificate in the x5c chain is within its validity period
+      alt Certificate expired or not yet valid
+         SdJwtVerifier-->>SdJwtVerifiableCredential: Return Verification Result as False with ERR_INVALID_X5C_CERT_VALIDITY
+      else All certificates valid
+         SdJwtVerifier->>SdJwtVerifier: Extract Algorithm
+         SdJwtVerifier->>SdJwtVerifier: Extract Public Key
+         SdJwtVerifier->>SdJwtVerifier: Verify Signature
+         alt Signature Invalid
+            SdJwtVerifier-->>SdJwtVerifiableCredential: Return Verification Result as False with error
+         else Signature Valid
+            SdJwtVerifier-->>SdJwtVerifiableCredential: Return Verification Result as True
+         end
       end
    end
 ```
+
+Certificate validity is checked against the current time, not against the credential's `iat` or `exp`, so a credential becomes invalid once any certificate in its `x5c` chain expires, even if the credential's own `exp` is later. When both the credential's `exp` and a certificate's validity period have passed, the result is reported as invalid (`ERR_INVALID_X5C_CERT_VALIDITY`), not as expired (`ERR_VC_EXPIRED`).

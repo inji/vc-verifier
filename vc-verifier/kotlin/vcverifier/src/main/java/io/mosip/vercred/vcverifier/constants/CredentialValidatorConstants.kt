@@ -112,6 +112,10 @@ object CredentialValidatorConstants {
     const val ERROR_CODE_MISSING_KB_JWT = "${ERROR_CODE_MISSING}KB_JWT"
     const val ERROR_MESSAGE_MISSING_KB_JWT = "Missing Key Binding JWT"
 
+    const val ERROR_CODE_INVALID_X5C_CERT_VALIDITY = "${ERROR_CODE_INVALID}X5C_CERT_VALIDITY"
+    const val ERROR_MESSAGE_INVALID_X5C_CERT_VALIDITY =
+        "x5c certificate is outside its validity period"
+
     
     val ALGORITHMS_SUPPORTED = listOf(
         "PS256",

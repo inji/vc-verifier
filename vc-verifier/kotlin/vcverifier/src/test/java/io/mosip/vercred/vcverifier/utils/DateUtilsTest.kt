@@ -13,6 +13,16 @@ import org.junit.jupiter.api.Assertions.assertTrue
 class DateUtilsTest {
 
     @Test
+    fun `sanitizeForLog replaces control characters so a certificate subject cannot forge log lines`() {
+        val subject = "CN=issuer\nWARNING: forged line\r\u0000,O=Org"
+
+        val sanitized = DateUtils.sanitizeForLog(subject)
+
+        assertEquals("CN=issuer WARNING: forged line  ,O=Org", sanitized)
+        assertFalse(sanitized.contains('\n') || sanitized.contains('\r'))
+    }
+
+    @Test
     fun testBasicUtcDate() {
         val date = parseDate("2025-09-17T10:15:30Z")
         assertNotNull(date)
