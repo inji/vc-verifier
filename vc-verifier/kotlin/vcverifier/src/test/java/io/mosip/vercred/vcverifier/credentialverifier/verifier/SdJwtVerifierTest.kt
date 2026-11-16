@@ -142,6 +142,19 @@ class SdJwtVerifierTest{
     }
 
     @Test
+    fun `should reject an x5c chain longer than ten certificates before decoding it`() {
+        // The entries are not certificates, so decoding any of them would fail differently.
+        val x5c = List(11) { "\"AAAA\"" }.joinToString(",")
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            SdJwtVerifier().verify(
+                sdJwtWithHeader("""{"alg":"ES256","typ":"vc+sd-jwt","x5c":[$x5c]}""", "{}")
+            )
+        }
+
+        assertEquals("JWT 'x5c' chain must not contain more than 10 certificates", error.message)
+    }
+
+    @Test
     fun `should require an iss claim when the header carries no x5c`() {
         val error = assertThrows(IllegalArgumentException::class.java) {
             SdJwtVerifier().verify(sdJwtWithHeader("""{"alg":"ES256","typ":"vc+sd-jwt"}""", "{}"))

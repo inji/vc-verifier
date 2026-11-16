@@ -12,6 +12,7 @@ import java.security.PublicKey
 
 private const val DID_SCHEME = "did:"
 private const val HTTPS_SCHEME = "https://"
+private const val MAX_X5C_CHAIN_LENGTH = 10
 /**
  * DID methods accepted for the *issuer* key.
  *
@@ -104,6 +105,9 @@ class SdJwtVerifier {
      * within its validity period, so an expired intermediate is rejected as well as an expired leaf.
      */
     private fun getPublicKeyFromX5cChain(x5cChain: List<String>): PublicKey {
+        require(x5cChain.size <= MAX_X5C_CHAIN_LENGTH) {
+            "JWT 'x5c' chain must not contain more than $MAX_X5C_CHAIN_LENGTH certificates"
+        }
         val certificates = x5cChain.map {
             Util.toX509Certificate(Base64Decoder().decodeFromBase64(it))
         }

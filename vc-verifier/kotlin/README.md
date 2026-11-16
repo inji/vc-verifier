@@ -959,6 +959,7 @@ For other unknown exceptions, error code will be `ERR_GENERIC`
 | nonce in KB JWT payload   | ERR_INVALID_NONCE                  |
 | iat in KB JWT payload     | ERR_INVALID_KB_JWT_IAT             |
 | sd_hash in KB JWT payload | ERR_INVALID_SD_HASH                |
+| x5c certificate validity  | ERR_INVALID_X5C_CERT_VALIDITY      |
 
 **cwt_vc Format VC Error Codes**
 

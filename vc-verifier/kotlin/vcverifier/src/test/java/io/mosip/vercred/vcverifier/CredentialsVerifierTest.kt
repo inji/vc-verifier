@@ -12,6 +12,8 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.CONTEX
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_GENERIC
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_X5C_CERT_VALIDITY
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_X5C_CERT_VALIDITY
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_VC_EXPIRED
+import io.mosip.vercred.vcverifier.credentialverifier.types.SdJwtVerifiableCredential
 import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.EXCEPTION_DURING_VERIFICATION
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_MISSING_KB_JWT
@@ -40,8 +42,8 @@ import java.util.concurrent.TimeUnit
 /**
  * Inside the x5c validity window of every SD-JWT fixture verified in this class, except
  * sdJwtWithKbJwtES256.txt, which uses [FUNKE_FIXTURE_VALID_AT]. The tightest windows are
- * sdJwtWithRootLevelSdNestedPayload.txt (from 2026-07-29) and sdJwtVcWithX5cMultipleSans.txt
- * (until 2027-03-22).
+ * sdJwtWithRs256IssuerAndKbJwtEdDSA.txt (from 2026-10-30T13:44:57Z) and
+ * sdJwtVcResolvableByX5cAndKid.txt (until 2027-02-20T15:36:02Z).
  */
 private val SD_JWT_FIXTURES_VALID_AT: Instant = Instant.parse("2026-11-01T00:00:00Z")
 
@@ -234,6 +236,25 @@ class CredentialsVerifierTest {
             "$EXCEPTION_DURING_VERIFICATION$ERROR_MESSAGE_INVALID_X5C_CERT_VALIDITY",
             verificationResult.verificationMessage
         )
+        assertEquals(ERROR_CODE_INVALID_X5C_CERT_VALIDITY, verificationResult.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
+    fun `should report invalid x5c cert validity rather than expired when both exp and x5c certificate have passed`() {
+        // sdJwtWithKbJwtES256.txt: leaf x5c notAfter is 2026-05-02, before the pinned time, and it
+        // carries an `exp` (sdJwtWithExpiredX5c.txt has none, so its expiry check never runs).
+        // isVCExpired is stubbed so the expired `exp` does not depend on the wall clock.
+        val vc = readClasspathFile("sd-jwt_vc/sdJwtWithKbJwtES256.txt")
+
+        val (validationErrorCode, verificationResult) = atTime {
+            every { DateUtils.isVCExpired(any()) } returns true
+            SdJwtVerifiableCredential().validate(vc).validationErrorCode to
+                    CredentialsVerifier().verify(vc, VC_SD_JWT, validateKeyBindingJwt = false)
+        }
+
+        assertEquals(ERROR_CODE_VC_EXPIRED, validationErrorCode)
+        assertFalse(verificationResult.verificationStatus)
         assertEquals(ERROR_CODE_INVALID_X5C_CERT_VALIDITY, verificationResult.verificationErrorCode)
     }
 

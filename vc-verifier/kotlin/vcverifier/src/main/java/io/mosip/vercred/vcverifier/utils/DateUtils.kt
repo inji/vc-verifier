@@ -118,8 +118,8 @@ object DateUtils {
     }
 
     /**
-     * The current time. Time-dependent checks read it from here so tests can pin it with
-     * `mockkObject(DateUtils)`.
+     * The clock for certificate validity checks ([validateCertificateValidity]), so tests can pin
+     * it with `mockkObject(DateUtils)`.
      */
     fun currentDate(): Date = Date()
 
@@ -137,7 +137,7 @@ object DateUtils {
             "not yet valid"
         }
         logger.warning(
-            "x5c certificate is $reason: subject=${certificate.subjectX500Principal.name}, " +
+            "x5c certificate is $reason: subject=${sanitizeForLog(certificate.subjectX500Principal.name)}, " +
                     "notBefore=${toIsoUtc(certificate.notBefore)}, " +
                     "notAfter=${toIsoUtc(certificate.notAfter)}, now=${toIsoUtc(now)}"
         )
@@ -146,6 +146,9 @@ object DateUtils {
             ERROR_CODE_INVALID_X5C_CERT_VALIDITY
         )
     }
+
+    /** Replaces control characters, so an attacker-supplied value cannot forge log lines. */
+    internal fun sanitizeForLog(value: String): String = value.replace(Regex("\\p{Cntrl}"), " ")
 
     private fun toIsoUtc(date: Date): String = formatEpochSecondsToIsoUtc(date.time / 1000)
 
