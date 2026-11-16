@@ -209,6 +209,31 @@ class CredentialsVerifierTest {
 
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
+    fun `should return the verification failed code, not ERR_VC_EXPIRED, for an expired mDL with a bad signature`() {
+        val credential = expiredMdl(corruptSignature = true)
+
+        val result = CredentialsVerifier().verify(credential, MSO_MDOC)
+
+        assertFalse(result.verificationStatus)
+        assertEquals(ERROR_CODE_VERIFICATION_FAILED, result.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS)
+    fun `should return the verification failed code, not ERR_VC_EXPIRED, for an expired mDL with a mismatched docType`() {
+        val credential = expiredMdl(
+            shape = MdlEdgeCaseTestDataGenerator.Shape.ISSUER_SIGNED,
+            topLevelDocType = "org.iso.18013.5.5.mDL",
+        )
+
+        val result = CredentialsVerifier().verify(credential, MSO_MDOC)
+
+        assertFalse(result.verificationStatus)
+        assertEquals(ERROR_CODE_VERIFICATION_FAILED, result.verificationErrorCode)
+    }
+
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should verify a selectively disclosed mDL whose MSO digests every mandatory element`() {
         val credential = MdlEdgeCaseTestDataGenerator.create(discloseOnly = setOf("family_name", "birth_date"))
 
@@ -261,7 +286,8 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should still enforce mDL mandatory elements and Latin-1 text when mdocStrictProfile is false`() {
-        // The flag relaxes only the DS KeyUsage/EKU and element type checks.
+        // The flag relaxes only the DS KeyUsage/EKU check, the element type checks and the
+        // control-character part of the Latin-1 check.
         val missingPortrait = MdlEdgeCaseTestDataGenerator.create(
             records = MdlEdgeCaseTestDataGenerator.recordsWithout("portrait")
         )
@@ -286,7 +312,12 @@ class CredentialsVerifierTest {
         }
     }
 
-    private fun expiredMdl(tamperedElement: Pair<String, UnicodeString>? = null): String {
+    private fun expiredMdl(
+        tamperedElement: Pair<String, UnicodeString>? = null,
+        corruptSignature: Boolean = false,
+        shape: MdlEdgeCaseTestDataGenerator.Shape = MdlEdgeCaseTestDataGenerator.Shape.LATEST,
+        topLevelDocType: String? = MdlEdgeCaseTestDataGenerator.MDL_DOC_TYPE,
+    ): String {
         val now = java.time.Instant.now()
         val validFrom = now.minusSeconds(2 * 86400)
         return MdlEdgeCaseTestDataGenerator.create(
@@ -295,6 +326,9 @@ class CredentialsVerifierTest {
             validUntil = now.minusSeconds(86400),
             records = MdlEdgeCaseTestDataGenerator.mandatoryRecords(validFrom),
             tamperedElement = tamperedElement,
+            corruptSignature = corruptSignature,
+            shape = shape,
+            topLevelDocType = topLevelDocType,
         )
     }
 
@@ -345,14 +379,20 @@ class CredentialsVerifierTest {
     @Test
     @Timeout(value = 20, unit = TimeUnit.SECONDS)
     fun `should verify the static mDL samples through the public API`() {
-        listOf("mdl-valid", "mdl-shape-b", "mdl-shape-c").forEach { sample ->
-            val result = CredentialsVerifier().verify(readClasspathFile("mso_mdoc/$sample.b64url").trim(), MSO_MDOC)
-            assertTrue(result.verificationStatus, sample)
-            assertEquals("", result.verificationErrorCode, sample)
+        listOf(true, false).forEach { strict ->
+            listOf("mdl-valid", "mdl-shape-b", "mdl-shape-c").forEach { sample ->
+                val result = CredentialsVerifier().verify(
+                    readClasspathFile("mso_mdoc/$sample.b64url").trim(), MSO_MDOC, mdocStrictProfile = strict
+                )
+                assertTrue(result.verificationStatus, "$sample, strict=$strict")
+                assertEquals("", result.verificationErrorCode, "$sample, strict=$strict")
+            }
+            val expired = CredentialsVerifier().verify(
+                readClasspathFile("mso_mdoc/mdl-expired.b64url").trim(), MSO_MDOC, mdocStrictProfile = strict
+            )
+            assertTrue(expired.verificationStatus, "mdl-expired, strict=$strict")
+            assertEquals(ERROR_CODE_VC_EXPIRED, expired.verificationErrorCode, "mdl-expired, strict=$strict")
         }
-        val expired = CredentialsVerifier().verify(readClasspathFile("mso_mdoc/mdl-expired.b64url").trim(), MSO_MDOC)
-        assertTrue(expired.verificationStatus)
-        assertEquals(ERROR_CODE_VC_EXPIRED, expired.verificationErrorCode)
 
     }
 

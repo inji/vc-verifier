@@ -173,6 +173,40 @@ class MdlValidatorTest {
     }
 
     @Test
+    fun `should reject control characters only in strict mode`() {
+        val multiLineAddress = "resident_address" to UnicodeString("1 Main St\nSpringfield")
+        assertDoesNotThrow { validateRelaxed(multiLineAddress) }
+        assertInvalid { validateStrict(multiLineAddress) }
+    }
+
+    @Test
+    fun `should reject non-Latin-1 text and text over 150 characters in both modes`() {
+        listOf(
+            "family_name" to UnicodeString("日本"),
+            "family_name" to UnicodeString("a".repeat(151)),
+        ).forEach { element ->
+            assertInvalid { validateStrict(element) }
+            assertInvalid { validateRelaxed(element) }
+        }
+    }
+
+    @Test
+    fun `should accept full-dates tagged 1004 and untagged full-dates in strict mode`() {
+        listOf<(String) -> DataItem>(
+            { UnicodeString(it).apply { setTag(1004) } },
+            { UnicodeString(it) },
+        ).forEach { fullDate ->
+            assertDoesNotThrow {
+                validateStrict(
+                    "birth_date" to fullDate("1990-01-01"),
+                    "issue_date" to fullDate("2030-01-01"),
+                    "expiry_date" to fullDate("2035-01-01"),
+                )
+            }
+        }
+    }
+
+    @Test
     fun `should allow full UTF-8 in national character names`() {
         assertDoesNotThrow { validateStrict("family_name_national_character" to UnicodeString("山田")) }
     }
@@ -277,13 +311,14 @@ class MdlValidatorTest {
     }
 
     @ParameterizedTest
-    @ValueSource(longs = [24])
+    @ValueSource(longs = [23, 24])
     fun `should accept a matching age_in_years`(age: Long) {
+        // birth_date 2000-01-01, validFrom 2024-01-01: 23 is the age one day before.
         assertDoesNotThrow { validateAgeInYears(age) }
     }
 
     @ParameterizedTest
-    @ValueSource(longs = [22, 23, 25, 26])
+    @ValueSource(longs = [22, 25, 26])
     fun `should reject an age_in_years outside the signed-validFrom window`(age: Long) {
         assertInvalid { validateAgeInYears(age) }
     }
@@ -328,6 +363,26 @@ class MdlValidatorTest {
         }
     }
 
+    @ParameterizedTest(name = "birth_date {0}, {1} = {2}")
+    @MethodSource("ageClaimsWithinOneDayOfUtcDate")
+    fun `should accept an age claim that holds one calendar day from the UTC date`(
+        birthDate: String,
+        identifier: String,
+        value: DataItem,
+    ) {
+        assertDoesNotThrow { validateAgeAtEveningUtc(birthDate, identifier to value) }
+    }
+
+    @ParameterizedTest(name = "birth_date {0}, {1} = {2}")
+    @MethodSource("ageClaimsTwoDaysFromUtcDate")
+    fun `should reject an age claim that holds only two or more days from the UTC date`(
+        birthDate: String,
+        identifier: String,
+        value: DataItem,
+    ) {
+        assertInvalid { validateAgeAtEveningUtc(birthDate, identifier to value) }
+    }
+
     @Test
     fun `should reject a birth_date after validFrom`() {
         assertInvalid {
@@ -362,8 +417,14 @@ class MdlValidatorTest {
     }
 
     @Test
-    fun `should fail when issue_date is after validFrom`() {
-        val exception = assertIssueDateInvalid { validateIssueDate("2025-06-02", validFrom = "2025-06-01T23:59:59Z") }
+    fun `should pass when issue_date is the day after the UTC date of validFrom`() {
+        // An issuer east of UTC writes its local date, already the next day.
+        assertDoesNotThrow { validateIssueDate("2026-06-15", validFrom = "2026-06-14T20:30:00Z") }
+    }
+
+    @Test
+    fun `should fail when issue_date is more than one day after the UTC date of validFrom`() {
+        val exception = assertIssueDateInvalid { validateIssueDate("2026-06-16", validFrom = "2026-06-14T20:30:00Z") }
         assertEquals(ERROR_MESSAGE_INVALID_ISSUE_DATE, exception.errorMessage)
     }
 
@@ -380,8 +441,13 @@ class MdlValidatorTest {
     }
 
     @Test
-    fun `should fail a tdate issue_date after validFrom`() {
-        assertIssueDateInvalid { validateIssueDate("2025-06-02T00:00:00Z", validFrom = "2025-06-01T00:00:00Z") }
+    fun `should pass a tdate issue_date on the day after the UTC date of validFrom`() {
+        assertDoesNotThrow { validateIssueDate("2026-06-15T01:00:00Z", validFrom = "2026-06-14T20:30:00Z") }
+    }
+
+    @Test
+    fun `should fail a tdate issue_date more than one day after the UTC date of validFrom`() {
+        assertIssueDateInvalid { validateIssueDate("2026-06-16T00:00:00Z", validFrom = "2026-06-14T20:30:00Z") }
     }
 
     @ParameterizedTest
@@ -398,6 +464,13 @@ class MdlValidatorTest {
         "birth_date" to UnicodeString("2000-01-01"),
         "age_in_years" to UnsignedInteger(age),
         mso = msoWithValidity(validFrom = "2024-01-01T00:00:00Z"),
+    )
+
+    /** signed = validFrom = 2026-06-14T20:30:00Z, already 2026-06-15 east of UTC. */
+    private fun validateAgeAtEveningUtc(birthDate: String, claim: Pair<String, DataItem>) = validateStrict(
+        "birth_date" to UnicodeString(birthDate),
+        claim,
+        mso = msoWithValidity(validFrom = "2026-06-14T20:30:00Z"),
     )
 
     private fun validateStrict(vararg elements: Pair<String, DataItem>, mso: CborMap = DEFAULT_MSO) =
@@ -540,6 +613,25 @@ class MdlValidatorTest {
                 "numeric value",
                 arrayOf(privilege("codes" to arrayOf(mapOf("code" to UnicodeString("S01"), "value" to UnsignedInteger(5))))),
             ),
+        )
+
+        /** Each claim is wrong on the UTC date 2026-06-14 but right one day before or after it. */
+        @JvmStatic
+        fun ageClaimsWithinOneDayOfUtcDate() = listOf(
+            // Turns 18 on 2026-06-15 (the issuer's local date).
+            args("2008-06-15", "age_over_18", TRUE),
+            args("2008-06-15", "age_in_years", UnsignedInteger(18)),
+            // Turned 18 on 2026-06-14 (UTC); the issuer's local date was still 2026-06-13.
+            args("2008-06-14", "age_over_18", FALSE),
+            args("2008-06-14", "age_in_years", UnsignedInteger(17)),
+        )
+
+        @JvmStatic
+        fun ageClaimsTwoDaysFromUtcDate() = listOf(
+            args("2008-06-16", "age_over_18", TRUE),
+            args("2008-06-16", "age_in_years", UnsignedInteger(18)),
+            args("2008-06-13", "age_over_18", FALSE),
+            args("2008-06-13", "age_in_years", UnsignedInteger(17)),
         )
 
         @JvmStatic

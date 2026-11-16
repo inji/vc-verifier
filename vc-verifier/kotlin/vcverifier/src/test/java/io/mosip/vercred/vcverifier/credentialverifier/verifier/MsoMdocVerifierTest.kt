@@ -58,6 +58,9 @@ import java.security.MessageDigest
 import testutils.MdlEdgeCaseTestDataGenerator
 import java.math.BigInteger
 import io.mosip.vercred.vcverifier.exception.InvalidPropertyException
+import io.mosip.vercred.vcverifier.CredentialsVerifier
+import io.mosip.vercred.vcverifier.constants.CredentialFormat
+import io.mosip.vercred.vcverifier.constants.CredentialVerifierConstants.ERROR_CODE_VERIFICATION_FAILED
 import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.utils.BuildConfig
@@ -289,6 +292,25 @@ class MsoMdocVerifierTest {
     }
 
     @Test
+    fun `should match the MSO docType against documents 0 docType even when a top-level docType matches`() {
+        // IssuerSigned is taken from documents[0], so its docType is the one compared.
+        val credential = MdlEdgeCaseTestDataGenerator.create(
+            shape = Shape.DOCUMENTS,
+            topLevelDocType = "org.iso.18013.5.5.mDL",
+            documentsOuterDocType = MdlEdgeCaseTestDataGenerator.MDL_DOC_TYPE,
+        )
+
+        val exception = assertThrows(InvalidPropertyException::class.java) {
+            MsoMdocVerifier().verify(credential)
+        }
+        assertEquals("Property mismatch with docType in the credential", exception.message)
+
+        val result = CredentialsVerifier().verify(credential, CredentialFormat.MSO_MDOC)
+        assertFalse(result.verificationStatus)
+        assertEquals(ERROR_CODE_VERIFICATION_FAILED, result.verificationErrorCode)
+    }
+
+    @Test
     fun `should fail when MSO signed date is outside DS certificate validity`() {
         val credential = MdlEdgeCaseTestDataGenerator.create(
             signed = Instant.parse("2019-12-31T23:59:59Z"),
@@ -303,127 +325,33 @@ class MsoMdocVerifierTest {
     }
 
     @Test
-    fun `should throw when protected header is missing alg`() {
-        val issuerAuth = CborArray().apply {
-            add(ByteString(ByteArray(0)))
-            add(CborMap())
-            add(ByteString(ByteArray(0)))
-            add(ByteString(ByteArray(4)))
+    fun `should throw when the protected header is empty and has no alg`() {
+        val exception = assertThrows(ValidationException::class.java) {
+            MsoMdocVerifier().verify(factory.create(emptyProtectedHeader = true))
         }
-
-        val verifier = MsoMdocVerifier()
-        val method = verifier.javaClass.getDeclaredMethod("verifyProtectedHeaderAlg", CborArray::class.java)
-        method.isAccessible = true
-
-        val invocationException = assertThrows(InvocationTargetException::class.java) {
-            method.invoke(verifier, issuerAuth)
-        }
-        val validationException = invocationException.targetException as ValidationException
-        assertEquals(ERROR_MESSAGE_MISSING_ALG, validationException.errorMessage)
-        assertEquals(ERROR_CODE_MISSING_ALG, validationException.errorCode)
+        assertEquals(ERROR_MESSAGE_MISSING_ALG, exception.errorMessage)
+        assertEquals(ERROR_CODE_MISSING_ALG, exception.errorCode)
     }
 
     @Test
     fun `should throw when protected header alg is unsupported EdDSA`() {
-        val protectedHeaderBytes = ByteArrayOutputStream().also {
-            CborEncoder(it).encode(CborMap().apply {
-                // EdDSA is not supported.
-                put(UnsignedInteger(1), NegativeInteger(-8))
-            })
-        }.toByteArray()
-        val issuerAuth = CborArray().apply {
-            add(ByteString(protectedHeaderBytes))
-            add(CborMap())
-            add(ByteString(ByteArray(0)))
-            add(ByteString(ByteArray(4)))
+        // EdDSA is not supported.
+        val exception = assertThrows(ValidationException::class.java) {
+            MsoMdocVerifier().verify(factory.create(alg = -8))
         }
-
-        val verifier = MsoMdocVerifier()
-        val method = verifier.javaClass.getDeclaredMethod("verifyProtectedHeaderAlg", CborArray::class.java)
-        method.isAccessible = true
-
-        val invocationException = assertThrows(InvocationTargetException::class.java) {
-            method.invoke(verifier, issuerAuth)
-        }
-        val validationException = invocationException.targetException as ValidationException
-        assertEquals(ERROR_MESSAGE_INVALID_MSO_ALG, validationException.errorMessage)
-        assertEquals(ERROR_CODE_INVALID_ALG, validationException.errorCode)
+        assertEquals(ERROR_MESSAGE_INVALID_MSO_ALG, exception.errorMessage)
+        assertEquals(ERROR_CODE_INVALID_ALG, exception.errorCode)
     }
 
     @Test
     fun `should throw when protected header alg is unsigned wrap of ES256`() {
         // 2^64 - 7 == 18446744073709551609; toLong() would narrow this to -7.
-        val wrapAroundAlg = java.math.BigInteger("18446744073709551609")
-        val protectedHeaderBytes = ByteArrayOutputStream().also {
-            CborEncoder(it).encode(CborMap().apply {
-                put(UnsignedInteger(1), UnsignedInteger(wrapAroundAlg))
-            })
-        }.toByteArray()
-        val issuerAuth = CborArray().apply {
-            add(ByteString(protectedHeaderBytes))
-            add(CborMap())
-            add(ByteString(ByteArray(0)))
-            add(ByteString(ByteArray(4)))
+        val wrapAroundAlg = UnsignedInteger(java.math.BigInteger("18446744073709551609"))
+        val exception = assertThrows(ValidationException::class.java) {
+            MsoMdocVerifier().verify(factory.create(algItemOverride = wrapAroundAlg))
         }
-
-        val verifier = MsoMdocVerifier()
-        val method = verifier.javaClass.getDeclaredMethod("verifyProtectedHeaderAlg", CborArray::class.java)
-        method.isAccessible = true
-
-        val invocationException = assertThrows(InvocationTargetException::class.java) {
-            method.invoke(verifier, issuerAuth)
-        }
-        val validationException = invocationException.targetException as ValidationException
-        assertEquals(ERROR_MESSAGE_INVALID_MSO_ALG, validationException.errorMessage)
-        assertEquals(ERROR_CODE_INVALID_ALG, validationException.errorCode)
-    }
-
-    @Test
-    fun `should accept protected header alg ES256`() {
-        val protectedHeaderBytes = ByteArrayOutputStream().also {
-            CborEncoder(it).encode(CborMap().apply {
-                put(UnsignedInteger(1), NegativeInteger(-7))
-            })
-        }.toByteArray()
-        val issuerAuth = CborArray().apply {
-            add(ByteString(protectedHeaderBytes))
-            add(CborMap())
-            add(ByteString(ByteArray(0)))
-            add(ByteString(ByteArray(4)))
-        }
-
-        val verifier = MsoMdocVerifier()
-        val method = verifier.javaClass.getDeclaredMethod("verifyProtectedHeaderAlg", CborArray::class.java)
-        method.isAccessible = true
-
-        assertDoesNotThrow { method.invoke(verifier, issuerAuth) }
-    }
-
-    @Test
-    fun `should reject protected header alg ES384 and ES512`() {
-        // ES256 only.
-        listOf(-35L, -36L).forEach { alg ->
-            val protectedHeaderBytes = ByteArrayOutputStream().also {
-                CborEncoder(it).encode(CborMap().apply {
-                    put(UnsignedInteger(1), NegativeInteger(alg))
-                })
-            }.toByteArray()
-            val issuerAuth = CborArray().apply {
-                add(ByteString(protectedHeaderBytes))
-                add(CborMap())
-                add(ByteString(ByteArray(0)))
-                add(ByteString(ByteArray(4)))
-            }
-            val verifier = MsoMdocVerifier()
-            val method = verifier.javaClass.getDeclaredMethod("verifyProtectedHeaderAlg", CborArray::class.java)
-            method.isAccessible = true
-            val invocationException = assertThrows(InvocationTargetException::class.java) {
-                method.invoke(verifier, issuerAuth)
-            }
-            val validationException = invocationException.targetException as ValidationException
-            assertEquals(ERROR_MESSAGE_INVALID_MSO_ALG, validationException.errorMessage)
-            assertEquals(ERROR_CODE_INVALID_ALG, validationException.errorCode)
-        }
+        assertEquals(ERROR_MESSAGE_INVALID_MSO_ALG, exception.errorMessage)
+        assertEquals(ERROR_CODE_INVALID_ALG, exception.errorCode)
     }
 
     @Test

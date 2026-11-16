@@ -9,11 +9,13 @@ Each `mdl-*.b64url` file holds one base64url string (no padding). All data is fi
 | `mdl-valid.b64url` | Shape A `{issuerAuth, nameSpaces}` with the 11 mandatory mDL elements | Passes |
 | `mdl-shape-b.b64url` | Shape B `{docType, issuerSigned}`, same content | Passes |
 | `mdl-shape-c.b64url` | Shape C `{documents: [ … ]}`, same content | Passes |
-| `mdl-expired.b64url` | `validFrom` 2024-11-16, `validUntil` 2026-11-15 | `true` + `ERR_VC_EXPIRED` |
+| `mdl-expired.b64url` | `signed` = `validFrom` 2024-11-16, `validUntil` 2026-11-15, `issue_date` 2024-11-16 | `true` + `ERR_VC_EXPIRED` |
 | `mdl-missing-ds-eku.b64url` | Real Certify mDL; DS certificate lacks the mDL EKU, mandatory elements missing | Fails |
 
-Dates of the passing samples: `signed` = `validFrom` = 2026-11-15T00:00:00Z, `validUntil` =
-2031-11-16T00:00:00Z, `issue_date` the day before `validFrom`. **Regenerate the set before 2031-11-16.**
+Dates of the passing samples: `signed` = `validFrom` = 2026-11-16T00:00:00Z, `validUntil` =
+2031-11-17T00:00:00Z, `issue_date` = 2026-11-16 (the UTC date of `validFrom`). **Regenerate the set
+before 2031-11-17.** `birth_date`, `issue_date`, `expiry_date` and the `driving_privileges` dates are
+ISO full-dates, tagged `#6.1004(tstr)`.
 
 All samples except `mdl-missing-ds-eku` are signed with the test key `test_ds_key_pkcs8.pem`. The DS
 certificate is in `mdl-sample-ds-cert.pem`:

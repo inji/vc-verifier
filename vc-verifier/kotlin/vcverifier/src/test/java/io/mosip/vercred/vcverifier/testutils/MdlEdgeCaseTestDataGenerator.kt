@@ -75,11 +75,19 @@ internal object MdlEdgeCaseTestDataGenerator {
         untaggedMso: Boolean = false,
         /** COSE alg value; placed in the protected header unless [algInUnprotectedHeader]. */
         alg: Long = -7,
+        /** Replaces [alg] with any CBOR item, e.g. an unsigned value that does not fit a Long. */
+        algItemOverride: DataItem? = null,
         algInUnprotectedHeader: Boolean = false,
+        /** Sends a zero-length protected header, so alg is in neither header. */
+        emptyProtectedHeader: Boolean = false,
         /** Replaces (or, with null, removes) validityInfo entries, e.g. "validFrom" to an untagged date. */
         validityInfoOverrides: Map<String, DataItem?> = emptyMap(),
         /** Extra mDL items (digestID, elementIdentifier, value) sent first and never digested in the MSO. */
         forgedItems: List<Triple<Long, String, DataItem>> = emptyList(),
+        /** Flips one byte of the COSE signature after signing. */
+        corruptSignature: Boolean = false,
+        /** Shape C only: also writes a top-level docType next to "documents". */
+        documentsOuterDocType: String? = null,
     ): String {
         val privateKey = loadPrivateKey()
         val dsCertificate = certificate ?: loadCertificate(includeKeyUsage)
@@ -141,23 +149,26 @@ internal object MdlEdgeCaseTestDataGenerator {
         }
         val payload = if (untaggedMso) encode(ByteString(encode(mso)))
         else encode(ByteString(encode(mso)).apply { setTag(24) })
-        val algItem: DataItem = if (alg < 0) NegativeInteger(alg) else UnsignedInteger(alg)
-        val protectedHeader = encode(
+        val algItem: DataItem = algItemOverride ?: if (alg < 0) NegativeInteger(alg) else UnsignedInteger(alg)
+        val protectedHeader = if (emptyProtectedHeader) ByteArray(0) else encode(
             CborMap().apply { if (!algInUnprotectedHeader) put(UnsignedInteger(1), algItem) }
         )
         val issuerAuth = CborArray().apply {
             add(ByteString(protectedHeader))
             add(
                 CborMap().apply {
-                    if (algInUnprotectedHeader) put(UnsignedInteger(1), algItem)
+                    if (algInUnprotectedHeader && !emptyProtectedHeader) put(UnsignedInteger(1), algItem)
                     put(UnsignedInteger(33), ByteString(dsCertificate.encoded))
                 }
             )
             add(ByteString(payload))
-            add(ByteString(sign(privateKey, protectedHeader, payload)))
+            val signature = sign(privateKey, protectedHeader, payload)
+            if (corruptSignature) signature[0] = (signature[0].toInt() xor 0x01).toByte()
+            add(ByteString(signature))
         }
 
-        val credential = assembleCredential(shape, topLevelDocType, encode(issuerAuth), disclosedItems)
+        val credential =
+            assembleCredential(shape, topLevelDocType, documentsOuterDocType, encode(issuerAuth), disclosedItems)
         return Base64.getUrlEncoder().withoutPadding().encodeToString(credential)
     }
 
@@ -217,15 +228,14 @@ internal object MdlEdgeCaseTestDataGenerator {
     }
 
     fun mandatoryRecords(validFrom: Instant = Instant.now()): List<Pair<String, DataItem>> {
-        // issue_date must not be after validFrom (UTC date).
-        val issueDate = validFrom.atZone(ZoneOffset.UTC).toLocalDate().minusDays(1)
-        val fullDate = DateTimeFormatter.ISO_LOCAL_DATE
+        val issueDate = validFrom.atZone(ZoneOffset.UTC).toLocalDate()
+        val expiryDate = issueDate.plusYears(5)
         return listOf(
             "family_name" to UnicodeString("Doe"),
             "given_name" to UnicodeString("Jane"),
-            "birth_date" to UnicodeString("1990-01-01"),
-            "issue_date" to UnicodeString(issueDate.format(fullDate)),
-            "expiry_date" to UnicodeString(issueDate.plusYears(5).format(fullDate)),
+            "birth_date" to fullDate("1990-01-01"),
+            "issue_date" to fullDate(issueDate.toString()),
+            "expiry_date" to fullDate(expiryDate.toString()),
             "issuing_country" to UnicodeString("IN"),
             "issuing_authority" to UnicodeString("Test Authority"),
             "document_number" to UnicodeString("A1234567"),
@@ -234,14 +244,17 @@ internal object MdlEdgeCaseTestDataGenerator {
                 add(
                     CborMap().apply {
                         put(UnicodeString("vehicle_category_code"), UnicodeString("A"))
-                        put(UnicodeString("issue_date"), UnicodeString(issueDate.format(fullDate)))
-                        put(UnicodeString("expiry_date"), UnicodeString(issueDate.plusYears(5).format(fullDate)))
+                        put(UnicodeString("issue_date"), fullDate(issueDate.toString()))
+                        put(UnicodeString("expiry_date"), fullDate(expiryDate.toString()))
                     }
                 )
             },
             "un_distinguishing_sign" to UnicodeString("IND"),
         )
     }
+
+    /** ISO 18013-5 full-date: #6.1004(tstr). */
+    fun fullDate(value: String): DataItem = UnicodeString(value).apply { setTag(1004) }
 
     /** Records with [identifier] replaced (or appended) by [value]. */
     fun recordsWith(identifier: String, value: DataItem, validFrom: Instant = Instant.now()) =
@@ -281,6 +294,7 @@ internal object MdlEdgeCaseTestDataGenerator {
     private fun assembleCredential(
         shape: Shape,
         topLevelDocType: String?,
+        documentsOuterDocType: String?,
         issuerAuthBytes: ByteArray,
         namespaces: Map<String, List<ByteArray>>,
     ): ByteArray {
@@ -308,7 +322,8 @@ internal object MdlEdgeCaseTestDataGenerator {
                 out.write(issuerSigned)
             }
             Shape.DOCUMENTS -> {
-                out.write(header(5, 1))
+                out.write(header(5, if (documentsOuterDocType == null) 1 else 2))
+                documentsOuterDocType?.let { out.write(text("docType") + text(it)) }
                 out.write(text("documents"))
                 out.write(header(4, 1))
                 out.write(header(5, docTypeCount + 1))

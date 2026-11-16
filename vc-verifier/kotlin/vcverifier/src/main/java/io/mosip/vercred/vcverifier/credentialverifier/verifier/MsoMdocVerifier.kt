@@ -233,10 +233,13 @@ internal class MsoMdocVerifier(
             return true
         }
         val docTypeInMso = mso[DOC_TYPE]
-        val docTypeInDocument = decodedCredential.getOrNull(DOC_TYPE)
-            ?: decodedCredential.getOrNull(DOCUMENTS)
-                ?.let { documents -> ((documents as Array)[0] as Map).getOrNull(DOC_TYPE) }
-            ?: throw InvalidPropertyException("Property docType not found in the credential")
+        // Read from the same place IssuerSigned was taken (see MsoMdocVerifiableCredential.parse):
+        // documents[0] when "documents" is present, otherwise the top level.
+        val docTypeInDocument = if (decodedCredential.keys.contains(UnicodeString(DOCUMENTS))) {
+            ((decodedCredential[DOCUMENTS] as Array)[0] as Map).getOrNull(DOC_TYPE)
+        } else {
+            decodedCredential.getOrNull(DOC_TYPE)
+        } ?: throw InvalidPropertyException("Property docType not found in the credential")
         if (docTypeInMso == docTypeInDocument) {
             return true
         }

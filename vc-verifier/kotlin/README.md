@@ -112,7 +112,9 @@ refer to the implementation classes for complete rules.
     * `validUntil > validFrom` must hold
     * `signed` required; `validFrom` must not be before `signed` (all shapes)
 * **mDL field checks (`MdlValidator`)**, before the signature: mandatory elements, element types,
-  `driving_privileges`, Latin-1 text, age claims, `issue_date` vs `validFrom`
+  `driving_privileges`, Latin-1 text (control characters rejected in strict mode only), age claims,
+  `issue_date` vs `validFrom`. `issue_date` and the age claims allow one calendar day of slack against
+  the UTC dates of `signed` / `validFrom`, for an issuer that writes its local date
 * Field access uses a CBOR helper operator `DataItem["validFrom"]`
 * Exceptions thrown for any date inconsistencies
 * **Validation class:** `MsoMdocValidator`
@@ -120,6 +122,10 @@ refer to the implementation classes for complete rules.
   MSO `signed` within DS validity, the COSE signature and IssuerSignedItemBytes digests (tag-24
   records, selective disclosure allowed). Then **`MdlVerifier`**: mDL EKU `1.0.18013.5.1.2` /
   critical KeyUsage `digitalSignature`, `issuing_country` / optional `issuing_jurisdiction` vs the DS certificate
+* For shapes B and C the outer `docType` is read from where `issuerSigned` was taken (`documents[0]`
+  for shape C) and must match the MSO `docType`
+* A COSE signature failure or `docType` mismatch returns `false` with `ERR_SIGNATURE_VERIFICATION_FAILED`,
+  also when the credential is expired
 * Details: [`doc/mso-mdoc-verification-support.md`](../../doc/mso-mdoc-verification-support.md)
 
 ### 3.3 SD-JWT VC Validation
@@ -961,7 +967,8 @@ For other unknown exceptions, error code will be `ERR_GENERIC`
 | digestID ≥ 2^31 or missing            | ERR_INVALID_DIGEST_ID           |
 | salt (`random`) &lt; 16 bytes           | ERR_INVALID_DIGEST_SALT         |
 | mDL field type/structure/mandatory/age | ERR_INVALID_MDL_ELEMENT        |
-| issue_date after validFrom / invalid date | ERR_INVALID_ISSUE_DATE      |
+| issue_date more than one day after validFrom (UTC date) / invalid date | ERR_INVALID_ISSUE_DATE |
+| COSE signature invalid / outer docType missing or mismatched | ERR_SIGNATURE_VERIFICATION_FAILED |
 
 For other unknown exceptions, error code will be `ERR_GENERIC`
 
