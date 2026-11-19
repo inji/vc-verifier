@@ -11,15 +11,20 @@ import co.nstant.`in`.cbor.model.UnicodeString
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_GENERIC
+import io.mosip.vercred.vcverifier.credentialverifier.statusChecker.mdoc.MdocStatusResults
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_ISSUER_SIGNED_ITEM
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DIGEST_ALGORITHM
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_DIGEST_ALGORITHM
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_NAME_SPACES_ENCODING
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MSO_NOT_TAGGED
 import io.mosip.vercred.vcverifier.credentialverifier.VerifiableCredential
+import io.mosip.vercred.vcverifier.credentialverifier.statusChecker.mdoc.MdocStatusListChecker
 import io.mosip.vercred.vcverifier.credentialverifier.validator.MsoMdocValidator
 import io.mosip.vercred.vcverifier.credentialverifier.verifier.MsoMdocVerifier
+import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.ValidationStatus
+import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode
+import java.security.cert.X509Certificate
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
 import io.mosip.vercred.vcverifier.utils.CborDataItemUtils.getOrNull
@@ -109,6 +114,42 @@ class MsoMdocVerifiableCredential(
 
     override fun verify(credential: String): Boolean {
         return MsoMdocVerifier(options).verify(credential)
+    }
+
+    override fun checkStatus(
+        credential: String,
+        statusPurposes: List<String>?
+    ): kotlin.collections.Map<String, CredentialStatusResult> {
+        return checkStatus(credential, statusPurposes, verifiedIssuerCertificate = null)
+    }
+
+    /**
+     * @param verifiedIssuerCertificate the document signer certificate that already verified
+     * issuerAuth. When null, the unprotected x5chain header is read. This does not verify the mDoc.
+     */
+    fun checkStatus(
+        credential: String,
+        statusPurposes: List<String>?,
+        verifiedIssuerCertificate: X509Certificate?
+    ): kotlin.collections.Map<String, CredentialStatusResult> {
+        return try {
+            val (_, credentialData, _) = parse(credential)
+            MdocStatusListChecker().getStatuses(
+                credentialData.mso,
+                credentialData.issuerSigned.issuerAuth,
+                statusPurposes,
+                verifiedIssuerCertificate
+            )
+        } catch (exception: Exception) {
+            logger.warning("mDoc status check failed")
+            MdocStatusResults.supportedPurposes(
+                MdocStatusResults.failure(
+                    StatusCheckErrorCode.STATUS_REFERENCE_MALFORMED.name,
+                    "Failed to read MSO status pointer: ${exception.message}"
+                ),
+                statusPurposes
+            )
+        }
     }
 
     /**

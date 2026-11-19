@@ -1,6 +1,6 @@
 package io.mosip.vercred.vcverifier.credentialverifier.verifier
 
-import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerifiableCredential
+import io.mosip.vercred.vcverifier.credentialverifier.types.SdJwtVerifiableCredential
 import io.mockk.*
 import io.mosip.vercred.vcverifier.keyResolver.types.did.DidPublicKeyResolver
 import io.mosip.vercred.vcverifier.exception.PublicKeyNotFoundException
@@ -53,11 +53,11 @@ class SdJwtVerifierTest{
     }
 
     @Test
-    fun `should throw exception for mso_mdoc status check as its not supported`() {
+    fun `should throw exception for sd-jwt status check as its not supported`() {
         val file = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "sd-jwt_vc/sdJwt.txt")
         val vc = String(Files.readAllBytes(file.toPath()))
         val unsupportedStatusCheckException = assertThrows(UnsupportedOperationException::class.java) {
-            MsoMdocVerifiableCredential().checkStatus(vc, null)
+            SdJwtVerifiableCredential().checkStatus(vc, null)
         }
 
         assertEquals("Credential status checking not supported for this credential format",unsupportedStatusCheckException.message)

@@ -82,6 +82,15 @@ internal class MsoMdocVerifier(
     private val logger = Logger.getLogger(MsoMdocVerifier::class.java.name)
 
     fun verify(base64EncodedMdoc: String): Boolean {
+        verifyAndGetDsCertificate(base64EncodedMdoc)
+        return true
+    }
+
+    /**
+     * Runs mDoc verification and returns the document signer certificate whose public key
+     * verified issuerAuth. That certificate is taken from the unprotected x5chain header.
+     */
+    internal fun verifyAndGetDsCertificate(base64EncodedMdoc: String): X509Certificate {
         try {
 
             val (decodedCredential, credentialData, isLatest) = MsoMdocVerifiableCredential(options).parse(
@@ -117,7 +126,7 @@ internal class MsoMdocVerifier(
             // docType-specific checks (e.g. mDL), after the signature and digests.
             MdocDocTypes.verifierFor(mobileSecurityObject)
                 ?.verify(decodedItems, mobileSecurityObject, dsCertificate, options)
-            return true
+            return dsCertificate
         } catch (exception: Exception) {
             when (exception) {
                 is SignatureVerificationException,
@@ -261,32 +270,9 @@ internal class MsoMdocVerifier(
     }
 
     private fun extractCertificate(coseSignature: DataItem): X509Certificate? {
-
-        val unprotectedHeader = (coseSignature as Array)[1] as Map
-        val x5Chain: DataItem = unprotectedHeader.get(UnsignedInteger(X5C)) ?: return null
-        // The x5Chain (header parameter 33) in COSE is either:
-        //A single DER-encoded X.509 certificate (byte string), or
-        //An array of DER-encoded X.509 certificates (CBOR array of byte strings).
-        val issuerCertificateString: DataItem? = when (x5Chain.majorType) {
-            MajorType.BYTE_STRING -> {
-                x5Chain
-            }
-
-            MajorType.ARRAY -> {
-                (x5Chain as Array)[0]
-            }
-
-            else -> {
-                null
-            }
-        }
-        if (issuerCertificateString !is ByteString) {
-            return null
-        }
-        val issuerCertificateBytes = issuerCertificateString.bytes
-        return Util.toX509Certificate(issuerCertificateBytes)
+        val issuerAuth = coseSignature as? Array ?: return null
+        return documentSignerCertificate(issuerAuth)
     }
-
 
     /**
      * Digest check per received IssuerSignedItem (ISO 18013-5 §9.3.1 c).
@@ -419,4 +405,23 @@ internal class MsoMdocVerifier(
             throw LikelyTamperedException()
         }
     }
+}
+
+/**
+ * Document signer certificate from the unprotected x5chain header.
+ * This is the certificate [MsoMdocVerifier] uses to verify issuerAuth. The protected header
+ * is not consulted, so a different certificate there cannot authorize a status list.
+ */
+internal fun documentSignerCertificate(issuerAuth: Array): X509Certificate? {
+    val unprotectedHeader = issuerAuth[1] as Map
+    val x5Chain: DataItem = unprotectedHeader.get(UnsignedInteger(X5C)) ?: return null
+    val issuerCertificateString: DataItem? = when (x5Chain.majorType) {
+        MajorType.BYTE_STRING -> x5Chain
+        MajorType.ARRAY -> (x5Chain as Array)[0]
+        else -> null
+    }
+    if (issuerCertificateString !is ByteString) {
+        return null
+    }
+    return Util.toX509Certificate(issuerCertificateString.bytes)
 }
