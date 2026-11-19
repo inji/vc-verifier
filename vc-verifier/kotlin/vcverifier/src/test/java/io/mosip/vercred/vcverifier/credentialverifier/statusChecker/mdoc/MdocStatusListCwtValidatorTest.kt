@@ -43,6 +43,20 @@ class MdocStatusListCwtValidatorTest {
     }
 
     @Test
+    fun `zero ttl is malformed`() {
+        val exception = assertThrows(MdocStatusCheckException::class.java) {
+            validate(
+                MdocStatusListFixtures.statusListCwt(
+                    bits = 1,
+                    valuesAtIndex = intArrayOf(0),
+                    ttlSeconds = 0
+                )
+            )
+        }
+        assertEquals(STATUS_LIST_MALFORMED, exception.errorCode)
+    }
+
+    @Test
     fun `missing ttl is allowed`() {
         val cwt = MdocStatusListFixtures.statusListCwt(
             bits = 1,
@@ -108,6 +122,38 @@ class MdocStatusListCwtValidatorTest {
             )
         }
         assertEquals(STATUS_LIST_URI_MISMATCH, exception.errorCode)
+    }
+
+    @Test
+    fun `missing exp is allowed`() {
+        val validated = validate(
+            MdocStatusListFixtures.statusListCwt(
+                bits = 1,
+                valuesAtIndex = intArrayOf(0),
+                exp = null
+            )
+        )
+
+        assertEquals(1, validated.bits)
+    }
+
+    @Test
+    fun `exp equal to now is expired`() {
+        val now = 1_700_000_100L
+        val validatorAtNow = MdocStatusListCwtValidator(nowSeconds = { now })
+
+        val exception = assertThrows(MdocStatusCheckException::class.java) {
+            validatorAtNow.validate(
+                MdocStatusListFixtures.statusListCwt(
+                    bits = 1,
+                    valuesAtIndex = intArrayOf(0),
+                    exp = now
+                ),
+                STATUS_URI,
+                issuerCertificate
+            )
+        }
+        assertEquals(STATUS_LIST_EXPIRED, exception.errorCode)
     }
 
     @Test

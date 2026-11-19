@@ -41,7 +41,6 @@ object MdocStatusConstants {
      */
     const val MAX_STATUS_LIST_BYTES = 16 * 1024 * 1024
 
-    const val STATUS_PURPOSE_VALID = "valid"
     const val STATUS_PURPOSE_REVOCATION = "revocation"
     const val STATUS_PURPOSE_SUSPENSION = "suspension"
 }

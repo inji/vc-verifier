@@ -6,7 +6,7 @@ import io.mosip.vercred.vcverifier.CredentialsVerifier
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.MSO_MDOC
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_REVOCATION
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_SUSPENSION
-import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_VALID
+import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.CredentialVerificationSummary
 import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode
 import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
@@ -14,6 +14,7 @@ import io.mosip.vercred.vcverifier.testHelpers.MdocStatusListFixtures.STATUS_URI
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -37,10 +38,10 @@ class MdocStatusListFixtureFileTest {
     }
 
     @Test
-    fun `resource VALID CWT maps to VALID`() {
+    fun `resource VALID CWT maps to revocation only`() {
         val result = verifyWith("statuslist_valid.cwt")
         assertTrue(result.verificationResult.verificationStatus)
-        assertTrue(result.credentialStatus.getValue(STATUS_PURPOSE_VALID).isValid)
+        assertRevocationOnlyPassing(result.credentialStatus)
     }
 
     @Test
@@ -56,9 +57,9 @@ class MdocStatusListFixtureFileTest {
     }
 
     @Test
-    fun `resource bits2 VALID CWT maps to VALID`() {
+    fun `resource bits2 VALID CWT maps to revocation and suspension`() {
         val result = verifyWith("statuslist_bits2_valid.cwt")
-        assertTrue(result.credentialStatus.getValue(STATUS_PURPOSE_VALID).isValid)
+        assertPassingStatus(result.credentialStatus)
     }
 
     @Test
@@ -106,9 +107,25 @@ class MdocStatusListFixtureFileTest {
         result: CredentialVerificationSummary,
         errorCode: StatusCheckErrorCode
     ) {
-        val status = result.credentialStatus.getValue(STATUS_PURPOSE_VALID)
-        assertFalse(status.isValid)
-        assertEquals(errorCode, status.error?.errorCode)
+        listOf(STATUS_PURPOSE_REVOCATION, STATUS_PURPOSE_SUSPENSION).forEach { purpose ->
+            val status = result.credentialStatus.getValue(purpose)
+            assertFalse(status.isValid)
+            assertEquals(errorCode, status.error?.errorCode)
+        }
+    }
+
+    private fun assertRevocationOnlyPassing(status: Map<String, CredentialStatusResult>) {
+        assertEquals(setOf(STATUS_PURPOSE_REVOCATION), status.keys)
+        assertTrue(status.getValue(STATUS_PURPOSE_REVOCATION).isValid)
+        assertNull(status.getValue(STATUS_PURPOSE_REVOCATION).error)
+    }
+
+    private fun assertPassingStatus(status: Map<String, CredentialStatusResult>) {
+        assertEquals(setOf(STATUS_PURPOSE_REVOCATION, STATUS_PURPOSE_SUSPENSION), status.keys)
+        status.values.forEach {
+            assertTrue(it.isValid)
+            assertNull(it.error)
+        }
     }
 
     private fun readText(path: String): String =

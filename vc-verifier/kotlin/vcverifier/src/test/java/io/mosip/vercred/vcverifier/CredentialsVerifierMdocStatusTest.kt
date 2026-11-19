@@ -5,10 +5,9 @@ import io.mockk.mockkObject
 import io.mockk.unmockkObject
 import io.mockk.verify
 import io.mosip.vercred.vcverifier.constants.CredentialFormat.MSO_MDOC
-import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_VALID_UNTIL_MSO
+import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_VC_EXPIRED
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_REVOCATION
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_SUSPENSION
-import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_VALID
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.MsoMdocVerifiableCredential
 import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.CredentialVerificationSummary
@@ -47,9 +46,7 @@ class CredentialsVerifierMdocStatusTest {
         val result = verifyWith(validCwt())
 
         assertTrue(result.verificationResult.verificationStatus)
-        val status = result.credentialStatus.getValue(STATUS_PURPOSE_VALID)
-        assertTrue(status.isValid)
-        assertNull(status.error)
+        assertRevocationOnlyPassing(result.credentialStatus)
     }
 
     @Test
@@ -76,7 +73,7 @@ class CredentialsVerifierMdocStatusTest {
     fun `bits 2 value 0 is VALID`() {
         val result = verifyWith(MdocStatusListFixtures.statusListCwt(bits = 2, valuesAtIndex = intArrayOf(0)))
 
-        assertTrue(result.credentialStatus.getValue(STATUS_PURPOSE_VALID).isValid)
+        assertPassingStatus(result.credentialStatus)
     }
 
     @Test
@@ -102,7 +99,7 @@ class CredentialsVerifierMdocStatusTest {
     }
 
     @Test
-    fun `expired mDoc plus VALID CWT fails crypto and never fetches status list`() {
+    fun `expired mDoc plus VALID CWT stays cryptographically valid and still checks status`() {
         mockHttpBytesResponse(STATUS_URI, validCwt())
 
         val result = verifier.verifyAndGetCredentialStatus(
@@ -110,34 +107,10 @@ class CredentialsVerifierMdocStatusTest {
             MSO_MDOC
         )
 
-        assertFalse(result.verificationResult.verificationStatus)
-        assertEquals(ERROR_CODE_INVALID_VALID_UNTIL_MSO, result.verificationResult.verificationErrorCode)
-        assertTrue(result.credentialStatus.isEmpty())
-        verify(exactly = 0) { NetworkManagerClient.sendHTTPRequestBytes(any(), any(), any()) }
-    }
-
-    @Test
-    fun `http status uri is rejected before fetch`() {
-        mockHttpBytesResponse(STATUS_URI, validCwt())
-        val result = verifier.verifyAndGetCredentialStatus(
-            MdocStatusListFixtures.mdocWithStatus(uri = "http://example.com/statuslists/1"),
-            MSO_MDOC
-        )
-
-        assertStatusError(result, StatusCheckErrorCode.STATUS_REFERENCE_MALFORMED)
-        verify(exactly = 0) { NetworkManagerClient.sendHTTPRequestBytes(any(), any(), any()) }
-    }
-
-    @Test
-    fun `loopback status uri is rejected before fetch`() {
-        mockHttpBytesResponse(STATUS_URI, validCwt())
-        val result = verifier.verifyAndGetCredentialStatus(
-            MdocStatusListFixtures.mdocWithStatus(uri = "https://127.0.0.1/statuslists/1"),
-            MSO_MDOC
-        )
-
-        assertStatusError(result, StatusCheckErrorCode.STATUS_REFERENCE_MALFORMED)
-        verify(exactly = 0) { NetworkManagerClient.sendHTTPRequestBytes(any(), any(), any()) }
+        assertTrue(result.verificationResult.verificationStatus)
+        assertEquals(ERROR_CODE_VC_EXPIRED, result.verificationResult.verificationErrorCode)
+        assertRevocationOnlyPassing(result.credentialStatus)
+        verify(exactly = 1) { NetworkManagerClient.sendHTTPRequestBytes(any(), any(), any()) }
     }
 
     @Test
@@ -238,7 +211,73 @@ class CredentialsVerifierMdocStatusTest {
 
         val status = MsoMdocVerifiableCredential().checkStatus(mdocWithStatus, null)
 
-        assertTrue(status.getValue(STATUS_PURPOSE_VALID).isValid)
+        assertRevocationOnlyPassing(status)
+    }
+
+    @Test
+    fun `statusPurposeList keeps only the requested mDoc purposes`() {
+        mockHttpBytesResponse(
+            STATUS_URI,
+            MdocStatusListFixtures.statusListCwt(bits = 2, valuesAtIndex = intArrayOf(0))
+        )
+
+        val revocationOnly = verifier.verifyAndGetCredentialStatus(
+            mdocWithStatus,
+            MSO_MDOC,
+            listOf("revocation")
+        )
+        val suspensionOnly = verifier.verifyAndGetCredentialStatus(
+            mdocWithStatus,
+            MSO_MDOC,
+            listOf("SUSPENSION")
+        )
+
+        assertRevocationOnlyPassing(revocationOnly.credentialStatus)
+        assertEquals(setOf(STATUS_PURPOSE_SUSPENSION), suspensionOnly.credentialStatus.keys)
+        assertTrue(suspensionOnly.credentialStatus.getValue(STATUS_PURPOSE_SUSPENSION).isValid)
+    }
+
+    @Test
+    fun `1 bit list omits suspension even when suspension is requested`() {
+        mockHttpBytesResponse(STATUS_URI, validCwt())
+
+        val result = verifier.verifyAndGetCredentialStatus(
+            mdocWithStatus,
+            MSO_MDOC,
+            listOf(STATUS_PURPOSE_SUSPENSION)
+        )
+
+        assertTrue(result.credentialStatus.isEmpty())
+    }
+
+    @Test
+    fun `revoked mDoc requested as suspension has no suspension entry`() {
+        mockHttpBytesResponse(STATUS_URI, invalidCwt())
+
+        val result = verifier.verifyAndGetCredentialStatus(
+            mdocWithStatus,
+            MSO_MDOC,
+            listOf(STATUS_PURPOSE_SUSPENSION)
+        )
+
+        assertTrue(result.credentialStatus.isEmpty())
+    }
+
+    @Test
+    fun `status failure is returned only for the requested purpose`() {
+        every { NetworkManagerClient.sendHTTPRequestBytes(STATUS_URI, any(), any()) } throws
+            NetworkManagerClientExceptions.NetworkRequestFailed("404")
+
+        val result = verifier.verifyAndGetCredentialStatus(
+            mdocWithStatus,
+            MSO_MDOC,
+            listOf(STATUS_PURPOSE_REVOCATION)
+        )
+
+        assertEquals(setOf(STATUS_PURPOSE_REVOCATION), result.credentialStatus.keys)
+        val status = result.credentialStatus.getValue(STATUS_PURPOSE_REVOCATION)
+        assertFalse(status.isValid)
+        assertEquals(StatusCheckErrorCode.STATUS_LIST_FETCH_FAILED, status.error?.errorCode)
     }
 
     @Test
@@ -258,9 +297,25 @@ class CredentialsVerifierMdocStatusTest {
         result: CredentialVerificationSummary,
         errorCode: StatusCheckErrorCode
     ) {
-        val status: CredentialStatusResult = result.credentialStatus.getValue(STATUS_PURPOSE_VALID)
-        assertFalse(status.isValid)
-        assertEquals(errorCode, status.error?.errorCode)
+        listOf(STATUS_PURPOSE_REVOCATION, STATUS_PURPOSE_SUSPENSION).forEach { purpose ->
+            val status: CredentialStatusResult = result.credentialStatus.getValue(purpose)
+            assertFalse(status.isValid)
+            assertEquals(errorCode, status.error?.errorCode)
+        }
+    }
+
+    private fun assertRevocationOnlyPassing(status: Map<String, CredentialStatusResult>) {
+        assertEquals(setOf(STATUS_PURPOSE_REVOCATION), status.keys)
+        assertTrue(status.getValue(STATUS_PURPOSE_REVOCATION).isValid)
+        assertNull(status.getValue(STATUS_PURPOSE_REVOCATION).error)
+    }
+
+    private fun assertPassingStatus(status: Map<String, CredentialStatusResult>) {
+        assertEquals(setOf(STATUS_PURPOSE_REVOCATION, STATUS_PURPOSE_SUSPENSION), status.keys)
+        status.values.forEach {
+            assertTrue(it.isValid)
+            assertNull(it.error)
+        }
     }
 
     private fun validCwt() = MdocStatusListFixtures.statusListCwt(bits = 1, valuesAtIndex = intArrayOf(0))

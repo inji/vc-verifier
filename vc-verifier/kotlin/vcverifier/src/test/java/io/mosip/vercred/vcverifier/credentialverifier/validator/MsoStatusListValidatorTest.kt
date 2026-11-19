@@ -1,4 +1,4 @@
-package io.mosip.vercred.vcverifier.credentialverifier.statusChecker.mdoc
+package io.mosip.vercred.vcverifier.credentialverifier.validator
 
 import co.nstant.`in`.cbor.model.Map
 import co.nstant.`in`.cbor.model.NegativeInteger
@@ -9,15 +9,15 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-class MsoStatusPointerParserTest {
+class MsoStatusListValidatorTest {
 
-    private val parser = MsoStatusPointerParser()
+    private val validator = MsoStatusListValidator()
 
     @Test
     fun `missing status is absent`() {
-        val result = parser.parse(Map())
+        val result = validator.validate(Map())
 
-        assertTrue(result is MsoStatusPointerParseResult.Absent)
+        assertTrue(result is MsoStatusListValidationResult.Absent)
     }
 
     @Test
@@ -32,14 +32,14 @@ class MsoStatusPointerParserTest {
             )
         }
 
-        assertTrue(parser.parse(mso) is MsoStatusPointerParseResult.Absent)
+        assertTrue(validator.validate(mso) is MsoStatusListValidationResult.Absent)
     }
 
     @Test
     fun `reads uri and idx from status_list`() {
-        val result = parser.parse(msoWithStatusList("https://example.com/statuslists/1", 7L))
+        val result = validator.validate(msoWithStatusList("https://example.com/statuslists/1", 7L))
 
-        val found = result as MsoStatusPointerParseResult.Found
+        val found = result as MsoStatusListValidationResult.Found
         assertEquals("https://example.com/statuslists/1", found.pointer.uri)
         assertEquals(7L, found.pointer.idx)
     }
@@ -48,7 +48,7 @@ class MsoStatusPointerParserTest {
     fun `status that is not a map is malformed`() {
         val mso = Map().apply { put(UnicodeString("status"), UnicodeString("nope")) }
 
-        val result = parser.parse(mso) as MsoStatusPointerParseResult.Malformed
+        val result = validator.validate(mso) as MsoStatusListValidationResult.Malformed
         assertEquals(STATUS_REFERENCE_MALFORMED, result.errorCode)
     }
 
@@ -60,7 +60,7 @@ class MsoStatusPointerParserTest {
             })
         }
 
-        val result = parser.parse(mso) as MsoStatusPointerParseResult.Malformed
+        val result = validator.validate(mso) as MsoStatusListValidationResult.Malformed
         assertEquals(STATUS_REFERENCE_MALFORMED, result.errorCode)
     }
 
@@ -71,7 +71,7 @@ class MsoStatusPointerParserTest {
             put(UnicodeString("status"), Map().apply { put(UnicodeString("status_list"), statusList) })
         }
 
-        val result = parser.parse(mso) as MsoStatusPointerParseResult.Malformed
+        val result = validator.validate(mso) as MsoStatusListValidationResult.Malformed
         assertEquals(STATUS_REFERENCE_MALFORMED, result.errorCode)
     }
 
@@ -84,27 +84,27 @@ class MsoStatusPointerParserTest {
             put(UnicodeString("status"), Map().apply { put(UnicodeString("status_list"), statusList) })
         }
 
-        val result = parser.parse(mso) as MsoStatusPointerParseResult.Malformed
+        val result = validator.validate(mso) as MsoStatusListValidationResult.Malformed
         assertEquals(STATUS_REFERENCE_MALFORMED, result.errorCode)
     }
 
     @Test
     fun `idx that is not an unsigned int is malformed`() {
-        val result = parser.parse(
+        val result = validator.validate(
             msoWith(
                 uri = UnicodeString("https://example.com/statuslists/1"),
                 idx = NegativeInteger(-1)
             )
-        ) as MsoStatusPointerParseResult.Malformed
+        ) as MsoStatusListValidationResult.Malformed
 
         assertEquals(STATUS_REFERENCE_MALFORMED, result.errorCode)
     }
 
     @Test
     fun `uri that is not text is malformed`() {
-        val result = parser.parse(
+        val result = validator.validate(
             msoWith(uri = UnsignedInteger(1), idx = UnsignedInteger(0))
-        ) as MsoStatusPointerParseResult.Malformed
+        ) as MsoStatusListValidationResult.Malformed
 
         assertEquals(STATUS_REFERENCE_MALFORMED, result.errorCode)
     }

@@ -35,8 +35,7 @@ class NetworkManagerClientBytesTest {
         val result = NetworkManagerClient.sendHTTPRequestBytes(
             server.url("/status").toString(),
             HttpMethod.GET,
-            maxBytes = 1024,
-            restrictDestinations = false
+            maxBytes = 1024
         )
 
         assertTrue(result.contentEquals(payload))
@@ -51,24 +50,10 @@ class NetworkManagerClientBytesTest {
             NetworkManagerClient.sendHTTPRequestBytes(
                 server.url("/status").toString(),
                 HttpMethod.GET,
-                maxBytes = 8,
-                restrictDestinations = false
+                maxBytes = 8
             )
         }
         assertTrue(exception.message!!.contains("exceeds"))
-    }
-
-    @Test
-    fun `loopback destination is rejected before the body is read`() {
-        server.enqueue(MockResponse().setResponseCode(200).setBody("secret"))
-
-        assertThrows(NetworkManagerClientExceptions.NetworkRequestFailed::class.java) {
-            NetworkManagerClient.sendHTTPRequestBytes(
-                server.url("/status").toString(),
-                HttpMethod.GET
-            )
-        }
-        assertEquals(0, server.requestCount)
     }
 
     @Test
@@ -84,8 +69,7 @@ class NetworkManagerClientBytesTest {
             NetworkManagerClient.sendHTTPRequestBytes(
                 server.url("/status").toString(),
                 HttpMethod.GET,
-                maxBytes = 8,
-                restrictDestinations = false
+                maxBytes = 8
             )
         }
         assertTrue(exception.message!!.contains("exceeds"))

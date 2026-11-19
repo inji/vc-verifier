@@ -11,7 +11,7 @@ import co.nstant.`in`.cbor.model.UnicodeString
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_GENERIC
-import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PURPOSE_VALID
+import io.mosip.vercred.vcverifier.credentialverifier.statusChecker.mdoc.MdocStatusResults
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_ISSUER_SIGNED_ITEM
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DIGEST_ALGORITHM
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_INVALID_DIGEST_ALGORITHM
@@ -24,7 +24,6 @@ import io.mosip.vercred.vcverifier.credentialverifier.verifier.MsoMdocVerifier
 import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.ValidationStatus
 import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode
-import io.mosip.vercred.vcverifier.exception.StatusCheckException
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
 import io.mosip.vercred.vcverifier.utils.CborDataItemUtils.getOrNull
@@ -124,18 +123,17 @@ class MsoMdocVerifiableCredential(
             val (_, credentialData, _) = parse(credential)
             MdocStatusListChecker().getStatuses(
                 credentialData.mso,
-                credentialData.issuerSigned.issuerAuth
+                credentialData.issuerSigned.issuerAuth,
+                statusPurposes
             )
         } catch (exception: Exception) {
             logger.warning("mDoc status check failed")
-            mapOf(
-                STATUS_PURPOSE_VALID to CredentialStatusResult(
-                    false,
-                    StatusCheckException(
-                        "Failed to read MSO status pointer: ${exception.message}",
-                        StatusCheckErrorCode.STATUS_REFERENCE_MALFORMED
-                    )
-                )
+            MdocStatusResults.forPurposes(
+                MdocStatusResults.failure(
+                    StatusCheckErrorCode.STATUS_REFERENCE_MALFORMED.name,
+                    "Failed to read MSO status pointer: ${exception.message}"
+                ),
+                statusPurposes
             )
         }
     }

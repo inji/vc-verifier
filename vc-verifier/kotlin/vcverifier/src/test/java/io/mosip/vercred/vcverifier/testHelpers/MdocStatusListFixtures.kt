@@ -29,6 +29,7 @@ import java.security.Signature
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.security.spec.ECGenParameterSpec
+import java.time.Instant
 import java.util.Base64
 import java.util.Date
 import java.util.zip.Deflater
@@ -41,7 +42,7 @@ object MdocStatusListFixtures {
     const val VALID_IAT = 1_700_000_000L
     const val VALID_EXP = 4_102_444_800L
     const val EXPIRED_EXP = 1_600_000_000L
-    const val DOC_TYPE = "org.iso.18013.5.1.mDL"
+    const val DOC_TYPE = "org.example.mdoc"
 
     val keyMaterial: StatusListKeyMaterial by lazy { generateKeyMaterial() }
 
@@ -76,7 +77,7 @@ object MdocStatusListFixtures {
         bits: Int,
         valuesAtIndex: IntArray,
         uri: String = STATUS_URI,
-        exp: Long = VALID_EXP,
+        exp: Long? = VALID_EXP,
         includeX5chain: Boolean = true,
         x5chainInProtectedHeader: Boolean = false,
         corruptSignature: Boolean = false,
@@ -93,7 +94,9 @@ object MdocStatusListFixtures {
         val claims = Map().apply {
             put(UnsignedInteger(2), UnicodeString(uri))
             put(UnsignedInteger(6), UnsignedInteger(VALID_IAT))
-            put(UnsignedInteger(4), UnsignedInteger(exp))
+            if (exp != null) {
+                put(UnsignedInteger(4), UnsignedInteger(exp))
+            }
             if (ttlSeconds != null) {
                 put(UnsignedInteger(65534), UnsignedInteger(ttlSeconds))
             }
@@ -128,11 +131,14 @@ object MdocStatusListFixtures {
     fun mdocWithStatus(
         uri: String = STATUS_URI,
         idx: Long = STATUS_IDX,
+        signed: String = "2024-01-01T00:00:00Z",
+        validFrom: String = "2024-01-01T00:00:00Z",
         validUntil: String = "2099-01-01T00:00:00Z",
         includeStatus: Boolean = true
     ): String {
         val validityInfo = Map().apply {
-            put(UnicodeString("validFrom"), taggedDate("2024-01-01T00:00:00Z"))
+            put(UnicodeString("signed"), taggedDate(signed))
+            put(UnicodeString("validFrom"), taggedDate(validFrom))
             put(UnicodeString("validUntil"), taggedDate(validUntil))
         }
         val mso = Map().apply {
@@ -156,7 +162,7 @@ object MdocStatusListFixtures {
         val issuerAuth = Util.coseSign1Sign(
             keyMaterial.keyPair.private,
             "SHA256withECDSA",
-            encode(mso),
+            encode(ByteString(encode(mso)).apply { setTag(24) }),
             byteArrayOf(),
             listOf(keyMaterial.certificate)
         )
@@ -175,7 +181,11 @@ object MdocStatusListFixtures {
 
     fun mdocNoStatus(): String = mdocWithStatus(includeStatus = false)
 
-    fun mdocExpired(): String = mdocWithStatus(validUntil = "2020-01-01T00:00:00Z")
+    fun mdocExpired(): String = mdocWithStatus(
+        signed = "2020-01-01T00:00:00Z",
+        validFrom = "2020-01-01T00:00:00Z",
+        validUntil = "2021-01-01T00:00:00Z",
+    )
 
     fun packBits(bitSize: Int, values: IntArray): ByteArray {
         if (values.isEmpty()) {
@@ -279,16 +289,16 @@ object MdocStatusListFixtures {
         subjectKeyPair: KeyPair,
         issuerKeyPair: KeyPair,
         subjectName: X500Name,
-        issuerName: X500Name
+        issuerName: X500Name,
+        notBefore: Date = Date.from(Instant.parse("2019-01-01T00:00:00Z")),
+        notAfter: Date = Date.from(Instant.parse("2099-01-01T00:00:00Z")),
     ): X509Certificate {
-        val now = Date()
-        val notAfter = Date(now.time + 20L * 365 * 24 * 60 * 60 * 1000)
         val signatureAlgorithm = AlgorithmIdentifier(X9ObjectIdentifiers.ecdsa_with_SHA256)
         val tbs = V3TBSCertificateGenerator().apply {
             setSerialNumber(ASN1Integer(BigInteger.ONE))
             setSignature(signatureAlgorithm)
             setIssuer(issuerName)
-            setStartDate(Time(now))
+            setStartDate(Time(notBefore))
             setEndDate(Time(notAfter))
             setSubject(subjectName)
             setSubjectPublicKeyInfo(SubjectPublicKeyInfo.getInstance(subjectKeyPair.public.encoded))

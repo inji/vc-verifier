@@ -3,7 +3,6 @@ package io.mosip.vercred.vcverifier.networkManager
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.MAX_STATUS_LIST_BYTES
 import io.mosip.vercred.vcverifier.exception.NetworkManagerClientExceptions
 import io.mosip.vercred.vcverifier.utils.Util
-import okhttp3.Dns
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -38,16 +37,13 @@ class NetworkManagerClient {
             url: String,
             method: HttpMethod,
             headers: Map<String, String>? = null,
-            maxBytes: Int = MAX_STATUS_LIST_BYTES,
-            restrictDestinations: Boolean = true
+            maxBytes: Int = MAX_STATUS_LIST_BYTES
         ): ByteArray {
             try {
                 executeRequest(
                     url,
                     method,
-                    headers = headers,
-                    followRedirects = false,
-                    dns = if (restrictDestinations) PublicHttpsDns else Dns.SYSTEM
+                    headers = headers
                 ).use { response ->
                     val body = response.body
                         ?: throw Exception("Empty response body")
@@ -99,15 +95,9 @@ class NetworkManagerClient {
             url: String,
             method: HttpMethod,
             bodyParams: Map<String, String>? = null,
-            headers: Map<String, String>? = null,
-            followRedirects: Boolean = true,
-            dns: Dns = Dns.SYSTEM
+            headers: Map<String, String>? = null
         ): Response {
-            val client = OkHttpClient.Builder()
-                .followRedirects(followRedirects)
-                .followSslRedirects(followRedirects)
-                .dns(dns)
-                .build()
+            val client = OkHttpClient.Builder().build()
             val request: Request
             when (method) {
                 HttpMethod.POST -> {

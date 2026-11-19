@@ -68,14 +68,20 @@ class MdocStatusListCwtValidator(
             )
         }
         requireUnsignedClaim(claims, CWT_CLAIM_IAT, "iat")
-        val exp = requireUnsignedClaim(claims, CWT_CLAIM_EXP, "exp")
-        if (nowSeconds() > exp) {
+        val exp = claims.getByUnsignedKey(CWT_CLAIM_EXP)?.let { readUnsigned(it, "exp") }
+        if (exp != null && nowSeconds() >= exp) {
             throw MdocStatusCheckException(
                 STATUS_LIST_EXPIRED,
                 "Status list CWT has expired"
             )
         }
         val ttlSeconds = claims.getByUnsignedKey(CWT_CLAIM_TTL)?.let { readUnsigned(it, "ttl") }
+        if (ttlSeconds != null && ttlSeconds <= 0L) {
+            throw MdocStatusCheckException(
+                STATUS_LIST_MALFORMED,
+                "Status list CWT ttl must be a positive integer"
+            )
+        }
         val statusList = claims.getByUnsignedKey(CWT_CLAIM_STATUS_LIST)
             ?: throw MdocStatusCheckException(STATUS_LIST_MALFORMED, "Status list CWT is missing claim 65533")
         if (statusList !is Map) {
