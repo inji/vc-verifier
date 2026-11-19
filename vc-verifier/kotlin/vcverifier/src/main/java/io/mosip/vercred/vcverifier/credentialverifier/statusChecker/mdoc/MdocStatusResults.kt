@@ -27,7 +27,7 @@ internal object MdocStatusResults {
         }
     }
 
-    fun forPurposes(
+    fun supportedPurposes(
         results: Map<String, CredentialStatusResult>,
         statusPurposes: List<String>?
     ): Map<String, CredentialStatusResult> {

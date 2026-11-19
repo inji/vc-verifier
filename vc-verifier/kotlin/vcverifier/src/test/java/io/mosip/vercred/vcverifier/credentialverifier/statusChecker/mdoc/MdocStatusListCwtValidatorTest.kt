@@ -5,6 +5,12 @@ import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_INV
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_MALFORMED
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_UNTRUSTED_ISSUER
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_URI_MISMATCH
+import co.nstant.`in`.cbor.CborEncoder
+import co.nstant.`in`.cbor.model.Array
+import co.nstant.`in`.cbor.model.ByteString
+import co.nstant.`in`.cbor.model.DataItem
+import co.nstant.`in`.cbor.model.Map
+import co.nstant.`in`.cbor.model.UnsignedInteger
 import io.mosip.vercred.vcverifier.testHelpers.MdocStatusListFixtures
 import io.mosip.vercred.vcverifier.testHelpers.MdocStatusListFixtures.STATUS_URI
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -12,6 +18,8 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.io.ByteArrayOutputStream
+import java.security.cert.X509Certificate
 
 class MdocStatusListCwtValidatorTest {
 
@@ -212,6 +220,27 @@ class MdocStatusListCwtValidatorTest {
     }
 
     @Test
+    fun `issuer certificate is the unprotected header even when the protected header differs`() {
+        val attacker = MdocStatusListFixtures.generateKeyMaterial().certificate
+        val issuerAuth = issuerAuth(
+            protectedCertificate = attacker,
+            unprotectedCertificate = issuerCertificate
+        )
+
+        val selected = validator.issuerCertificateFrom(issuerAuth)
+
+        assertTrue(selected!!.encoded.contentEquals(issuerCertificate.encoded))
+    }
+
+    @Test
+    fun `certificate present only in the protected header is not the issuer certificate`() {
+        val attacker = MdocStatusListFixtures.generateKeyMaterial().certificate
+        val issuerAuth = issuerAuth(protectedCertificate = attacker, unprotectedCertificate = null)
+
+        assertNull(validator.issuerCertificateFrom(issuerAuth))
+    }
+
+    @Test
     fun `CWT signer certificate issued by the mDoc issuer is authorized`() {
         val statusSigner = MdocStatusListFixtures.keyMaterialIssuedBy()
         val validated = validate(
@@ -226,4 +255,27 @@ class MdocStatusListCwtValidatorTest {
 
     private fun validate(cwt: ByteArray) =
         validator.validate(cwt, STATUS_URI, issuerCertificate)
+
+    private fun issuerAuth(
+        protectedCertificate: X509Certificate?,
+        unprotectedCertificate: X509Certificate?
+    ): Array {
+        return Array().apply {
+            add(ByteString(encode(headerMap(protectedCertificate))))
+            add(headerMap(unprotectedCertificate))
+            add(ByteString(byteArrayOf()))
+            add(ByteString(byteArrayOf(0)))
+        }
+    }
+
+    private fun headerMap(certificate: X509Certificate?): Map {
+        return Map().apply {
+            if (certificate != null) {
+                put(UnsignedInteger(33), ByteString(certificate.encoded))
+            }
+        }
+    }
+
+    private fun encode(dataItem: DataItem): ByteArray =
+        ByteArrayOutputStream().also { CborEncoder(it).encode(dataItem) }.toByteArray()
 }

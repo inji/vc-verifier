@@ -11,6 +11,7 @@ import io.mosip.vercred.vcverifier.credentialverifier.validator.MsoStatusListVal
 import io.mosip.vercred.vcverifier.credentialverifier.validator.MsoStatusListValidator
 import io.mosip.vercred.vcverifier.networkManager.HttpMethod.GET
 import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
+import java.security.cert.X509Certificate
 import java.util.logging.Logger
 
 /**
@@ -27,19 +28,21 @@ class MdocStatusListChecker(
     fun getStatuses(
         mso: Map,
         issuerAuth: Array?,
-        statusPurposes: List<String>? = null
+        statusPurposes: List<String>? = null,
+        verifiedIssuerCertificate: X509Certificate? = null
     ): kotlin.collections.Map<String, CredentialStatusResult> {
-        val results = readStatuses(mso, issuerAuth)
-        val selected = MdocStatusResults.forPurposes(results, statusPurposes)
-        if (selected.isEmpty() && results.isNotEmpty() && !statusPurposes.isNullOrEmpty()) {
+        val results = readStatuses(mso, issuerAuth, verifiedIssuerCertificate)
+        val supportedStatus = MdocStatusResults.supportedPurposes(results, statusPurposes)
+        if (supportedStatus.isEmpty() && results.isNotEmpty() && !statusPurposes.isNullOrEmpty()) {
             logger.warning("No matching mDoc status for purposes: $statusPurposes")
         }
-        return selected
+        return supportedStatus
     }
 
     private fun readStatuses(
         mso: Map,
-        issuerAuth: Array?
+        issuerAuth: Array?,
+        verifiedIssuerCertificate: X509Certificate?
     ): kotlin.collections.Map<String, CredentialStatusResult> {
         logger.info("Started mDoc status check.....")
         val pointer = when (val validated = statusListValidator.validate(mso)) {
@@ -53,7 +56,8 @@ class MdocStatusListChecker(
             }
             is MsoStatusListValidationResult.Found -> validated.pointer
         }
-        val issuerCertificate = issuerAuth?.let { cwtValidator.issuerCertificateFrom(it) }
+        val issuerCertificate = verifiedIssuerCertificate
+            ?: issuerAuth?.let { cwtValidator.issuerCertificateFrom(it) }
             ?: return MdocStatusResults.failure(
                 STATUS_LIST_UNTRUSTED_ISSUER,
                 "mDoc issuerAuth x5chain is missing; cannot authorize status signer"
