@@ -72,3 +72,22 @@ jobs:
       ORG_KEY: ${{ secrets.ORG_KEY }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_INJI_TEAM }}
 
+
+  pr-gate:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+      checks: write
+    uses: ./.github/workflows/pr-gate.yml
+    with:
+      SERVICE_LOCATION: '.'
+      JAVA_VERSION: 17
+      # Only block on vulnerabilities this PR introduces; existing HIGH/CRITICAL
+      # findings in the repo would otherwise fail every PR.
+      trivy_comment_mode: 'diff'
+      # The default list plus the other branches this repo builds.
+      PROTECTED_BRANCHES: 'master,main,develop,release-*,INJI*,develop*,inji*,injimob*'
+    secrets:
+      CODECOV_LICENSE: ${{ secrets.CODECOV_LICENSE }}
