@@ -4,7 +4,6 @@ import co.nstant.`in`.cbor.CborDecoder
 import co.nstant.`in`.cbor.model.Array
 import co.nstant.`in`.cbor.model.ByteString
 import co.nstant.`in`.cbor.model.DataItem
-import co.nstant.`in`.cbor.model.MajorType
 import co.nstant.`in`.cbor.model.Map
 import co.nstant.`in`.cbor.model.UnicodeString
 import co.nstant.`in`.cbor.model.UnsignedInteger
@@ -51,7 +50,6 @@ import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.SIGNED
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.SUPPORTED_COSE_ALGS
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.VALIDITY_INFO
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.VALUE_DIGESTS
-import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.X5C
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.get
 import io.mosip.vercred.vcverifier.credentialverifier.types.msomdoc.requireSupportedDigestAlgorithm
 import io.mosip.vercred.vcverifier.exception.LikelyTamperedException
@@ -63,7 +61,6 @@ import io.mosip.vercred.vcverifier.signature.impl.CoseSignatureVerifierImpl
 import io.mosip.vercred.vcverifier.utils.CborDataItemUtils
 import io.mosip.vercred.vcverifier.utils.CborDataItemUtils.getOrNull
 import io.mosip.vercred.vcverifier.utils.DateUtils
-import io.mosip.vercred.vcverifier.utils.Util
 import org.bouncycastle.asn1.nist.NISTNamedCurves
 import java.io.ByteArrayInputStream
 import java.math.BigInteger
@@ -82,15 +79,6 @@ internal class MsoMdocVerifier(
     private val logger = Logger.getLogger(MsoMdocVerifier::class.java.name)
 
     fun verify(base64EncodedMdoc: String): Boolean {
-        verifyAndGetDsCertificate(base64EncodedMdoc)
-        return true
-    }
-
-    /**
-     * Runs mDoc verification and returns the document signer certificate whose public key
-     * verified issuerAuth. That certificate is taken from the unprotected x5chain header.
-     */
-    internal fun verifyAndGetDsCertificate(base64EncodedMdoc: String): X509Certificate {
         try {
 
             val (decodedCredential, credentialData, isLatest) = MsoMdocVerifiableCredential(options).parse(
@@ -111,7 +99,7 @@ internal class MsoMdocVerifier(
             // every other check runs the same way for shapes A, B and C.
             verifyCertificateChain(issuerAuth)
             verifyProtectedHeaderAlg(issuerAuth)
-            val dsCertificate = verifyDsCertificate(issuerAuth)
+            val dsCertificate = verifyDsCertificate(credentialData.issuerCertificate)
             verifyDsCertificateKeyMatchesAlg(dsCertificate)
             verifySignedWithinDsCertificateValidity(mobileSecurityObject, dsCertificate)
             if (!verificationOfCoseSignature(issuerAuth, dsCertificate)) {
@@ -126,7 +114,7 @@ internal class MsoMdocVerifier(
             // docType-specific checks (e.g. mDL), after the signature and digests.
             MdocDocTypes.verifierFor(mobileSecurityObject)
                 ?.verify(decodedItems, mobileSecurityObject, dsCertificate, options)
-            return dsCertificate
+            return true
         } catch (exception: Exception) {
             when (exception) {
                 is SignatureVerificationException,
@@ -184,14 +172,14 @@ internal class MsoMdocVerifier(
         }
     }
 
-    private fun verifyDsCertificate(issuerAuth: Array): X509Certificate {
-        val issuerCertificate = extractCertificate(issuerAuth)
+    private fun verifyDsCertificate(issuerCertificate: X509Certificate?): X509Certificate {
+        val dsCertificate = issuerCertificate
             ?: throw SignatureVerificationException(
                 "Error while doing COSE signature verification - certificate chain is empty"
             )
 
-        verifyDsCertificateValidity(issuerCertificate)
-        return issuerCertificate
+        verifyDsCertificateValidity(dsCertificate)
+        return dsCertificate
     }
 
     /**
@@ -267,11 +255,6 @@ internal class MsoMdocVerifier(
             CborDataItemUtils.toByteArray(issuerAuth),
             null,
         )
-    }
-
-    private fun extractCertificate(coseSignature: DataItem): X509Certificate? {
-        val issuerAuth = coseSignature as? Array ?: return null
-        return documentSignerCertificate(issuerAuth)
     }
 
     /**
@@ -405,23 +388,4 @@ internal class MsoMdocVerifier(
             throw LikelyTamperedException()
         }
     }
-}
-
-/**
- * Document signer certificate from the unprotected x5chain header.
- * This is the certificate [MsoMdocVerifier] uses to verify issuerAuth. The protected header
- * is not consulted, so a different certificate there cannot authorize a status list.
- */
-internal fun documentSignerCertificate(issuerAuth: Array): X509Certificate? {
-    val unprotectedHeader = issuerAuth[1] as Map
-    val x5Chain: DataItem = unprotectedHeader.get(UnsignedInteger(X5C)) ?: return null
-    val issuerCertificateString: DataItem? = when (x5Chain.majorType) {
-        MajorType.BYTE_STRING -> x5Chain
-        MajorType.ARRAY -> (x5Chain as Array)[0]
-        else -> null
-    }
-    if (issuerCertificateString !is ByteString) {
-        return null
-    }
-    return Util.toX509Certificate(issuerCertificateString.bytes)
 }

@@ -24,7 +24,6 @@ import io.mosip.vercred.vcverifier.credentialverifier.verifier.MsoMdocVerifier
 import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.ValidationStatus
 import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode
-import java.security.cert.X509Certificate
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
 import io.mosip.vercred.vcverifier.utils.CborDataItemUtils.getOrNull
@@ -120,25 +119,12 @@ class MsoMdocVerifiableCredential(
         credential: String,
         statusPurposes: List<String>?
     ): kotlin.collections.Map<String, CredentialStatusResult> {
-        return checkStatus(credential, statusPurposes, verifiedIssuerCertificate = null)
-    }
-
-    /**
-     * @param verifiedIssuerCertificate the document signer certificate that already verified
-     * issuerAuth. When null, the unprotected x5chain header is read. This does not verify the mDoc.
-     */
-    fun checkStatus(
-        credential: String,
-        statusPurposes: List<String>?,
-        verifiedIssuerCertificate: X509Certificate?
-    ): kotlin.collections.Map<String, CredentialStatusResult> {
         return try {
             val (_, credentialData, _) = parse(credential)
             MdocStatusListChecker().getStatuses(
                 credentialData.mso,
-                credentialData.issuerSigned.issuerAuth,
                 statusPurposes,
-                verifiedIssuerCertificate
+                credentialData.issuerCertificate
             )
         } catch (exception: Exception) {
             logger.warning("mDoc status check failed")
@@ -222,6 +208,7 @@ class MsoMdocVerifiableCredential(
         val (issuerAuth, issuerSignedNamespaces, isLatest) = getIssuerSignedData(decodedCredential)
         validateMsoPayload(issuerAuth)
         val mso = issuerAuth.extractMso()
+        val issuerCertificate = extractDocumentSignerCertificate(issuerAuth)
         val docType = mso.get(UnicodeString(DOC_TYPE))
         val encodedNameSpaceItems = if (!captureRawNameSpaces) emptyMap() else try {
             MsoMdocNameSpacesRawBytes.extract(decodedData)
@@ -242,7 +229,8 @@ class MsoMdocVerifiableCredential(
                     issuerSignedNamespaces,
                     encodedNameSpaceItems,
                 ),
-                mso
+                mso,
+                issuerCertificate,
             ),
             isLatest
         )

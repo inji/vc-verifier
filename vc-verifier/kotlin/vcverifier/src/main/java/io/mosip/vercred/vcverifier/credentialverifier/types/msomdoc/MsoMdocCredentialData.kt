@@ -4,6 +4,7 @@ import co.nstant.`in`.cbor.CborDecoder
 import co.nstant.`in`.cbor.model.Array
 import co.nstant.`in`.cbor.model.ByteString
 import co.nstant.`in`.cbor.model.DataItem
+import co.nstant.`in`.cbor.model.MajorType
 import co.nstant.`in`.cbor.model.Map
 import co.nstant.`in`.cbor.model.UnicodeString
 import co.nstant.`in`.cbor.model.UnsignedInteger
@@ -16,8 +17,10 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MISSING_DIGEST_ID
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.utils.CborDataItemUtils.getOrNull
+import io.mosip.vercred.vcverifier.utils.Util
 import java.io.ByteArrayInputStream
 import java.math.BigInteger
+import java.security.cert.X509Certificate
 import java.util.logging.Logger
 
 
@@ -130,7 +133,34 @@ fun IssuerAuth.extractMso(): Map {
         ?: throw RuntimeException("Invalid Issuer Auth")
 }
 
-data class MsoMdocCredentialData(val docType: DataItem?, val issuerSigned: IssuerSigned, val mso: Map) {
+/**
+ * Document signer certificate from the unprotected x5chain header.
+ * A certificate present only in the protected header is ignored.
+ */
+internal fun extractDocumentSignerCertificate(issuerAuth: Array): X509Certificate? {
+    return try {
+        val unprotectedHeader = issuerAuth[1] as? Map ?: return null
+        val x5Chain: DataItem = unprotectedHeader.get(UnsignedInteger(X5C)) ?: return null
+        val issuerCertificateString: DataItem? = when (x5Chain.majorType) {
+            MajorType.BYTE_STRING -> x5Chain
+            MajorType.ARRAY -> (x5Chain as Array)[0]
+            else -> null
+        }
+        if (issuerCertificateString !is ByteString) {
+            return null
+        }
+        Util.toX509Certificate(issuerCertificateString.bytes)
+    } catch (_: Exception) {
+        null
+    }
+}
+
+data class MsoMdocCredentialData(
+    val docType: DataItem?,
+    val issuerSigned: IssuerSigned,
+    val mso: Map,
+    val issuerCertificate: X509Certificate? = null,
+) {
     /**
      * @param encodedNameSpaceItems exact on-the-wire CBOR bytes for each nameSpaces array
      * element (full tag-24 IssuerSignedItemBytes), keyed by namespace string and aligned

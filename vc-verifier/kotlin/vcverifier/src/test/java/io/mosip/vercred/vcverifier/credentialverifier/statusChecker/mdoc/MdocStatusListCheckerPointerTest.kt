@@ -1,4 +1,4 @@
-package io.mosip.vercred.vcverifier.credentialverifier.validator
+package io.mosip.vercred.vcverifier.credentialverifier.statusChecker.mdoc
 
 import co.nstant.`in`.cbor.model.Map
 import co.nstant.`in`.cbor.model.NegativeInteger
@@ -9,15 +9,15 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-class MsoStatusListValidatorTest {
+class MdocStatusListCheckerPointerTest {
 
-    private val validator = MsoStatusListValidator()
+    private val checker = MdocStatusListChecker()
 
     @Test
     fun `missing status is absent`() {
-        val result = validator.validate(Map())
+        val result = checker.parseStatusPointer(Map())
 
-        assertTrue(result is MsoStatusListValidationResult.Absent)
+        assertTrue(result is MsoStatusListParseResult.Absent)
     }
 
     @Test
@@ -32,14 +32,14 @@ class MsoStatusListValidatorTest {
             )
         }
 
-        assertTrue(validator.validate(mso) is MsoStatusListValidationResult.Absent)
+        assertTrue(checker.parseStatusPointer(mso) is MsoStatusListParseResult.Absent)
     }
 
     @Test
     fun `reads uri and idx from status_list`() {
-        val result = validator.validate(msoWithStatusList("https://example.com/statuslists/1", 7L))
+        val result = checker.parseStatusPointer(msoWithStatusList("https://example.com/statuslists/1", 7L))
 
-        val found = result as MsoStatusListValidationResult.Found
+        val found = result as MsoStatusListParseResult.Found
         assertEquals("https://example.com/statuslists/1", found.pointer.uri)
         assertEquals(7L, found.pointer.idx)
     }
@@ -48,7 +48,7 @@ class MsoStatusListValidatorTest {
     fun `status that is not a map is malformed`() {
         val mso = Map().apply { put(UnicodeString("status"), UnicodeString("nope")) }
 
-        val result = validator.validate(mso) as MsoStatusListValidationResult.Malformed
+        val result = checker.parseStatusPointer(mso) as MsoStatusListParseResult.Malformed
         assertEquals(STATUS_REFERENCE_MALFORMED, result.errorCode)
     }
 
@@ -60,7 +60,7 @@ class MsoStatusListValidatorTest {
             })
         }
 
-        val result = validator.validate(mso) as MsoStatusListValidationResult.Malformed
+        val result = checker.parseStatusPointer(mso) as MsoStatusListParseResult.Malformed
         assertEquals(STATUS_REFERENCE_MALFORMED, result.errorCode)
     }
 
@@ -71,7 +71,7 @@ class MsoStatusListValidatorTest {
             put(UnicodeString("status"), Map().apply { put(UnicodeString("status_list"), statusList) })
         }
 
-        val result = validator.validate(mso) as MsoStatusListValidationResult.Malformed
+        val result = checker.parseStatusPointer(mso) as MsoStatusListParseResult.Malformed
         assertEquals(STATUS_REFERENCE_MALFORMED, result.errorCode)
     }
 
@@ -84,27 +84,27 @@ class MsoStatusListValidatorTest {
             put(UnicodeString("status"), Map().apply { put(UnicodeString("status_list"), statusList) })
         }
 
-        val result = validator.validate(mso) as MsoStatusListValidationResult.Malformed
+        val result = checker.parseStatusPointer(mso) as MsoStatusListParseResult.Malformed
         assertEquals(STATUS_REFERENCE_MALFORMED, result.errorCode)
     }
 
     @Test
     fun `idx that is not an unsigned int is malformed`() {
-        val result = validator.validate(
+        val result = checker.parseStatusPointer(
             msoWith(
                 uri = UnicodeString("https://example.com/statuslists/1"),
                 idx = NegativeInteger(-1)
             )
-        ) as MsoStatusListValidationResult.Malformed
+        ) as MsoStatusListParseResult.Malformed
 
         assertEquals(STATUS_REFERENCE_MALFORMED, result.errorCode)
     }
 
     @Test
     fun `uri that is not text is malformed`() {
-        val result = validator.validate(
+        val result = checker.parseStatusPointer(
             msoWith(uri = UnsignedInteger(1), idx = UnsignedInteger(0))
-        ) as MsoStatusListValidationResult.Malformed
+        ) as MsoStatusListParseResult.Malformed
 
         assertEquals(STATUS_REFERENCE_MALFORMED, result.errorCode)
     }

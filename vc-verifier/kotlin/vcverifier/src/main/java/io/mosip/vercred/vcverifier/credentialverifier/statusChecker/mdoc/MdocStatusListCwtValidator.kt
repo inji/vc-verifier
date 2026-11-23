@@ -29,7 +29,6 @@ import io.mosip.vercred.vcverifier.signature.SignatureVerifier
 import io.mosip.vercred.vcverifier.signature.impl.CoseSignatureVerifierImpl
 import io.mosip.vercred.vcverifier.utils.CborDataItemUtils
 import io.mosip.vercred.vcverifier.utils.CborDataItemUtils.getOrNull
-import io.mosip.vercred.vcverifier.credentialverifier.verifier.documentSignerCertificate
 import io.mosip.vercred.vcverifier.utils.Util
 import java.security.cert.X509Certificate
 
@@ -105,19 +104,6 @@ class MdocStatusListCwtValidator(
         requireAuthorizedSigner(certificate, certificateChain, issuerCertificate)
         verifySignature(cwtBytes, certificate)
         return ValidatedStatusListCwt(bits, lstItem.bytes, ttlSeconds)
-    }
-
-    /**
-     * The mDoc document signer certificate from the unprotected x5chain header, the same
-     * certificate [io.mosip.vercred.vcverifier.credentialverifier.verifier.MsoMdocVerifier] uses.
-     * A certificate present only in the protected header is ignored.
-     */
-    fun issuerCertificateFrom(issuerAuth: Array): X509Certificate? {
-        return try {
-            documentSignerCertificate(issuerAuth)
-        } catch (_: Exception) {
-            null
-        }
     }
 
     private fun decodeCoseSign1(cwtBytes: ByteArray): Array {

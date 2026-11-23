@@ -206,18 +206,6 @@ class CredentialsVerifierMdocStatusTest {
     }
 
     @Test
-    fun `passed issuer certificate authorizes the status signer`() {
-        mockHttpBytesResponse(STATUS_URI, validCwt())
-        val attacker = MdocStatusListFixtures.generateKeyMaterial().certificate
-
-        val status = MsoMdocVerifiableCredential().checkStatus(mdocWithStatus, null, attacker)
-
-        val revocation = status.getValue(STATUS_PURPOSE_REVOCATION)
-        assertFalse(revocation.isValid)
-        assertEquals(StatusCheckErrorCode.STATUS_LIST_UNTRUSTED_ISSUER, revocation.error?.errorCode)
-    }
-
-    @Test
     fun `mso_mdoc checkStatus reads status list instead of throwing`() {
         mockHttpBytesResponse(STATUS_URI, validCwt())
 
