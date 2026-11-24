@@ -13,9 +13,12 @@ import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.COSE_HEADER_X5C
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.COSE_SIGN1_TAG
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.CWT_CLAIM_EXP
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.CWT_CLAIM_IAT
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.CWT_CLAIM_NBF
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.CWT_CLAIM_STATUS_LIST
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.CWT_CLAIM_SUB
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.CWT_CLAIM_TTL
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.IETF_BITS_1
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.IETF_BITS_2
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_BITS_KEY
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_INVALID_SIGNATURE
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_LST_KEY
@@ -24,6 +27,8 @@ import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_TYP
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_UNTRUSTED_ISSUER
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_URI_MISMATCH
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_EXPIRED
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_NOT_ACTIVE
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PROFILE_UNSUPPORTED
 import io.mosip.vercred.vcverifier.exception.SignatureVerificationException
 import io.mosip.vercred.vcverifier.signature.SignatureVerifier
 import io.mosip.vercred.vcverifier.signature.impl.CoseSignatureVerifierImpl
@@ -68,8 +73,16 @@ class MdocStatusListCwtValidator(
             )
         }
         requireUnsignedClaim(claims, CWT_CLAIM_IAT, "iat")
+        val now = nowSeconds()
+        val nbf = claims.getByUnsignedKey(CWT_CLAIM_NBF)?.let { readUnsigned(it, "nbf") }
+        if (nbf != null && now < nbf) {
+            throw MdocStatusCheckException(
+                STATUS_LIST_NOT_ACTIVE,
+                "Status list CWT is not yet active"
+            )
+        }
         val exp = claims.getByUnsignedKey(CWT_CLAIM_EXP)?.let { readUnsigned(it, "exp") }
-        if (exp != null && nowSeconds() >= exp) {
+        if (exp != null && now >= exp) {
             throw MdocStatusCheckException(
                 STATUS_LIST_EXPIRED,
                 "Status list CWT has expired"
@@ -91,7 +104,7 @@ class MdocStatusListCwtValidator(
             ?: throw MdocStatusCheckException(STATUS_LIST_MALFORMED, "Status list is missing bits")
         val lstItem = statusList.getOrNull(STATUS_LIST_LST_KEY)
             ?: throw MdocStatusCheckException(STATUS_LIST_MALFORMED, "Status list is missing lst")
-        val bits = readUnsigned(bitsItem, "bits").toInt()
+        val bits = requireSupportedBits(readUnsigned(bitsItem, "bits"))
         if (lstItem !is ByteString) {
             throw MdocStatusCheckException(STATUS_LIST_MALFORMED, "Status list lst must be a byte string")
         }
@@ -107,14 +120,7 @@ class MdocStatusListCwtValidator(
     }
 
     private fun decodeCoseSign1(cwtBytes: ByteArray): Array {
-        val decoded = try {
-            CborDataItemUtils.fromByteArray(cwtBytes)
-        } catch (exception: Exception) {
-            throw MdocStatusCheckException(
-                STATUS_LIST_MALFORMED,
-                "Status list CWT is not valid CBOR: ${exception.message}"
-            )
-        }
+        val decoded = decodeCborItem(cwtBytes, "Status list CWT is not valid CBOR")
         if (!decoded.hasTag() || decoded.tag.value != COSE_SIGN1_TAG) {
             throw MdocStatusCheckException(
                 STATUS_LIST_MALFORMED,
@@ -135,14 +141,7 @@ class MdocStatusListCwtValidator(
         if (protectedItem !is ByteString) {
             throw MdocStatusCheckException(STATUS_LIST_MALFORMED, "COSE_Sign1 protected header must be a bstr")
         }
-        val header = try {
-            CborDataItemUtils.fromByteArray(protectedItem.bytes)
-        } catch (exception: Exception) {
-            throw MdocStatusCheckException(
-                STATUS_LIST_MALFORMED,
-                "COSE_Sign1 protected header is not valid CBOR: ${exception.message}"
-            )
-        }
+        val header = decodeCborItem(protectedItem.bytes, "COSE_Sign1 protected header is not valid CBOR")
         if (header !is Map) {
             throw MdocStatusCheckException(STATUS_LIST_MALFORMED, "COSE_Sign1 protected header must be a map")
         }
@@ -171,14 +170,7 @@ class MdocStatusListCwtValidator(
         if (payloadItem !is ByteString) {
             throw MdocStatusCheckException(STATUS_LIST_MALFORMED, "COSE_Sign1 payload must be a bstr")
         }
-        val claims = try {
-            CborDataItemUtils.fromByteArray(payloadItem.bytes)
-        } catch (exception: Exception) {
-            throw MdocStatusCheckException(
-                STATUS_LIST_MALFORMED,
-                "Status list CWT claims are not valid CBOR: ${exception.message}"
-            )
-        }
+        val claims = decodeCborItem(payloadItem.bytes, "Status list CWT claims are not valid CBOR")
         if (claims !is Map) {
             throw MdocStatusCheckException(STATUS_LIST_MALFORMED, "Status list CWT claims must be a map")
         }
@@ -205,6 +197,16 @@ class MdocStatusListCwtValidator(
             throw MdocStatusCheckException(STATUS_LIST_MALFORMED, "Status list CWT $name must be an unsigned integer")
         }
         return item.value.toLong()
+    }
+
+    private fun requireSupportedBits(bits: Long): Int {
+        if (bits != IETF_BITS_1.toLong() && bits != IETF_BITS_2.toLong()) {
+            throw MdocStatusCheckException(
+                STATUS_PROFILE_UNSUPPORTED,
+                "Status list bits=$bits is not supported; IETF profile allows 1 or 2"
+            )
+        }
+        return bits.toInt()
     }
 
     private fun extractCertificateChain(
@@ -312,10 +314,31 @@ class MdocStatusListCwtValidator(
                 STATUS_LIST_INVALID_SIGNATURE,
                 "Status list CWT COSE_Sign1 signature verification failed"
             )
+        } catch (overflow: StackOverflowError) {
+            throw MdocStatusCheckException(
+                STATUS_LIST_MALFORMED,
+                "Status list CWT is not valid CBOR: nested structure too deep"
+            )
         } catch (exception: Exception) {
             throw MdocStatusCheckException(
                 STATUS_LIST_INVALID_SIGNATURE,
                 "Status list CWT COSE_Sign1 signature verification failed: ${exception.message}"
+            )
+        }
+    }
+
+    private fun decodeCborItem(bytes: ByteArray, malformedMessage: String): DataItem {
+        return try {
+            CborDataItemUtils.fromByteArray(bytes)
+        } catch (overflow: StackOverflowError) {
+            throw MdocStatusCheckException(
+                STATUS_LIST_MALFORMED,
+                "$malformedMessage: nested structure too deep"
+            )
+        } catch (exception: Exception) {
+            throw MdocStatusCheckException(
+                STATUS_LIST_MALFORMED,
+                "$malformedMessage: ${exception.message}"
             )
         }
     }

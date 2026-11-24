@@ -215,6 +215,21 @@ class CredentialsVerifierMdocStatusTest {
     }
 
     @Test
+    fun `checkStatus does not fetch when issuerAuth x5chain does not match the signature`() {
+        mockHttpBytesResponse(STATUS_URI, validCwt())
+        val attacker = MdocStatusListFixtures.generateKeyMaterial()
+        val tampered = MdocStatusListFixtures.mdocWithStatus(certificate = attacker.certificate)
+
+        val status = MsoMdocVerifiableCredential().checkStatus(tampered, null)
+
+        assertEquals(
+            StatusCheckErrorCode.STATUS_LIST_UNTRUSTED_ISSUER,
+            status.getValue(STATUS_PURPOSE_REVOCATION).error?.errorCode
+        )
+        verify(exactly = 0) { NetworkManagerClient.sendHTTPRequestBytes(any(), any(), any()) }
+    }
+
+    @Test
     fun `statusPurposeList keeps only the requested mDoc purposes`() {
         mockHttpBytesResponse(
             STATUS_URI,

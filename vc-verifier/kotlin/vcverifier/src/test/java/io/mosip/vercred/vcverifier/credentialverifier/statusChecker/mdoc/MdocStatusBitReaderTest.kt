@@ -56,6 +56,30 @@ class MdocStatusBitReaderTest {
     }
 
     @Test
+    fun `bits 1 index 4 within a byte is INVALID`() {
+        // 0xF0 = 11110000b; LSB-first so idx 0-3 are 0, idx 4-7 are 1.
+        assertEquals(MdocCredentialStatus.INVALID, readLiteral(1, 4, 0xF0.toByte()))
+    }
+
+    @Test
+    fun `bits 1 index 8 across a byte is INVALID`() {
+        // Byte 0 all 0; byte 1 = 00000001b so idx 8 is 1.
+        assertEquals(MdocCredentialStatus.INVALID, readLiteral(1, 8, 0x00, 0x01))
+    }
+
+    @Test
+    fun `bits 2 index 2 within a byte is SUSPENDED`() {
+        // 0x24 = 00100100b: idx 0=0, idx 1=1, idx 2=2, idx 3=0.
+        assertEquals(MdocCredentialStatus.SUSPENDED, readLiteral(2, 2, 0x24))
+    }
+
+    @Test
+    fun `bits 2 index 4 across a byte is INVALID`() {
+        // Byte 0 all 0 (idx 0-3); byte 1 = 00000001b so idx 4 is 1.
+        assertEquals(MdocCredentialStatus.INVALID, readLiteral(2, 4, 0x00, 0x01))
+    }
+
+    @Test
     fun `index past inflated bits is out of bounds`() {
         val exception = assertThrows(MdocStatusCheckException::class.java) {
             reader.readStatus(MdocStatusListFixtures.zlibCompress(ByteArray(0)), 1, 0)
@@ -98,5 +122,9 @@ class MdocStatusBitReaderTest {
     private fun read(bits: Int, values: IntArray): MdocCredentialStatus {
         val compressed = MdocStatusListFixtures.zlibCompress(MdocStatusListFixtures.packBits(bits, values))
         return reader.readStatus(compressed, bits, 0)
+    }
+
+    private fun readLiteral(bitSize: Int, idx: Long, vararg bytes: Byte): MdocCredentialStatus {
+        return reader.readStatus(MdocStatusListFixtures.zlibCompress(bytes), bitSize, idx)
     }
 }

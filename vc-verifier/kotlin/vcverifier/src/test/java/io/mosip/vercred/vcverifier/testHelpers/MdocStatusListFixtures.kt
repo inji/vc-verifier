@@ -77,6 +77,7 @@ object MdocStatusListFixtures {
         bits: Int,
         valuesAtIndex: IntArray,
         uri: String = STATUS_URI,
+        nbf: Long? = null,
         exp: Long? = VALID_EXP,
         includeX5chain: Boolean = true,
         x5chainInProtectedHeader: Boolean = false,
@@ -84,16 +85,20 @@ object MdocStatusListFixtures {
         keyMaterial: StatusListKeyMaterial = this.keyMaterial,
         ttlSeconds: Long? = TTL_SECONDS,
         typ: String = "application/statuslist+cwt",
-        includeTyp: Boolean = true
+        includeTyp: Boolean = true,
+        bitsClaim: Long? = null
     ): ByteArray {
         val compressed = zlibCompress(packBits(bits, valuesAtIndex))
         val statusList = Map().apply {
-            put(UnicodeString("bits"), UnsignedInteger(bits.toLong()))
+            put(UnicodeString("bits"), UnsignedInteger(bitsClaim ?: bits.toLong()))
             put(UnicodeString("lst"), ByteString(compressed))
         }
         val claims = Map().apply {
             put(UnsignedInteger(2), UnicodeString(uri))
             put(UnsignedInteger(6), UnsignedInteger(VALID_IAT))
+            if (nbf != null) {
+                put(UnsignedInteger(5), UnsignedInteger(nbf))
+            }
             if (exp != null) {
                 put(UnsignedInteger(4), UnsignedInteger(exp))
             }
@@ -134,7 +139,8 @@ object MdocStatusListFixtures {
         signed: String = "2024-01-01T00:00:00Z",
         validFrom: String = "2024-01-01T00:00:00Z",
         validUntil: String = "2099-01-01T00:00:00Z",
-        includeStatus: Boolean = true
+        includeStatus: Boolean = true,
+        certificate: X509Certificate = keyMaterial.certificate
     ): String {
         val validityInfo = Map().apply {
             put(UnicodeString("signed"), taggedDate(signed))
@@ -164,7 +170,7 @@ object MdocStatusListFixtures {
             "SHA256withECDSA",
             encode(ByteString(encode(mso)).apply { setTag(24) }),
             byteArrayOf(),
-            listOf(keyMaterial.certificate)
+            listOf(certificate)
         )
         val credential = Map().apply {
             put(UnicodeString("docType"), UnicodeString(DOC_TYPE))

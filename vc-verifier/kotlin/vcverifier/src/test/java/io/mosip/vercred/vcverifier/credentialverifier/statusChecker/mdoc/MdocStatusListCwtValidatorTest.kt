@@ -1,10 +1,12 @@
 package io.mosip.vercred.vcverifier.credentialverifier.statusChecker.mdoc
 
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_EXPIRED
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_NOT_ACTIVE
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_INVALID_SIGNATURE
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_MALFORMED
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_UNTRUSTED_ISSUER
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_URI_MISMATCH
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_PROFILE_UNSUPPORTED
 import io.mosip.vercred.vcverifier.testHelpers.MdocStatusListFixtures
 import io.mosip.vercred.vcverifier.testHelpers.MdocStatusListFixtures.STATUS_URI
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -84,6 +86,15 @@ class MdocStatusListCwtValidatorTest {
     }
 
     @Test
+    fun `deeply nested CBOR is malformed`() {
+        val nested = ByteArray(50_000) { 0x81.toByte() } + byteArrayOf(0x00)
+        val exception = assertThrows(MdocStatusCheckException::class.java) {
+            validate(nested)
+        }
+        assertEquals(STATUS_LIST_MALFORMED, exception.errorCode)
+    }
+
+    @Test
     fun `untagged CWT is malformed`() {
         val exception = assertThrows(MdocStatusCheckException::class.java) {
             validate(
@@ -131,6 +142,58 @@ class MdocStatusListCwtValidatorTest {
                 bits = 1,
                 valuesAtIndex = intArrayOf(0),
                 exp = null
+            )
+        )
+
+        assertEquals(1, validated.bits)
+    }
+
+    @Test
+    fun `nbf in the future is not active`() {
+        val now = 1_000L
+        val validatorAtNow = MdocStatusListCwtValidator(nowSeconds = { now })
+
+        val exception = assertThrows(MdocStatusCheckException::class.java) {
+            validatorAtNow.validate(
+                MdocStatusListFixtures.statusListCwt(
+                    bits = 1,
+                    valuesAtIndex = intArrayOf(0),
+                    nbf = 2_000L,
+                    exp = 3_000L
+                ),
+                STATUS_URI,
+                issuerCertificate
+            )
+        }
+        assertEquals(STATUS_LIST_NOT_ACTIVE, exception.errorCode)
+    }
+
+    @Test
+    fun `nbf equal to now is valid`() {
+        val now = 2_000L
+        val validatorAtNow = MdocStatusListCwtValidator(nowSeconds = { now })
+
+        val validated = validatorAtNow.validate(
+            MdocStatusListFixtures.statusListCwt(
+                bits = 1,
+                valuesAtIndex = intArrayOf(0),
+                nbf = now,
+                exp = 3_000L
+            ),
+            STATUS_URI,
+            issuerCertificate
+        )
+
+        assertEquals(1, validated.bits)
+    }
+
+    @Test
+    fun `missing nbf is allowed`() {
+        val validated = validate(
+            MdocStatusListFixtures.statusListCwt(
+                bits = 1,
+                valuesAtIndex = intArrayOf(0),
+                nbf = null
             )
         )
 
@@ -209,6 +272,33 @@ class MdocStatusListCwtValidatorTest {
             )
         }
         assertEquals(STATUS_LIST_UNTRUSTED_ISSUER, exception.errorCode)
+    }
+
+    @Test
+    fun `bits that wrap to a supported Int are unsupported`() {
+        val exception = assertThrows(MdocStatusCheckException::class.java) {
+            validate(
+                MdocStatusListFixtures.statusListCwt(
+                    bits = 1,
+                    valuesAtIndex = intArrayOf(0),
+                    bitsClaim = (1L shl 32) + 1L
+                )
+            )
+        }
+        assertEquals(STATUS_PROFILE_UNSUPPORTED, exception.errorCode)
+    }
+
+    @Test
+    fun `bits 4 is unsupported`() {
+        val exception = assertThrows(MdocStatusCheckException::class.java) {
+            validate(
+                MdocStatusListFixtures.statusListCwt(
+                    bits = 4,
+                    valuesAtIndex = intArrayOf(0)
+                )
+            )
+        }
+        assertEquals(STATUS_PROFILE_UNSUPPORTED, exception.errorCode)
     }
 
     @Test

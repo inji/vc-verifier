@@ -8,6 +8,7 @@ import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.MSO_STATUS_KEY
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.MSO_STATUS_LIST_KEY
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.MSO_STATUS_URI_KEY
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_FETCH_FAILED
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_MALFORMED
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_TYP
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_UNTRUSTED_ISSUER
 import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_REFERENCE_MALFORMED
@@ -90,6 +91,12 @@ class MdocStatusListChecker(
         } catch (exception: MdocStatusCheckException) {
             logger.warning("Status list check failed")
             MdocStatusResults.failure(exception.errorCode, exception.message)
+        } catch (overflow: StackOverflowError) {
+            logger.warning("Status list check failed")
+            MdocStatusResults.failure(
+                STATUS_LIST_MALFORMED,
+                "Status list CWT is not valid CBOR: nested structure too deep"
+            )
         }
     }
 

@@ -75,4 +75,18 @@ class NetworkManagerClientBytesTest {
         assertTrue(exception.message!!.contains("exceeds"))
         assertEquals("/status", server.takeRequest().path)
     }
+
+    @Test
+    fun `unsuccessful response is closed and reported as a failed request`() {
+        server.enqueue(MockResponse().setResponseCode(404).setBody("not found"))
+
+        val exception = assertThrows(NetworkManagerClientExceptions.NetworkRequestFailed::class.java) {
+            NetworkManagerClient.sendHTTPRequestBytes(
+                server.url("/status").toString(),
+                HttpMethod.GET
+            )
+        }
+        assertTrue(exception.message!!.contains("404"))
+        assertEquals("/status", server.takeRequest().path)
+    }
 }

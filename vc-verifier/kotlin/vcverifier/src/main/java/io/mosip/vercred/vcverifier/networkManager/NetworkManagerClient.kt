@@ -125,7 +125,9 @@ class NetworkManagerClient {
             if (response.isSuccessful) {
                 return response
             }
-            throw Exception(response.toString())
+            val message = response.toString()
+            response.close()
+            throw Exception(message)
         }
     }
 }

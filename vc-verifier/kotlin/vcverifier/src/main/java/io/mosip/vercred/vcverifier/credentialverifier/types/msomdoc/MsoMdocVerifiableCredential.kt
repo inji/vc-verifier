@@ -11,6 +11,7 @@ import co.nstant.`in`.cbor.model.UnicodeString
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_GENERIC
+import io.mosip.vercred.vcverifier.constants.MdocStatusConstants.STATUS_LIST_UNTRUSTED_ISSUER
 import io.mosip.vercred.vcverifier.credentialverifier.statusChecker.mdoc.MdocStatusResults
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_ISSUER_SIGNED_ITEM
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_DIGEST_ALGORITHM
@@ -19,13 +20,16 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MSO_NOT_TAGGED
 import io.mosip.vercred.vcverifier.credentialverifier.VerifiableCredential
 import io.mosip.vercred.vcverifier.credentialverifier.statusChecker.mdoc.MdocStatusListChecker
+import io.mosip.vercred.vcverifier.credentialverifier.statusChecker.mdoc.MsoStatusListParseResult
 import io.mosip.vercred.vcverifier.credentialverifier.validator.MsoMdocValidator
 import io.mosip.vercred.vcverifier.credentialverifier.verifier.MsoMdocVerifier
 import io.mosip.vercred.vcverifier.data.CredentialStatusResult
 import io.mosip.vercred.vcverifier.data.ValidationStatus
 import io.mosip.vercred.vcverifier.exception.StatusCheckErrorCode
 import io.mosip.vercred.vcverifier.exception.ValidationException
+import io.mosip.vercred.vcverifier.signature.impl.CoseSignatureVerifierImpl
 import io.mosip.vercred.vcverifier.utils.Base64Decoder
+import io.mosip.vercred.vcverifier.utils.CborDataItemUtils
 import io.mosip.vercred.vcverifier.utils.CborDataItemUtils.getOrNull
 import org.bouncycastle.asn1.x509.Extension
 import java.io.ByteArrayInputStream
@@ -121,11 +125,31 @@ class MsoMdocVerifiableCredential(
     ): kotlin.collections.Map<String, CredentialStatusResult> {
         return try {
             val (_, credentialData, _) = parse(credential)
-            MdocStatusListChecker().getStatuses(
-                credentialData.mso,
-                statusPurposes,
-                credentialData.issuerCertificate
-            )
+            val checker = MdocStatusListChecker()
+            when (val parsed = checker.parseStatusPointer(credentialData.mso)) {
+                is MsoStatusListParseResult.Absent -> emptyMap()
+                is MsoStatusListParseResult.Malformed -> MdocStatusResults.supportedPurposes(
+                    MdocStatusResults.failure(parsed.errorCode, parsed.errorMessage),
+                    statusPurposes
+                )
+                is MsoStatusListParseResult.Found -> {
+                    if (!issuerAuthSignatureBindsCertificate(credentialData)) {
+                        logger.warning("mDoc issuerAuth is not verified; skipping status fetch")
+                        return MdocStatusResults.supportedPurposes(
+                            MdocStatusResults.failure(
+                                STATUS_LIST_UNTRUSTED_ISSUER,
+                                "mDoc issuerAuth signature is not verified; cannot authorize status signer"
+                            ),
+                            statusPurposes
+                        )
+                    }
+                    checker.getStatuses(
+                        credentialData.mso,
+                        statusPurposes,
+                        credentialData.issuerCertificate
+                    )
+                }
+            }
         } catch (exception: Exception) {
             logger.warning("mDoc status check failed")
             MdocStatusResults.supportedPurposes(
@@ -135,6 +159,20 @@ class MsoMdocVerifiableCredential(
                 ),
                 statusPurposes
             )
+        }
+    }
+
+    private fun issuerAuthSignatureBindsCertificate(credentialData: MsoMdocCredentialData): Boolean {
+        val issuerAuth = credentialData.issuerSigned.issuerAuth ?: return false
+        val certificate = credentialData.issuerCertificate ?: return false
+        return try {
+            CoseSignatureVerifierImpl().verify(
+                certificate.publicKey,
+                CborDataItemUtils.toByteArray(issuerAuth),
+                null
+            )
+        } catch (_: Exception) {
+            false
         }
     }
 
