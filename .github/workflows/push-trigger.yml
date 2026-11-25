@@ -75,7 +75,7 @@ jobs:
 
   pr-gate:
     if: github.event_name != 'release'
-    uses: mosip/kattu/.github/workflows/pr-gate.yml@develop
+    uses: mosip/kattu/.github/workflows/pr-gate.yml@14a59d8f045af5e52f46292986376137896d5606 # develop
     permissions:
       contents: write
       pull-requests: write
@@ -84,4 +84,5 @@ jobs:
     with:
       SERVICE_LOCATION: vc-verifier/kotlin/vcverifier
       JAVA_VERSION: 17
-    secrets: inherit
+    secrets:
+      CODECOV_LICENSE: ${{ secrets.CODECOV_LICENSE }}
