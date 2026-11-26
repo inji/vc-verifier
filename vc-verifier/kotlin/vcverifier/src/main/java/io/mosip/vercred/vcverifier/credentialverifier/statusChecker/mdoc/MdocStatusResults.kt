@@ -27,15 +27,15 @@ internal object MdocStatusResults {
         }
     }
 
-    fun supportedPurposes(
+    fun filterByRequestedPurposes(
         results: Map<String, CredentialStatusResult>,
         statusPurposes: List<String>?
     ): Map<String, CredentialStatusResult> {
         if (statusPurposes.isNullOrEmpty()) {
             return results
         }
-        val supported = statusPurposes.map { it.lowercase() }.toSet()
-        return results.filterKeys { it.lowercase() in supported }
+        val requestedPurposes = statusPurposes.map { it.lowercase() }.toSet()
+        return results.filterKeys { it.lowercase() in requestedPurposes }
     }
 
     fun failure(errorCode: String, errorMessage: String?): Map<String, CredentialStatusResult> {

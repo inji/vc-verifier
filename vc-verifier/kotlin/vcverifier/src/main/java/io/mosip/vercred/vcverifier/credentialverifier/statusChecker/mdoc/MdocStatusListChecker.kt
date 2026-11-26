@@ -37,11 +37,11 @@ class MdocStatusListChecker(
         issuerCertificate: X509Certificate? = null
     ): kotlin.collections.Map<String, CredentialStatusResult> {
         val results = readStatuses(mso, issuerCertificate)
-        val supportedStatus = MdocStatusResults.supportedPurposes(results, statusPurposes)
-        if (supportedStatus.isEmpty() && results.isNotEmpty() && !statusPurposes.isNullOrEmpty()) {
+        val filteredStatus = MdocStatusResults.filterByRequestedPurposes(results, statusPurposes)
+        if (filteredStatus.isEmpty() && results.isNotEmpty() && !statusPurposes.isNullOrEmpty()) {
             logger.warning("No matching mDoc status for purposes: $statusPurposes")
         }
-        return supportedStatus
+        return filteredStatus
     }
 
     private fun readStatuses(

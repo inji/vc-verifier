@@ -128,14 +128,14 @@ class MsoMdocVerifiableCredential(
             val checker = MdocStatusListChecker()
             when (val parsed = checker.parseStatusPointer(credentialData.mso)) {
                 is MsoStatusListParseResult.Absent -> emptyMap()
-                is MsoStatusListParseResult.Malformed -> MdocStatusResults.supportedPurposes(
+                is MsoStatusListParseResult.Malformed -> MdocStatusResults.filterByRequestedPurposes(
                     MdocStatusResults.failure(parsed.errorCode, parsed.errorMessage),
                     statusPurposes
                 )
                 is MsoStatusListParseResult.Found -> {
                     if (!issuerAuthSignatureBindsCertificate(credentialData)) {
                         logger.warning("mDoc issuerAuth is not verified; skipping status fetch")
-                        return MdocStatusResults.supportedPurposes(
+                        return MdocStatusResults.filterByRequestedPurposes(
                             MdocStatusResults.failure(
                                 STATUS_LIST_UNTRUSTED_ISSUER,
                                 "mDoc issuerAuth signature is not verified; cannot authorize status signer"
@@ -152,7 +152,7 @@ class MsoMdocVerifiableCredential(
             }
         } catch (exception: Exception) {
             logger.warning("mDoc status check failed")
-            MdocStatusResults.supportedPurposes(
+            MdocStatusResults.filterByRequestedPurposes(
                 MdocStatusResults.failure(
                     StatusCheckErrorCode.STATUS_REFERENCE_MALFORMED.name,
                     "Failed to read MSO status pointer: ${exception.message}"

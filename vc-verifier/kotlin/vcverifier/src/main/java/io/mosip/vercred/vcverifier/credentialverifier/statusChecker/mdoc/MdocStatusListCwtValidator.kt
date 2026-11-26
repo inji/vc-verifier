@@ -60,11 +60,11 @@ class MdocStatusListCwtValidator(
         expectedUri: String,
         issuerCertificate: X509Certificate
     ): ValidatedStatusListCwt {
-        val coseSign1 = decodeCoseSign1(cwtBytes)
-        val protectedHeader = decodeProtectedHeader(coseSign1)
+        val decodedCwt = decodeCoseSign1(cwtBytes)
+        val protectedHeader = decodeProtectedHeader(decodedCwt)
         requireTyp(protectedHeader)
         requireAlg(protectedHeader)
-        val claims = decodeClaims(coseSign1)
+        val claims = decodeClaims(decodedCwt)
         val sub = requireTextClaim(claims, CWT_CLAIM_SUB, "sub")
         if (sub != expectedUri) {
             throw MdocStatusCheckException(
@@ -108,7 +108,7 @@ class MdocStatusListCwtValidator(
         if (lstItem !is ByteString) {
             throw MdocStatusCheckException(STATUS_LIST_MALFORMED, "Status list lst must be a byte string")
         }
-        val certificateChain = extractCertificateChain(protectedHeader, coseSign1.dataItems[1])
+        val certificateChain = extractCertificateChain(protectedHeader, decodedCwt.dataItems[1])
         val certificate = certificateChain.firstOrNull()
             ?: throw MdocStatusCheckException(
                 STATUS_LIST_UNTRUSTED_ISSUER,
