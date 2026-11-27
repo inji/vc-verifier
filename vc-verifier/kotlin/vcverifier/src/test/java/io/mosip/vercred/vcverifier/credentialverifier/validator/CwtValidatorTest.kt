@@ -150,7 +150,7 @@ class CwtValidatorTest {
     @Test
     fun `test - VC is expired`() {
         val past = (System.currentTimeMillis() / 1000) - 500
-        val claims = CBORObject.NewMap().apply { Add(4, past) } // 4: exp
+        val claims = CBORObject.NewMap().apply { Add(1, "https://mosip.io"); Add(4, past) } // 1: iss, 4: exp
         val result = validator.validate(createCoseHex(payload = claims))
         assertEquals(CredentialValidatorConstants.ERROR_CODE_VC_EXPIRED, result.validationErrorCode)
     }
@@ -158,7 +158,7 @@ class CwtValidatorTest {
     @Test
     fun `test - nbf is in future`() {
         val future = (System.currentTimeMillis() / 1000) + 1000
-        val claims = CBORObject.NewMap().apply { Add(5, future) } // 5: nbf
+        val claims = CBORObject.NewMap().apply { Add(1, "https://mosip.io"); Add(5, future) } // 1: iss, 5: nbf
         val result = validator.validate(createCoseHex(payload = claims))
         assertEquals(CredentialValidatorConstants.ERROR_CODE_CURRENT_DATE_BEFORE_PROCESSING_DATE, result.validationErrorCode)
     }
@@ -166,9 +166,36 @@ class CwtValidatorTest {
     @Test
     fun `test - iat is in future`() {
         val future = (System.currentTimeMillis() / 1000) + 1000
-        val claims = CBORObject.NewMap().apply { Add(6, future) } // 6: iat
+        val claims = CBORObject.NewMap().apply { Add(1, "https://mosip.io"); Add(6, future) } // 1: iss, 6: iat
         val result = validator.validate(createCoseHex(payload = claims))
         assertEquals(CredentialValidatorConstants.ERROR_CODE_INVALID + "IAT", result.validationErrorCode)
+    }
+
+    @Test
+    fun `test - missing iss claim`() {
+        val claims = CBORObject.NewMap().apply { Add(4, (System.currentTimeMillis() / 1000) + 3600) }
+        val result = validator.validate(createCoseHex(payload = claims))
+        assertEquals(CredentialValidatorConstants.ERROR_CODE_MISSING + "ISS", result.validationErrorCode)
+    }
+
+    @Test
+    fun `test - bare non-URI iss is rejected`() {
+        val claims = CBORObject.NewMap().apply {
+            Add(1, "mosip-issuer")
+            Add(4, (System.currentTimeMillis() / 1000) + 3600)
+        }
+        val result = validator.validate(createCoseHex(payload = claims))
+        assertEquals(CredentialValidatorConstants.ERROR_CODE_INVALID + "ISS", result.validationErrorCode)
+    }
+
+    @Test
+    fun `test - did iss is accepted`() {
+        val claims = CBORObject.NewMap().apply {
+            Add(1, "did:web:mosip.io")
+            Add(4, (System.currentTimeMillis() / 1000) + 3600)
+        }
+        val result = validator.validate(createCoseHex(payload = claims))
+        assertEquals("", result.validationErrorCode)
     }
 
     @Test
@@ -184,7 +211,7 @@ class CwtValidatorTest {
             Add(4, expiration)
             Add(5, notBefore)
             Add(6, issuedAt)
-            Add(1, "mosip-issuer")
+            Add(1, "https://mosip-issuer.mosip.io")
         }
 
 

@@ -37,6 +37,9 @@ import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.Timeout
+import org.threeten.bp.Clock
+import org.threeten.bp.Instant
+import org.threeten.bp.ZoneOffset
 import testutils.mockHttpResponse
 import testutils.readClasspathFile
 import java.util.concurrent.TimeUnit
@@ -620,18 +623,31 @@ class CredentialsVerifierTest {
         assertEquals("", result.verificationResult.verificationMessage)
         assertEquals("", result.verificationResult.verificationErrorCode)
     }
+    
+    /** Fixtures and their x5c certs overlap only between 2026-08-25 and 2026-09-24. */
+    private val realCredentialsFrozenAt: Instant = Instant.parse("2026-09-01T00:00:00Z")
+
+    private fun <T> withFrozenTime(at: Instant, block: () -> T): T {
+        val original = DateUtils.clock
+        DateUtils.clock = Clock.fixed(at, ZoneOffset.UTC)
+        try {
+            return block()
+        } finally {
+            DateUtils.clock = original
+        }
+    }
 
     /**
      * Credentials captured from live external issuers; see `sd-jwt_vc/FIXTURES.md` for provenance.
      * Between them they cover both Issuer Signature Mechanisms the verifier supports — an `x5c`
      * certificate across four certificate shapes, and a `kid` resolved against a DID in `iss`.
      * None requires a network call: the key is either embedded in the certificate or derived from
-     * the self-certifying DID. Their `exp` passes over time and these tests cover key resolution,
-     * not expiry, so expiry is held open.
+     * the self-certifying DID.
      */
-    private fun verifyRealCredential(name: String) = ignoringCredentialExpiry {
-        CredentialsVerifier().verify(readClasspathFile("sd-jwt_vc/$name").trim(), DC_SD_JWT)
-    }
+    private fun verifyRealCredential(name: String) =
+        withFrozenTime(realCredentialsFrozenAt) {
+            CredentialsVerifier().verify(readClasspathFile("sd-jwt_vc/$name").trim(), DC_SD_JWT)
+        }
 
     @Test
     fun `should verify a real credential whose x5c certificate has a SAN matching iss`() {

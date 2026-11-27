@@ -6,17 +6,12 @@ import co.nstant.`in`.cbor.model.ByteString
 import co.nstant.`in`.cbor.model.DataItem
 import co.nstant.`in`.cbor.model.Map
 import co.nstant.`in`.cbor.model.UnicodeString
-import io.mockk.clearAllMocks
-import io.mockk.every
-import io.mockk.mockkObject
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO_DATE_FORMAT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_VC_EXPIRED
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MSO_NOT_TAGGED
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_VC_EXPIRED
 import io.mosip.vercred.vcverifier.exception.ValidationException
-import io.mosip.vercred.vcverifier.utils.DateUtils
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -27,9 +22,9 @@ import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.threeten.bp.Instant
 import testutils.readClasspathFile
 import java.io.ByteArrayOutputStream
-import java.time.Instant
 import java.util.Base64
 
 private const val MSO_TAG24 = 24L
@@ -119,12 +114,7 @@ private fun buildLegacyDocumentsCredential(
 }
 
 class MsoMdocVerifiableCredentialTest {
-
-    @AfterEach
-    fun tearDown() {
-        clearAllMocks()
-    }
-
+  
     // Credential verification and validation
     @Test
     @Disabled(

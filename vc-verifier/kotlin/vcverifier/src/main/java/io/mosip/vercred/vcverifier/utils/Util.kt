@@ -23,6 +23,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.net.URI
+import java.net.URISyntaxException
+import java.security.MessageDigest
 import java.security.PublicKey
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
@@ -73,11 +75,11 @@ object Util {
     }
 
     fun isValidUri(value: String): Boolean {
-         try {
+        try {
             val uri = URI(value)
-             if((uri.scheme == "http" || uri.scheme == "https") && uri.host == null) {
-                 return false
-             }
+            if((uri.scheme == "http" || uri.scheme == "https") && uri.host == null) {
+                return false
+            }
             return (uri.scheme == "did") || (uri.scheme != null)
         } catch (e: Exception) {
             return false
@@ -91,6 +93,29 @@ object Util {
         } catch (e: Exception) {
             false
         }
+    }
+
+    // Parses and validates the CWT issuer (iss) as a fully qualified URI for validation and verification.
+    fun parseFullyQualifiedIssuer(value: String): URI {
+        val uri = try {
+            URI(value)
+        } catch (e: URISyntaxException) {
+            throw IllegalArgumentException("iss is not a valid URI: $value")
+        }
+
+        val isFullyQualified = when (uri.scheme) {
+            "did" -> uri.schemeSpecificPart?.isNotBlank() == true
+            "http", "https" -> uri.isAbsolute && !uri.host.isNullOrBlank()
+            else -> false
+        }
+
+        if (!isFullyQualified) {
+            throw IllegalArgumentException(
+                "iss must be a fully qualified URI (e.g. https://mosip.io), got: $value"
+            )
+        }
+
+        return uri
     }
 
     fun jsonArrayToList(jsonArray: JSONArray): List<Any> {
