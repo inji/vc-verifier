@@ -75,8 +75,9 @@ class CwtVerifier {
     private fun extractX5u(coseObj: CBORObject, x5t: X5tHash?): String? {
         val X5U = CBORObject.FromObject(35)
 
-        val fromProtected = protectedHeader(coseObj)?.get(X5U)
-        val x5u = fromProtected ?: if (x5t != null) coseObj[1]?.get(X5U) else null
+        val x5uFromProtectedHeader = protectedHeader(coseObj)?.get(X5U)
+        val x5uFromUnprotectedHeader = coseObj[1]?.get(X5U)
+        val x5u = x5uFromProtectedHeader ?: x5t?.let { x5uFromUnprotectedHeader }
         if (x5u == null) return null
         if (x5u.type != CBORType.TextString) {
             throw SignatureVerificationException("Invalid x5u header")
