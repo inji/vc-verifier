@@ -10,9 +10,19 @@ import okhttp3.Response
 import okhttp3.ResponseBody
 import java.io.ByteArrayOutputStream
 import java.io.InterruptedIOException
+import java.util.concurrent.TimeUnit
 
 class NetworkManagerClient {
     companion object {
+        /**
+         * Whole-call deadline for HTTP fetches (status-list CWT, LDP status, JWKS, etc.).
+         * Size limits alone do not stop a slow chunked drip.
+         */
+        const val HTTP_CALL_TIMEOUT_SECONDS = 30L
+
+        @Volatile
+        internal var callTimeoutSeconds: Long = HTTP_CALL_TIMEOUT_SECONDS
+
         fun sendHTTPRequest(
             url: String,
             method: HttpMethod,
@@ -97,7 +107,9 @@ class NetworkManagerClient {
             bodyParams: Map<String, String>? = null,
             headers: Map<String, String>? = null
         ): Response {
-            val client = OkHttpClient.Builder().build()
+            val client = OkHttpClient.Builder()
+                .callTimeout(callTimeoutSeconds, TimeUnit.SECONDS)
+                .build()
             val request: Request
             when (method) {
                 HttpMethod.POST -> {

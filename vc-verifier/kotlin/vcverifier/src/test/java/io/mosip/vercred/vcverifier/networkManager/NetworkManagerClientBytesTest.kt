@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.TimeUnit
 
 class NetworkManagerClientBytesTest {
 
@@ -20,10 +21,12 @@ class NetworkManagerClientBytesTest {
     fun setup() {
         server = MockWebServer()
         server.start()
+        NetworkManagerClient.callTimeoutSeconds = NetworkManagerClient.HTTP_CALL_TIMEOUT_SECONDS
     }
 
     @AfterEach
     fun teardown() {
+        NetworkManagerClient.callTimeoutSeconds = NetworkManagerClient.HTTP_CALL_TIMEOUT_SECONDS
         server.shutdown()
     }
 
@@ -88,5 +91,25 @@ class NetworkManagerClientBytesTest {
         }
         assertTrue(exception.message!!.contains("404"))
         assertEquals("/status", server.takeRequest().path)
+    }
+
+    @Test
+    fun `slow chunked response exceeds call timeout`() {
+        NetworkManagerClient.callTimeoutSeconds = 1L
+        val payload = ByteArray(4) { 3 }
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setChunkedBody(Buffer().write(payload), 1)
+                .throttleBody(1, 600, TimeUnit.MILLISECONDS)
+        )
+
+        assertThrows(NetworkManagerClientExceptions.NetworkRequestTimeout::class.java) {
+            NetworkManagerClient.sendHTTPRequestBytes(
+                server.url("/status").toString(),
+                HttpMethod.GET,
+                maxBytes = 1024
+            )
+        }
     }
 }
