@@ -4,6 +4,7 @@ import io.mockk.every
 import io.mockk.mockkObject
 import io.mosip.vercred.vcverifier.exception.PublicKeyNotFoundException
 import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
+import io.mosip.vercred.vcverifier.networkManager.HttpMethod
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -31,7 +32,7 @@ class X5uPublicKeyResolverTest {
         val certBytes = Files.readAllBytes(
             ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "cwt_vc/x5u-leaf-cert.der").toPath()
         )
-        every { NetworkManagerClient.sendHTTPRequestForBytes(x5u) } returns certBytes
+        every { NetworkManagerClient.sendHTTPRequestForBytes(x5u, HttpMethod.GET) } returns certBytes
     }
 
     @Test

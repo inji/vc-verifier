@@ -13,6 +13,7 @@ import org.junit.jupiter.api.TestInstance
 import testutils.mockHttpResponse
 import testutils.readClasspathFile
 import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
+import io.mosip.vercred.vcverifier.networkManager.HttpMethod
 import org.junit.jupiter.api.assertThrows
 import org.springframework.util.ResourceUtils
 import java.nio.file.Files
@@ -32,15 +33,15 @@ class CwtVerifierTest {
         val certBytes = Files.readAllBytes(
             ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "cwt_vc/x5u-leaf-cert.der").toPath()
         )
-        every { NetworkManagerClient.sendHTTPRequestForBytes(x5uCertUrl) } returns certBytes
+        every { NetworkManagerClient.sendHTTPRequestForBytes(x5uCertUrl, HttpMethod.GET) } returns certBytes
         val x5tCertBytes = Files.readAllBytes(
             ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "cwt_vc/x5t-x5u-leaf-cert.der").toPath()
         )
-        every { NetworkManagerClient.sendHTTPRequestForBytes(x5tX5uCertUrl) } returns x5tCertBytes
+        every { NetworkManagerClient.sendHTTPRequestForBytes(x5tX5uCertUrl, HttpMethod.GET) } returns x5tCertBytes
         val expiredCertBytes = Files.readAllBytes(
             ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + "cwt_vc/x5u-expired-cert.der").toPath()
         )
-        every { NetworkManagerClient.sendHTTPRequestForBytes("https://issuer.example.com/x5u-expired-cert.der") } returns expiredCertBytes
+        every { NetworkManagerClient.sendHTTPRequestForBytes("https://issuer.example.com/x5u-expired-cert.der", HttpMethod.GET) } returns expiredCertBytes
     }
 
     @Test
@@ -94,7 +95,7 @@ class CwtVerifierTest {
         assertThrows<PublicKeyNotFoundException> {
             CwtVerifier().verify(coseHex)
         }
-        verify(exactly = 0) { NetworkManagerClient.sendHTTPRequestForBytes(x5uCertUrl) }
+        verify(exactly = 0) { NetworkManagerClient.sendHTTPRequestForBytes(x5uCertUrl, HttpMethod.GET) }
     }
 
     @Test

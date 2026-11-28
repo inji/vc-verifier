@@ -2,6 +2,7 @@ package io.mosip.vercred.vcverifier.keyResolver.types.x509
 
 import io.mosip.vercred.vcverifier.exception.PublicKeyNotFoundException
 import io.mosip.vercred.vcverifier.networkManager.NetworkManagerClient
+import io.mosip.vercred.vcverifier.networkManager.HttpMethod
 import java.io.ByteArrayInputStream
 import java.net.URI
 import java.security.PublicKey
@@ -40,7 +41,7 @@ class X5uPublicKeyResolver {
         requireHttps(uri)
         requireSameHostAsIssuer(uri, issuer)
         val cert = try {
-            val certBytes = NetworkManagerClient.sendHTTPRequestForBytes(uri)
+            val certBytes = NetworkManagerClient.sendHTTPRequestForBytes(uri, HttpMethod.GET)
             val parsed = CertificateFactory.getInstance("X.509")
                 .generateCertificate(ByteArrayInputStream(certBytes)) as X509Certificate
             parsed.checkValidity()

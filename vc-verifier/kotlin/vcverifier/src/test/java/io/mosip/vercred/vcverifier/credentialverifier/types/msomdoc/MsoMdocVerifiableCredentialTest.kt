@@ -6,12 +6,19 @@ import co.nstant.`in`.cbor.model.ByteString
 import co.nstant.`in`.cbor.model.DataItem
 import co.nstant.`in`.cbor.model.Map
 import co.nstant.`in`.cbor.model.UnicodeString
+import co.nstant.`in`.cbor.model.UnsignedInteger
+import io.mockk.clearAllMocks
+import io.mockk.every
+import io.mockk.mockkObject
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_INVALID_MSO_DATE_FORMAT
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_CODE_VC_EXPIRED
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_MSO_NOT_TAGGED
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.ERROR_MESSAGE_VC_EXPIRED
 import io.mosip.vercred.vcverifier.exception.ValidationException
+import io.mosip.vercred.vcverifier.testHelpers.MdocStatusListFixtures
+import io.mosip.vercred.vcverifier.utils.DateUtils
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -70,6 +77,32 @@ private fun buildIssuerAuth(mso: Map?, tagPayload: Boolean = true): Array {
     }
 }
 
+private fun issuerAuthWithCertificates(
+    mso: Map,
+    unprotected: java.security.cert.X509Certificate?,
+    protectedCertificate: java.security.cert.X509Certificate?
+): Array {
+    val issuerAuth = buildIssuerAuth(mso)
+    return Array().apply {
+        add(
+            if (protectedCertificate != null) {
+                ByteString(encode(Map().apply {
+                    put(UnsignedInteger(X5C), ByteString(protectedCertificate.encoded))
+                }))
+            } else {
+                issuerAuth[0]
+            }
+        )
+        add(Map().apply {
+            if (unprotected != null) {
+                put(UnsignedInteger(X5C), ByteString(unprotected.encoded))
+            }
+        })
+        add(issuerAuth[2])
+        add(issuerAuth[3])
+    }
+}
+
 private fun buildLatestCredential(issuerAuth: Array, namespaces: Map = Map()): String {
     val credential = Map().apply {
         put(UnicodeString("issuerAuth"), issuerAuth)
@@ -114,7 +147,7 @@ private fun buildLegacyDocumentsCredential(
 }
 
 class MsoMdocVerifiableCredentialTest {
-  
+
     // Credential verification and validation
     @Test
     @Disabled(
@@ -211,6 +244,33 @@ class MsoMdocVerifiableCredentialTest {
 
             assertFalse(isLatest)
             assertEquals("org.iso.18013.5.1.mDL", (credentialData.docType as UnicodeString).string)
+        }
+
+        @Test
+        fun `parse captures document signer certificate from unprotected x5chain`() {
+            val issuer = MdocStatusListFixtures.keyMaterial.certificate
+            val issuerAuth = issuerAuthWithCertificates(
+                buildMso(),
+                unprotected = issuer,
+                protectedCertificate = MdocStatusListFixtures.generateKeyMaterial().certificate
+            )
+
+            val (_, credentialData, _) = credentialParser.parse(buildLatestCredential(issuerAuth))
+
+            assertTrue(credentialData.issuerCertificate!!.encoded.contentEquals(issuer.encoded))
+        }
+
+        @Test
+        fun `parse ignores a certificate present only in the protected header`() {
+            val issuerAuth = issuerAuthWithCertificates(
+                buildMso(),
+                unprotected = null,
+                protectedCertificate = MdocStatusListFixtures.generateKeyMaterial().certificate
+            )
+
+            val (_, credentialData, _) = credentialParser.parse(buildLatestCredential(issuerAuth))
+
+            assertNull(credentialData.issuerCertificate)
         }
 
         @Test
