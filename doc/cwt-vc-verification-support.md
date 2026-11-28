@@ -6,8 +6,17 @@ This document provides a comprehensive overview of validating and verifying **CW
 
 ## Public key resolution support
 
+- **`x5u` (COSE header label 35)**
+    - Downloads the issuer X.509 certificate and uses its public key.
+    - Takes precedence over issuer-based resolution. There is no fallback when `x5u` is present.
+    - Protected `x5u` is always read. An unprotected `x5u` is read only when a protected `x5t` is present.
+    - Must be an `https` URL on the same host as `iss`, and the certificate must be within its validity period.
+- **`x5t` (COSE header label 34, protected header)**
+    - Binds the downloaded `x5u` certificate to the signed header. Only SHA-256 (`-16` or `"sha-256"`) is supported.
 - **HTTP / HTTPS Issuer**
-  - Retrieves issuer public key from `/.well-known/jwks.json` when `iss` is an HTTP(S) URL.
+    - Retrieves issuer public key from `/.well-known/jwks.json` when `iss` is an HTTP(S) URL.
+- **DID Issuer**
+    - Resolves the public key when `iss` is a `did:web`, `did:key` or `did:jwk` URI.
 
 ---
 
@@ -22,6 +31,8 @@ This document provides a comprehensive overview of validating and verifying **CW
 5. Implemented validation checks for COSE, headers, claims, and numeric date fields.
 6. Implemented signature verification using the issuer’s public key.
 7. Registered `CwtVerifiableCredential` in `CredentialVerifierFactory`.
+8. Added `X5uPublicKeyResolver` and `X5tCertificateMatcher` for COSE based key resolution.
+9. Centralised the `iss` rule in `Util.parseFullyQualifiedIssuer`, shared by `CwtValidator` and `CwtVerifier`.
 
 ---
 
@@ -59,6 +70,9 @@ sequenceDiagram
     CwtValidator->>CwtValidator: Validate CWT claims structure
     Note over CwtValidator: CWT payload must be a CBOR map
 
+    CwtValidator->>CwtValidator: Validate issuer (iss)
+    Note over CwtValidator: iss must be a fully qualified did: or http(s) URI
+
     CwtValidator->>CwtValidator: Validate numeric date claims
     Note over CwtValidator: exp, nbf, iat are optional numeric dates
 
@@ -89,7 +103,13 @@ sequenceDiagram
       CwtVerifier->>CwtVerifier: Extract CWT claims
       CwtVerifier->>CwtVerifier: Extract issuer (iss)
       CwtVerifier->>CwtVerifier: Extract kid from protected or unprotected header
-      CwtVerifier->>PublicKeyResolverFactory: Resolve public key using issuer and kid
+      CwtVerifier->>CwtVerifier: Extract x5t (protected) and x5u
+      alt x5u present
+         CwtVerifier->>X5uPublicKeyResolver: Resolve public key using x5u, issuer and x5t
+         Note over X5uPublicKeyResolver: https only, same host as iss, certificate valid, x5t matches if present
+      else no x5u
+         CwtVerifier->>PublicKeyResolverFactory: Resolve public key using issuer and kid
+      end
       CwtVerifier->>CwtVerifier: Verify COSE_Sign1 signature
       alt Signature Invalid
          CwtVerifier-->>CwtVerifiableCredential: Return Verification Result as False
@@ -113,6 +133,15 @@ sequenceDiagram
 ### CWT Claims
 - Payload MUST be a CBOR map.
 - `iss`, `exp`, `nbf`, `iat` validated as per spec.
+
+### Issuer
+- `iss` MUST be a fully qualified `did:` or `http(s)` URI.
+
+### Public Key Resolution
+- `x5u` present: resolved from the certificate, no fallback to JWKS or DID.
+- Malformed `x5u` or `x5t` fails verification.
+- `x5u` MUST be `https` and on the same host as `iss`.
+- Certificate MUST be within its validity period and, when `x5t` is present, match its SHA-256 thumbprint.
 
 ### Cryptographic Verification
 - CBOR tag `61` required.

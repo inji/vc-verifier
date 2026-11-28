@@ -35,7 +35,7 @@ class NetworkManagerClientBytesTest {
         val payload = "status-list-cwt".toByteArray(StandardCharsets.UTF_8)
         server.enqueue(MockResponse().setResponseCode(200).setBody(String(payload, StandardCharsets.UTF_8)))
 
-        val result = NetworkManagerClient.sendHTTPRequestBytes(
+        val result = NetworkManagerClient.sendHTTPRequestForBytes(
             server.url("/status").toString(),
             HttpMethod.GET,
             maxBytes = 1024
@@ -50,7 +50,7 @@ class NetworkManagerClientBytesTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(payload)))
 
         val exception = assertThrows(NetworkManagerClientExceptions.NetworkRequestFailed::class.java) {
-            NetworkManagerClient.sendHTTPRequestBytes(
+            NetworkManagerClient.sendHTTPRequestForBytes(
                 server.url("/status").toString(),
                 HttpMethod.GET,
                 maxBytes = 8
@@ -69,7 +69,7 @@ class NetworkManagerClientBytesTest {
         )
 
         val exception = assertThrows(NetworkManagerClientExceptions.NetworkRequestFailed::class.java) {
-            NetworkManagerClient.sendHTTPRequestBytes(
+            NetworkManagerClient.sendHTTPRequestForBytes(
                 server.url("/status").toString(),
                 HttpMethod.GET,
                 maxBytes = 8
@@ -84,7 +84,7 @@ class NetworkManagerClientBytesTest {
         server.enqueue(MockResponse().setResponseCode(404).setBody("not found"))
 
         val exception = assertThrows(NetworkManagerClientExceptions.NetworkRequestFailed::class.java) {
-            NetworkManagerClient.sendHTTPRequestBytes(
+            NetworkManagerClient.sendHTTPRequestForBytes(
                 server.url("/status").toString(),
                 HttpMethod.GET
             )
@@ -105,7 +105,7 @@ class NetworkManagerClientBytesTest {
         )
 
         assertThrows(NetworkManagerClientExceptions.NetworkRequestTimeout::class.java) {
-            NetworkManagerClient.sendHTTPRequestBytes(
+            NetworkManagerClient.sendHTTPRequestForBytes(
                 server.url("/status").toString(),
                 HttpMethod.GET,
                 maxBytes = 1024

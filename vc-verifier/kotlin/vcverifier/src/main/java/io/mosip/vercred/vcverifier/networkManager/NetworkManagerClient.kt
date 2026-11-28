@@ -43,7 +43,7 @@ class NetworkManagerClient {
             }
         }
 
-        fun sendHTTPRequestBytes(
+        fun sendHTTPRequestForBytes(
             url: String,
             method: HttpMethod,
             headers: Map<String, String>? = null,

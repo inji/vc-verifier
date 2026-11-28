@@ -18,6 +18,7 @@ import io.mosip.vercred.vcverifier.data.ValidationStatus
 
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import io.mosip.vercred.vcverifier.utils.Util.hexToBytes
+import io.mosip.vercred.vcverifier.utils.Util.parseFullyQualifiedIssuer
 import io.mosip.vercred.vcverifier.utils.Util.validateNumericDate
 
 class CwtValidator {
@@ -47,6 +48,7 @@ class CwtValidator {
 
             val claims = decodeCwtClaims(coseObj)
             validateCwtStructure(claims)
+            validateIssuer(claims)
             validateNumericDates(claims)
             return ValidationStatus("", "")
         } catch (e: ValidationException) {
@@ -147,6 +149,34 @@ class CwtValidator {
         }
     }
 
+
+    private fun validateIssuer(claims: CBORObject) {
+        val ISS = CBORObject.FromObject(1)
+
+        if (!claims.ContainsKey(ISS)) {
+            throw ValidationException(
+                ERROR_INVALID_FIELD + "Missing issuer (iss) claim",
+                ERROR_CODE_MISSING + "ISS"
+            )
+        }
+
+        val iss = claims[ISS]
+        if (iss.type != CBORType.TextString) {
+            throw ValidationException(
+                ERROR_INVALID_FIELD + "iss must be a text string",
+                ERROR_CODE_INVALID + "ISS"
+            )
+        }
+
+        try {
+            parseFullyQualifiedIssuer(iss.AsString())
+        } catch (e: IllegalArgumentException) {
+            throw ValidationException(
+                ERROR_INVALID_FIELD + (e.message ?: "Invalid issuer (iss)"),
+                ERROR_CODE_INVALID + "ISS"
+            )
+        }
+    }
 
     private fun validateNumericDates(claims: CBORObject) {
 

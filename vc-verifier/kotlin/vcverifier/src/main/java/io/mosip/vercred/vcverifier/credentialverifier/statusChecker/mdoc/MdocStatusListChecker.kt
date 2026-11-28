@@ -66,7 +66,7 @@ class MdocStatusListChecker(
                 "mDoc issuerAuth x5chain is missing; cannot authorize status signer"
             )
         val cwtBytes = try {
-            NetworkManagerClient.sendHTTPRequestBytes(
+            NetworkManagerClient.sendHTTPRequestForBytes(
                 pointer.uri,
                 GET,
                 mapOf("Accept" to STATUS_LIST_TYP)

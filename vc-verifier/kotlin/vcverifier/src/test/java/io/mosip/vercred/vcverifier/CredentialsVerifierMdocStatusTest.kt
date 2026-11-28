@@ -110,7 +110,7 @@ class CredentialsVerifierMdocStatusTest {
         assertTrue(result.verificationResult.verificationStatus)
         assertEquals(ERROR_CODE_VC_EXPIRED, result.verificationResult.verificationErrorCode)
         assertRevocationOnlyPassing(result.credentialStatus)
-        verify(exactly = 1) { NetworkManagerClient.sendHTTPRequestBytes(any(), any(), any()) }
+        verify(exactly = 1) { NetworkManagerClient.sendHTTPRequestForBytes(any(), any(), any()) }
     }
 
     @Test
@@ -121,12 +121,12 @@ class CredentialsVerifierMdocStatusTest {
 
         assertTrue(result.verificationResult.verificationStatus)
         assertTrue(result.credentialStatus.isEmpty())
-        verify(exactly = 0) { NetworkManagerClient.sendHTTPRequestBytes(any(), any(), any()) }
+        verify(exactly = 0) { NetworkManagerClient.sendHTTPRequestForBytes(any(), any(), any()) }
     }
 
     @Test
     fun `status list HTTP failure returns STATUS_LIST_FETCH_FAILED`() {
-        every { NetworkManagerClient.sendHTTPRequestBytes(STATUS_URI, any(), any()) } throws
+        every { NetworkManagerClient.sendHTTPRequestForBytes(STATUS_URI, any(), any()) } throws
             NetworkManagerClientExceptions.NetworkRequestFailed("404")
 
         val result = verifier.verifyAndGetCredentialStatus(mdocWithStatus, MSO_MDOC)
@@ -226,7 +226,7 @@ class CredentialsVerifierMdocStatusTest {
             StatusCheckErrorCode.STATUS_LIST_UNTRUSTED_ISSUER,
             status.getValue(STATUS_PURPOSE_REVOCATION).error?.errorCode
         )
-        verify(exactly = 0) { NetworkManagerClient.sendHTTPRequestBytes(any(), any(), any()) }
+        verify(exactly = 0) { NetworkManagerClient.sendHTTPRequestForBytes(any(), any(), any()) }
     }
 
     @Test
@@ -280,7 +280,7 @@ class CredentialsVerifierMdocStatusTest {
 
     @Test
     fun `status failure is returned only for the requested purpose`() {
-        every { NetworkManagerClient.sendHTTPRequestBytes(STATUS_URI, any(), any()) } throws
+        every { NetworkManagerClient.sendHTTPRequestForBytes(STATUS_URI, any(), any()) } throws
             NetworkManagerClientExceptions.NetworkRequestFailed("404")
 
         val result = verifier.verifyAndGetCredentialStatus(

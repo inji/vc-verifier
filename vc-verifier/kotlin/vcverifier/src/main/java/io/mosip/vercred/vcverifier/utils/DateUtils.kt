@@ -15,6 +15,7 @@ import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.VALID_
 import io.mosip.vercred.vcverifier.constants.CredentialValidatorConstants.VALID_UNTIL
 import io.mosip.vercred.vcverifier.exception.ValidationException
 import org.json.JSONObject
+import org.threeten.bp.Clock
 import org.threeten.bp.Instant
 import org.threeten.bp.LocalDate
 import org.threeten.bp.LocalDateTime
@@ -31,6 +32,10 @@ object DateUtils {
 
     private val formatterWithOffset: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
     private val formatterLocal: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+
+    /** Time source for date checks; tests replace it with a fixed clock. */
+    @Volatile
+    internal var clock: Clock = Clock.systemUTC()
 
     fun isValidDate(dateString: String): Boolean {
         return parseDate(dateString) != null
@@ -107,7 +112,7 @@ object DateUtils {
             logger.severe("Failed to parse the input date")
             return false
         }
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock.millis()
         val inputDateTime = inputDate.time
 
         val upperBound = currentTime + toleranceInMilliSeconds

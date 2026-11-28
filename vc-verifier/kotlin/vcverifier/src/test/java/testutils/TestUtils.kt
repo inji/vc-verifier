@@ -17,5 +17,5 @@ fun mockHttpResponse(url: String, responseJson: String) {
 }
 
 fun mockHttpBytesResponse(url: String, body: ByteArray) {
-    every { NetworkManagerClient.Companion.sendHTTPRequestBytes(url, any(), any()) } returns body
+    every { NetworkManagerClient.Companion.sendHTTPRequestForBytes(url, any(), any()) } returns body
 }

@@ -8,6 +8,7 @@ import io.mosip.vercred.vcverifier.utils.Util.isValidHttpsUri
 import org.json.JSONArray
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.threeten.bp.OffsetDateTime
@@ -214,5 +215,31 @@ class UtilsTest {
 
         val status = Util.getVerificationStatus(result)
         assertEquals(VerificationStatus.INVALID, status)
+    }
+
+    @Test
+    fun `parseFullyQualifiedIssuer accepts fully qualified https URI`() {
+        val uri = Util.parseFullyQualifiedIssuer("https://mosip.io")
+        assertEquals("https://mosip.io", uri.toString())
+    }
+
+    @Test
+    fun `parseFullyQualifiedIssuer accepts did URI`() {
+        val uri = Util.parseFullyQualifiedIssuer("did:web:mosip.io")
+        assertEquals("did:web:mosip.io", uri.toString())
+    }
+
+    @Test
+    fun `parseFullyQualifiedIssuer rejects bare hostname`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            Util.parseFullyQualifiedIssuer("www.mosip.io")
+        }
+    }
+
+    @Test
+    fun `parseFullyQualifiedIssuer rejects malformed URI`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            Util.parseFullyQualifiedIssuer("not a uri")
+        }
     }
 }

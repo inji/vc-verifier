@@ -29,9 +29,9 @@ import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.threeten.bp.Instant
 import testutils.readClasspathFile
 import java.io.ByteArrayOutputStream
-import java.time.Instant
 import java.util.Base64
 
 private const val MSO_TAG24 = 24L
@@ -147,11 +147,6 @@ private fun buildLegacyDocumentsCredential(
 }
 
 class MsoMdocVerifiableCredentialTest {
-
-    @AfterEach
-    fun tearDown() {
-        clearAllMocks()
-    }
 
     // Credential verification and validation
     @Test
